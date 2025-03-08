@@ -170,7 +170,6 @@ function initializeUI() {
     console.log('Updating preview:', { type });
     
     const content = type === 'original' ? originalLatex : tailoredLatex;
-    const fileId = type === 'original' ? currentOriginalFileId : currentGeneratedFileId;
     
     if (!content) {
       console.log(`No ${type} content available`);
@@ -190,7 +189,6 @@ function initializeUI() {
 
     if (previewArea.style.display !== 'none') {
       // Text preview mode
-      console.log('Updating text preview');
       previewArea.textContent = content;
       
       // Add syntax highlighting if available
@@ -199,14 +197,12 @@ function initializeUI() {
       }
     } else {
       // PDF preview mode
-      console.log('Updating PDF preview');
       try {
-        // Clean up existing PDF URL
         if (currentPdfUrl) {
           cleanupPdfUrl(currentPdfUrl);
         }
         
-        const success = await generatePdfPreview(content);
+        const success = await generatePdfPreview(content, type);
         if (!success) {
           throw new Error('PDF generation failed');
         }
@@ -818,8 +814,13 @@ function initializeUI() {
     }
 
     try {
+      // Show loading state
+      tailorBtn.disabled = true;
+      tailorBtn.innerHTML = `
+        <div class="loading-spinner"></div>
+        <span>Generating...</span>
+      `;
       showStatus("Generating tailored resume...", 'success');
-      console.log('Starting resume tailoring process');
       
       // Construct the prompt
       const prompt = `
@@ -831,19 +832,52 @@ function initializeUI() {
         Provide only the updated LaTeX code in your response without any explanation or markdown formatting.
       `.trim();
 
-      // Call AI service directly
-      tailoredLatex = await aiService.generateContent(prompt);
-      console.log('Received tailored LaTeX, length:', tailoredLatex.length);
+      // Generate tailored content
+      let generatedContent = await aiService.generateContent(prompt);
+      
+      // Additional cleanup to ensure no markdown artifacts remain
+      generatedContent = generatedContent.trim();
+      
+      // Store the cleaned content
+      tailoredLatex = generatedContent;
+
+      // Save the generated resume
+      const response = await fetch('http://localhost:3000/save-generated', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          latex: tailoredLatex,
+          originalFilename: currentFile?.name || 'resume.tex'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save generated resume');
+      }
 
       // Update UI
-      previewArea.textContent = tailoredLatex;
-      previewBtn.disabled = false;
+      const previewTypeInputs = document.querySelectorAll('input[name="previewType"]');
+      const generatedRadio = document.querySelector('input[value="generated"]');
+      if (generatedRadio) {
+        generatedRadio.disabled = false;
+        generatedRadio.checked = true;
+      }
+
+      await updatePreview('generated');
       downloadBtn.disabled = false;
       showStatus("Resume tailored successfully!", 'success');
 
     } catch (error) {
       console.error("Error tailoring resume:", error);
-      showStatus("An error occurred while tailoring the resume. Please check the console for details.", 'error');
+      showStatus("An error occurred while tailoring the resume: " + error.message, 'error');
+    } finally {
+      // Reset button state
+      tailorBtn.disabled = false;
+      tailorBtn.innerHTML = `
+        <span class="material-icons">auto_awesome</span> Generate Tailored Resume
+      `;
     }
   });
 
@@ -1221,53 +1255,150 @@ function initializeUI() {
 }
 
 async function loadExistingTemplates() {
+  console.log('[Client] Starting to load existing templates');
+  
   try {
+    console.log('[Client] Fetching templates from server');
     const response = await fetch('http://localhost:3000/list-templates');
+    console.log('[Client] Server response status:', response.status);
+    
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
+    
     const data = await response.json();
+    console.log('[Client] Received templates data:', data);
     
     if (data.success && data.templates) {
       const resumeList = document.getElementById('resumeList');
-      const template = document.getElementById('resumeCardTemplate');
+      console.log('[Client] Found resumeList element:', !!resumeList);
       
       // Clear existing list
       resumeList.innerHTML = '';
+      console.log('[Client] Cleared existing resume list');
       
-      data.templates.forEach(file => {
-        const card = template.content.cloneNode(true);
-        const filename = card.querySelector('.filename');
-        const preview = card.querySelector('.resume-card-preview');
+      // Create template list
+      console.log('[Client] Processing templates:', data.templates.length);
+      
+      data.templates.forEach((file, index) => {
+        console.log('[Client] Creating card for template:', {
+          index,
+          name: file.name,
+          path: file.path
+        });
+        
+        const card = document.createElement('div');
+        card.className = 'resume-card';
+        card.innerHTML = `
+          <div class="resume-card-content">
+            <h4 class="filename">${file.name}</h4>
+            <p class="resume-card-preview">${file.preview || 'No preview available'}</p>
+            <div class="card-actions">
+              <button class="button load-btn">Load</button>
+              <button class="button delete-btn">Delete</button>
+            </div>
+          </div>
+        `;
+        
+        // Add event listeners
         const loadBtn = card.querySelector('.load-btn');
         const deleteBtn = card.querySelector('.delete-btn');
         
-        filename.textContent = file.name;
-        preview.textContent = file.preview || 'No preview available';
-        
-        loadBtn.addEventListener('click', () => loadTemplate(file.path));
-        deleteBtn.addEventListener('click', () => deleteTemplate(file.path));
+        loadBtn.addEventListener('click', async () => {
+          console.log('[Client] Load button clicked for:', file.name);
+          try {
+            await loadTemplate(file.path);
+            console.log('[Client] Template loaded successfully:', file.name);
+            
+            // Update current file status
+            currentFile = { name: file.name };
+            console.log('[Client] Updated current file:', currentFile);
+            
+            // Update UI
+            fileNameDisplay.textContent = file.name;
+            showStatus(`Loaded template: ${file.name}`, 'success');
+          } catch (error) {
+            console.error('[Client] Error loading template:', {
+              name: file.name,
+              error: error.message
+            });
+            showStatus('Failed to load template: ' + error.message, 'error');
+          }
+        });
         
         resumeList.appendChild(card);
+        console.log('[Client] Added card to resume list:', file.name);
       });
+      
+      console.log('[Client] Finished creating template cards');
+    } else {
+      console.warn('[Client] No templates found in response:', data);
     }
   } catch (error) {
-    console.error('Failed to load templates:', error);
-    showStatus('Failed to load existing templates', 'error');
+    console.error('[Client] Failed to load templates:', {
+      error: error.message,
+      stack: error.stack
+    });
+    showStatus('Failed to load existing templates: ' + error.message, 'error');
   }
 }
 
-async function loadTemplate(path) {
+async function loadTemplate(templatePath) {
+  console.log('[Client] Starting to load template:', templatePath);
+  
   try {
-    const response = await fetch(`http://localhost:3000/load-template?path=${encodeURIComponent(path)}`);
+    const url = `http://localhost:3000/load-template?path=${encodeURIComponent(templatePath)}`;
+    console.log('[Client] Fetching template from:', url);
+    
+    const response = await fetch(url);
+    console.log('[Client] Server response status:', response.status);
+    
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
+    
     const data = await response.json();
+    console.log('[Client] Received template data:', {
+      success: data.success,
+      contentLength: data.content?.length
+    });
     
     if (data.success && data.content) {
+      // Store the loaded content
       originalLatex = data.content;
-      currentFile = { name: path.split('/').pop() };
-      await updatePreview('original');
-      showStatus('Template loaded successfully!', 'success');
+      console.log('[Client] Stored original LaTeX content, length:', originalLatex.length);
+      
+      // Update preview
+      const previewArea = document.getElementById('previewArea');
+      if (previewArea) {
+        previewArea.textContent = data.content;
+        console.log('[Client] Updated preview area');
+      }
+      
+      // Enable preview controls
+      const previewBtn = document.getElementById('previewBtn');
+      if (previewBtn) {
+        previewBtn.disabled = false;
+        console.log('[Client] Enabled preview button');
+      }
+      
+      // Update radio buttons
+      const originalRadio = document.querySelector('input[value="original"]');
+      if (originalRadio) {
+        originalRadio.checked = true;
+        console.log('[Client] Updated radio button selection');
+      }
+      
+      return true;
     }
+    throw new Error('Invalid response format');
   } catch (error) {
-    console.error('Failed to load template:', error);
-    showStatus('Failed to load template', 'error');
+    console.error('[Client] Error in loadTemplate:', {
+      path: templatePath,
+      error: error.message,
+      stack: error.stack
+    });
+    throw error;
   }
 }
 

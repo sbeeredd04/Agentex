@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2025.3.8)  8 MAR 2025 12:02
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2025.3.8)  8 MAR 2025 12:48
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -581,7 +581,7 @@ Package rerunfilecheck Info: File `main.out' has not changed.
 Here is how much of TeX's memory you used:
  11473 strings out of 474116
  183003 string characters out of 5743683
- 1967187 words of memory out of 5000000
+ 1968187 words of memory out of 5000000
  33666 multiletter control sequences out of 15000+600000
  663825 words of font info for 66 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
@@ -593,7 +593,7 @@ ourcesanspro/SourceSansPro-Regular.pfb></usr/local/texlive/2024/texmf-dist/font
 s/type1/public/amsfonts/cm/cmsy5.pfb></usr/local/texlive/2024/texmf-dist/fonts/
 type1/public/amsfonts/cm/cmsy9.pfb>
 Output written on /Users/sriujjwalreddyb/Agentex/tailored-resume-extension/data
-/pdf/main.pdf (1 page, 203236 bytes).
+/pdf/main.pdf (1 page, 203255 bytes).
 PDF statistics:
  72 PDF objects out of 1000 (max. 8388607)
  56 compressed objects within 1 object stream

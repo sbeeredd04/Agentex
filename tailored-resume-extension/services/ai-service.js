@@ -44,7 +44,11 @@ class AIService {
         throw new Error('Invalid response format from API');
       }
 
-      const text = data.candidates[0].content.parts[0].text;
+      let text = data.candidates[0].content.parts[0].text;
+      
+      // Clean up the response by removing Markdown code fences
+      text = text.replace(/```latex\n/g, '').replace(/```\n?/g, '').trim();
+      
       console.log('Generated content length:', text.length);
       return text;
     } catch (error) {

@@ -370,32 +370,114 @@ app.get('/download/:type/:filename', (req, res) => {
 
 // List existing templates
 app.get('/list-templates', async (req, res) => {
+  console.log('[Server] Received request to list templates');
+  console.log('[Server] Original TeX directory:', originalTexDir);
+  
   try {
     const files = await fs.promises.readdir(originalTexDir);
-    const templates = await Promise.all(files.map(async file => {
-      const path = path.join(originalTexDir, file);
-      const content = await fs.promises.readFile(path, 'utf8');
-      return {
-        name: file,
-        path,
-        preview: content.slice(0, 100) // First 100 characters as preview
-      };
-    }));
+    console.log('[Server] All files in directory:', files);
     
-    res.json({ success: true, templates });
+    const texFiles = files.filter(file => file.endsWith('.tex'));
+    console.log('[Server] Filtered .tex files:', texFiles);
+    
+    const templates = await Promise.all(texFiles.map(async file => {
+      const filePath = path.join(originalTexDir, file);
+      console.log('[Server] Processing file:', {
+        name: file,
+        path: filePath,
+        exists: await fs.promises.access(filePath).then(() => true).catch(() => false)
+      });
+      
+      try {
+        const content = await fs.promises.readFile(filePath, 'utf8');
+        console.log('[Server] Successfully read file:', {
+          name: file,
+          contentLength: content.length
+        });
+        
+        return {
+          name: file,
+          path: filePath,
+          preview: content.slice(0, 100) // First 100 characters as preview
+        };
+      } catch (error) {
+        console.error('[Server] Error reading file:', {
+          file,
+          error: error.message,
+          stack: error.stack
+        });
+        return null;
+      }
+    }));
+
+    const validTemplates = templates.filter(t => t !== null);
+    console.log('[Server] Valid templates found:', {
+      total: validTemplates.length,
+      templates: validTemplates.map(t => ({
+        name: t.name,
+        path: t.path,
+        previewLength: t.preview.length
+      }))
+    });
+    
+    res.json({ success: true, templates: validTemplates });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to list templates' });
+    console.error('[Server] Error in list-templates:', {
+      error: error.message,
+      stack: error.stack,
+      directory: originalTexDir
+    });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to list templates',
+      details: error.message 
+    });
   }
 });
 
 // Load template content
 app.get('/load-template', async (req, res) => {
-  const { path } = req.query;
+  const templatePath = req.query.path;
+  console.log('[Server] Received load template request:', {
+    path: templatePath,
+    query: req.query
+  });
+  
   try {
-    const content = await fs.promises.readFile(path, 'utf8');
+    if (!templatePath) {
+      console.error('[Server] No template path provided');
+      return res.status(400).json({ success: false, error: 'Template path is required' });
+    }
+
+    console.log('[Server] Checking file existence:', templatePath);
+    const exists = await fs.promises.access(templatePath)
+      .then(() => true)
+      .catch(() => false);
+    
+    if (!exists) {
+      console.error('[Server] Template file not found:', templatePath);
+      return res.status(404).json({ success: false, error: 'Template file not found' });
+    }
+
+    const content = await fs.promises.readFile(templatePath, 'utf8');
+    console.log('[Server] Successfully loaded template:', {
+      path: templatePath,
+      contentLength: content.length,
+      previewContent: content.slice(0, 50) + '...'
+    });
+    
     res.json({ success: true, content });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to load template' });
+    console.error('[Server] Error loading template:', {
+      path: templatePath,
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to load template',
+      details: error.message 
+    });
   }
 });
 

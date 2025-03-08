@@ -47,8 +47,6 @@ async function initializeUI() {
     
     // Set up event listeners and UI controls
     setupEventListeners();
-    setupPreviewControls();
-    
     // Load any saved data
     const savedData = await storage.loadSavedData();
     if (savedData) {
@@ -224,14 +222,6 @@ function initializeUI() {
     const previewControls = document.createElement('div');
     previewControls.className = 'preview-controls';
     previewControls.innerHTML = `
-      <div class="preview-type-toggle">
-        <label>
-          <input type="radio" name="previewType" value="original" checked> Original
-        </label>
-        <label>
-          <input type="radio" name="previewType" value="generated" disabled> Generated
-        </label>
-      </div>
       <div class="preview-mode-toggle">
         <button id="togglePreviewMode" class="icon-button" title="Toggle Preview Mode">
           <span class="material-icons">visibility</span>
@@ -847,7 +837,7 @@ function initializeUI() {
                 - Quantify achievements using \textbf{metrics} from JD requirements
                 - Reorder bullets to put most relevant first
                 - Convert to active voice: "Engineered X using Y to achieve Z"
-                - Cluster related technologies using \emph{...} and \textbf{...} formatting
+                - Highlight relevant words and important information using \emph{...} and \textbf{...} formatting
 
             4. **Project Section Tailoring**:
             - Prioritize projects with ≥4 JD technical keywords
@@ -855,6 +845,7 @@ function initializeUI() {
             - Structure bullet points as:
                 "\\resumeItem{\\textbf{JD Keyword} used to \\textbf{Action Verb} \\emph{Tech Stack} resulting in \\textbf{Metric}}"
             - Replace weakest project if knowledge base has better match (≥2 more keywords)
+            - Highlight relevant words and important information using \emph{...} and \textbf{...} formatting
 
 
             5. **Technical Skills Optimization**:
@@ -881,6 +872,7 @@ function initializeUI() {
                 - Bullet consolidation (never deletion)
                 - Preserve as much of the context and details as possible to know exactly what I did in the role or project.
             - But dont have to change much of the original resume because the resume structure is good for ATS like font size, font type, font color, etc. follow the original for the most part.
+            - IMPORTANT: Do not change the font size, font type, font color, spacing between lines, etc.
 
 
             Job Description: ${jobDesc}
@@ -1583,7 +1575,6 @@ function setupUIElements() {
   elements.buttons.expandPreview.className = 'secondary';
   elements.buttons.expandPreview.innerHTML = '<span class="material-icons">open_in_new</span>';
   elements.buttons.expandPreview.title = 'Open in full window';
-  document.querySelector('.preview-controls').appendChild(elements.buttons.expandPreview);
 
   return elements;
 }
@@ -1701,4 +1692,73 @@ document.addEventListener('DOMContentLoaded', initializeSidepanel);
 // Export for testing
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { initializeSidepanel, updatePreview };
+}
+
+function setupPreviewUI() {
+  console.log('[Debug] Setting up preview UI');
+  
+  // Find existing preview control
+  const previewControl = document.querySelector('.preview-control');
+  if (!previewControl) {
+    console.error('[Debug] Preview control not found');
+    return;
+  }
+
+  // Create toggle button
+  const toggleButton = document.createElement('button');
+  toggleButton.id = 'togglePreviewMode';
+  toggleButton.className = 'icon-button';
+  toggleButton.title = 'Toggle Preview Mode';
+  toggleButton.innerHTML = '<span class="material-icons">visibility</span>';
+
+  // Add toggle button to existing preview control
+  previewControl.appendChild(toggleButton);
+
+  // Set up preview functionality
+  const previewArea = document.getElementById('previewArea');
+  const pdfPreviewArea = document.getElementById('pdfPreviewArea');
+
+  if (!toggleButton || !previewArea || !pdfPreviewArea) {
+    console.error('[Debug] Failed to find preview elements');
+    return;
+  }
+
+  // Add click handler for preview toggle
+  toggleButton.addEventListener('click', async () => {
+    console.log('[Debug] Toggle preview clicked');
+    
+    try {
+      const currentLatex = tailoredLatex || originalLatex;
+      const isShowingPdf = pdfPreviewArea.style.display !== 'none';
+      
+      if (isShowingPdf) {
+        // Switch to code view
+        previewArea.style.display = 'block';
+        pdfPreviewArea.style.display = 'none';
+        toggleButton.innerHTML = '<span class="material-icons">visibility</span>';
+        toggleButton.title = 'Show PDF Preview';
+      } else {
+        if (!currentLatex) {
+          console.warn('[Debug] No LaTeX content available');
+          showStatus('No content to preview', 'error');
+          return;
+        }
+
+        showStatus('Generating PDF preview...', 'info');
+        const success = await generatePdfPreview(currentLatex);
+        
+        if (success) {
+          previewArea.style.display = 'none';
+          pdfPreviewArea.style.display = 'block';
+          toggleButton.innerHTML = '<span class="material-icons">code</span>';
+          toggleButton.title = 'Show LaTeX Code';
+        }
+      }
+    } catch (error) {
+      console.error('[Debug] Preview toggle error:', error);
+      showStatus('Failed to toggle preview: ' + error.message, 'error');
+    }
+  });
+
+  console.log('[Debug] Preview UI setup complete');
 } 

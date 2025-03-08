@@ -1,19 +1,37 @@
 {
     "manifest_version": 3,
-    "name": "Tailored Resume Generator",
+    "name": "Resume Tailor",
     "version": "1.0",
-    "description": "Tailors your LaTeX resume based on a job description and your knowledge base.",
+    "description": "AI-powered resume tailoring tool",
     "permissions": [
-      "storage",
       "activeTab",
       "scripting",
-      "downloads"
+      "sidePanel",
+      "storage",
+      "contextMenus"
     ],
     "host_permissions": [
       "http://localhost:3000/*"
     ],
     "action": {
-      "default_popup": "popup.html"
+      "default_title": "Resume Tailor",
+      "default_icon": {
+        "16": "icons/icon16.png"
+      }
+    },
+    "commands": {
+      "_execute_action": {
+        "suggested_key": {
+          "default": "Ctrl+Shift+Y",
+          "mac": "Command+Shift+Y"
+        },
+        "description": "Open Resume Tailor"
+      }
+    },
+    "side_panel": {
+      "default_path": "sidepanel.html",
+      "default_title": "Resume Tailor",
+      "enabled": true
     },
     "background": {
       "service_worker": "background.js"
@@ -27,5 +45,5 @@
       ],
       "matches": ["<all_urls>"]
     }]
-  }
+}
   

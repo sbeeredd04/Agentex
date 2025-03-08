@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Resume Tailor",
+    "name": "Agentex Resume Editor",
     "version": "1.0",
-    "description": "AI-powered resume tailoring tool",
+    "description": "AI-powered resume editor to tailor your resume to a specific job description and generate instant resume PDF",
     "permissions": [
       "activeTab",
       "scripting",
@@ -14,7 +14,7 @@
       "http://localhost:3000/*"
     ],
     "action": {
-      "default_title": "Resume Tailor",
+      "default_title": "Agentex",
       "default_icon": {
         "16": "icons/icon16.png"
       }
@@ -25,12 +25,12 @@
           "default": "Ctrl+Shift+Y",
           "mac": "Command+Shift+Y"
         },
-        "description": "Open Resume Tailor"
+        "description": "Open Agentex"
       }
     },
     "side_panel": {
       "default_path": "sidepanel.html",
-      "default_title": "Resume Tailor",
+      "default_title": "Agentex",
       "enabled": true
     },
     "background": {

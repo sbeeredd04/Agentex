@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Resume Tailoring</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Smart Resume Tailoring</h1>
+      <p class="subtitle">AI-powered document customization for job applications</p>
+    </header>
+
+    <main>
+      <!-- Tab Navigation -->
+      <div class="tab-container">
+        <div class="tab active" id="resumeTab">Resume</div>
+        <div class="tab" id="coverLetterTab">Cover Letter</div>
+      </div>
+
+      <!-- Resume Content -->
+      <div id="resumeContent">
+        <!-- Resume Templates Section -->
+        <div class="section">
+          <div class="section-header">
+            <h3>Resume Templates</h3>
+            <div class="button-group">
+              <button id="loadExistingBtn" class="icon-button" title="Load existing template">
+                <span class="material-icons">folder_open</span>
+              </button>
+              <button id="addResumeBtn" class="icon-button" title="Add new template">
+                <span class="material-icons">add</span>
+              </button>
+            </div>
+          </div>
+          
+          <div class="upload-section" id="resumeUploadSection">
+            <label for="latexFile" class="file-upload">
+              <span class="material-icons upload-icon">upload_file</span>
+              <span>Upload Your LaTeX Resume (.tex)</span>
+              <input type="file" id="latexFile" accept=".tex">
+            </label>
+            <div id="fileNameDisplay" class="file-name-display"></div>
+          </div>
+          
+          <div class="resume-list" id="resumeList">
+            <!-- Template for resume cards -->
+            <template id="resumeCardTemplate">
+              <div class="resume-card">
+                <div class="resume-card-header">
+                  <span class="filename"></span>
+                  <div class="card-actions">
+                    <button class="icon-button load-btn" title="Load this template">
+                      <span class="material-icons">file_open</span>
+                    </button>
+                    <button class="icon-button delete-btn" title="Delete template">
+                      <span class="material-icons">delete</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="resume-card-preview"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Job Description Section -->
+        <div class="section">
+          <div class="section-header">
+            <h3>Job Details</h3>
+            <div class="button-group">
+              <button id="saveJobBtn" class="icon-button" title="Save for later">
+                <span class="material-icons">bookmark</span>
+              </button>
+              <button id="clearJobBtn" class="icon-button" title="Clear">
+                <span class="material-icons">clear</span>
+              </button>
+            </div>
+          </div>
+          <textarea id="jobDesc" rows="8" placeholder="Paste the job description here..."></textarea>
+        </div>
+
+        <!-- Knowledge Base Section -->
+        <div class="section">
+          <div class="section-header">
+            <h3>Knowledge Base</h3>
+            <button id="editKnowledgeBtn" class="icon-button" title="Edit knowledge base">
+              <span class="material-icons">edit</span>
+            </button>
+          </div>
+          <p class="section-description">Your skills, experiences, and achievements that may be relevant to the job.</p>
+          <div class="knowledge-tags" id="knowledgeTags">
+            <!-- Knowledge tags will be inserted here -->
+          </div>
+          <div class="input-section" id="addKnowledgeSection" style="display: none;">
+            <textarea id="knowledgeInput" rows="3" placeholder="Add new skills, experiences, or achievements..."></textarea>
+            <div class="button-group" style="margin-top: 12px;">
+              <button id="addKnowledgeItemBtn" class="secondary">Add to Knowledge Base</button>
+              <button id="cancelKnowledgeBtn" class="icon-button">
+                <span class="material-icons">close</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons (without preview) -->
+        <div class="button-group">
+          <button id="tailorBtn" class="primary">
+            <span class="material-icons">auto_awesome</span> Generate Tailored Resume
+          </button>
+          <button id="downloadBtn" class="secondary" disabled>
+            <span class="material-icons">download</span> Download PDF
+          </button>
+        </div>
+
+        <!-- Preview Type Selection -->
+        <div class="preview-type-selection">
+          <label class="radio-label">
+            <input type="radio" name="previewType" value="original" checked>
+            Original
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="previewType" value="generated" disabled>
+            Generated
+          </label>
+        </div>
+
+        <!-- Preview Section (shared between tabs) -->
+        <div class="preview-section">
+          <div class="preview-header">
+            <h3>LaTeX Preview</h3>
+            <div class="preview-actions">
+              <button id="copyBtn" class="icon-button" title="Copy to clipboard">
+                <span class="material-icons">content_copy</span>
+              </button>
+              <button id="previewBtn" class="icon-button" title="Toggle PDF preview">
+                <span class="material-icons">visibility</span>
+              </button>
+            </div>
+          </div>
+          <div class="preview-content">
+            <pre id="previewArea" class="preview">Your tailored document will appear here...</pre>
+            <div id="pdfPreviewArea" class="pdf-preview" style="display: none;">
+              <!-- PDF preview will be shown here -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cover Letter Content -->
+      <div id="coverLetterContent" style="display: none;">
+        <!-- Cover Letter Templates Section -->
+        <div class="section">
+          <div class="section-header">
+            <h3>Cover Letter Templates</h3>
+            <button id="addCoverLetterBtn" class="icon-button" title="Add new template">
+              <span class="material-icons">add</span>
+            </button>
+          </div>
+          
+          <div class="upload-section">
+            <label for="coverLetterFile" class="file-upload">
+              <span class="material-icons upload-icon">upload_file</span>
+              <span>Upload Cover Letter Template (.tex)</span>
+              <input type="file" id="coverLetterFile" accept=".tex">
+            </label>
+            <div id="coverLetterFileName" class="file-name"></div>
+          </div>
+          
+          <div class="resume-list" id="coverLetterList">
+            <!-- Cover letter templates will be inserted here -->
+          </div>
+        </div>
+
+        <!-- Job Description (shared with resume tab) -->
+        <div class="section">
+          <div class="section-header">
+            <h3>Job Details</h3>
+            <button id="clearCoverLetterJobBtn" class="icon-button" title="Clear">
+              <span class="material-icons">clear</span>
+            </button>
+          </div>
+          <textarea id="coverLetterJobDesc" rows="8" placeholder="Paste the job description here..."></textarea>
+        </div>
+
+        <!-- Cover Letter Preferences -->
+        <div class="section">
+          <div class="section-header">
+            <h3>Cover Letter Preferences</h3>
+          </div>
+          <textarea id="coverLetterPrefs" rows="4" placeholder="Specific points you want to highlight in your cover letter..."></textarea>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="button-group">
+          <button id="generateCoverLetterBtn" class="primary">
+            <span class="material-icons">auto_awesome</span> Generate Cover Letter
+          </button>
+          <button id="previewCoverLetterBtn" class="secondary" disabled>
+            <span class="material-icons">preview</span> Preview PDF
+          </button>
+          <button id="downloadCoverLetterBtn" class="secondary" disabled>
+            <span class="material-icons">download</span> Download PDF
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <div id="status" class="status"></div>
+    </footer>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="storage.js"></script>
+  <script src="services/file-manager.js"></script>
+  <script src="services/ai-service.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

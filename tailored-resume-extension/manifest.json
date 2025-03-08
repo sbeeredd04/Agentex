@@ -1,0 +1,31 @@
+{
+    "manifest_version": 3,
+    "name": "Tailored Resume Generator",
+    "version": "1.0",
+    "description": "Tailors your LaTeX resume based on a job description and your knowledge base.",
+    "permissions": [
+      "storage",
+      "activeTab",
+      "scripting",
+      "downloads"
+    ],
+    "host_permissions": [
+      "http://localhost:3000/*"
+    ],
+    "action": {
+      "default_popup": "popup.html"
+    },
+    "background": {
+      "service_worker": "background.js"
+    },
+    "web_accessible_resources": [{
+      "resources": [
+        "config.js",
+        "storage.js",
+        "services/file-manager.js",
+        "services/ai-service.js"
+      ],
+      "matches": ["<all_urls>"]
+    }]
+  }
+  

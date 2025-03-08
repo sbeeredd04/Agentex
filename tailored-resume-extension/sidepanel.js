@@ -195,30 +195,21 @@ function initializeUI() {
       generatedRadio.disabled = !tailoredLatex;
     }
 
-    if (previewArea.style.display !== 'none') {
-      // Text preview mode
+    const isTextMode = previewArea.style.display !== 'none';
+    if (isTextMode) {
       previewArea.textContent = content;
-      
-      // Add syntax highlighting if available
       if (window.hljs) {
         previewArea.innerHTML = window.hljs.highlight('latex', content).value;
       }
     } else {
-      // PDF preview mode
       try {
         if (currentPdfUrl) {
           cleanupPdfUrl(currentPdfUrl);
         }
-        
-        const success = await generatePdfPreview(content, type);
-        if (!success) {
-          throw new Error('PDF generation failed');
-        }
+        await generatePdfPreview(content, type);
       } catch (error) {
         console.error('Preview error:', error);
         showStatus(`Failed to preview ${type} content`, 'error');
-        
-        // Fall back to text preview
         previewArea.style.display = 'block';
         pdfPreviewArea.style.display = 'none';
         previewArea.textContent = content;

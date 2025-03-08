@@ -118,13 +118,26 @@
         <!-- Preview Section (shared between tabs) -->
         <div class="preview-section">
           <div class="preview-header">
-            <h3>LaTeX Preview</h3>
+            <h3>Preview</h3>
+            <div class="preview-controls">
+              <div class="preview-type-toggle">
+                <label class="radio-label">
+                  <input type="radio" name="previewType" value="original" checked>
+                  <span>Original</span>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="previewType" value="generated" disabled>
+                  <span>Generated</span>
+                </label>
+              </div>
+              <button id="togglePreviewMode" class="icon-button" title="Toggle Preview Mode">
+                <span class="material-icons">visibility</span>
+              </button>
+            </div>
           </div>
           <div class="preview-content">
             <pre id="previewArea" class="preview">Your tailored document will appear here...</pre>
-            <div id="pdfPreviewArea" class="pdf-preview" style="display: none;">
-              <!-- PDF preview will be shown here -->
-            </div>
+            <div id="pdfPreviewArea" class="pdf-preview" style="display: none;"></div>
           </div>
         </div>
       </div>

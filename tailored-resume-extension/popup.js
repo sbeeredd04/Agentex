@@ -824,16 +824,94 @@ function initializeUI() {
       
       // Construct the prompt
       const prompt = `
-        Tailor the following LaTeX resume to match this job description.
-        Job Description: ${jobDesc}
-        ${storage.knowledgeBase.size > 0 ? 'Additional skills and experiences:\n' + Array.from(storage.knowledgeBase).join('\n') : ''}
-        Original Resume (LaTeX):
-        ${originalLatex}
-        Provide only the updated LaTeX code in your response without any explanation or markdown formatting.
-      `.trim();
+            Act as an expert ATS optimization specialist for software engineering roles. Analyze the job description and resume with these strict requirements:
+
+            1. **Keyword Mapping Protocol**:
+            - Extract 15-18 hard skills/technologies from JD (prioritize: languages > frameworks > tools)
+            - Identify 6-8 action verbs from Identify 5-8 soft skills/action verbs from "led", "engineered", "optimized", "developed", "integrated"
+            - Map these keywords to existing resume content using semantic matching
+            - Map using semantic matching with 85% similarity threshold for technical terms
+
+            2. **Dynamic Knowledge Base Integration**:
+            ${storage.knowledgeBase.size > 0 ? `
+            - Compare knowledge base items [${Array.from(storage.knowledgeBase).join(', ')}] against JD requirements
+            - REPLACE existing resume content ONLY if:
+                * Knowledge base item has ≥2 more JD keywords
+                * Demonstrates 25%+ better metric impact
+                * Technical stack has direct JD toolchain overlap
+                * Knowledge base item is more relevant to the JD than the existing resume content
+            - Preserve 70% of original content - only swap 30% weakest items` : ''}
+
+            3. **Experience Section Optimization**:
+            - For each role:
+                - Rewrite 2-3 bullet points using JD action verbs + technical keywords if closely related to the JD
+                - Quantify achievements using \textbf{metrics} from JD requirements
+                - Reorder bullets to put most relevant first
+                - Convert to active voice: "Engineered X using Y to achieve Z"
+                - Cluster related technologies using \emph{...} and \textbf{...} formatting
+
+            4. **Project Section Tailoring**:
+            - Prioritize projects with ≥4 JD technical keywords
+            - Add 1-2 JD-specific technologies to project descriptions by adjusting the bullet points
+            - Structure bullet points as:
+                "\\resumeItem{\\textbf{JD Keyword} used to \\textbf{Action Verb} \\emph{Tech Stack} resulting in \\textbf{Metric}}"
+            - Replace weakest project if knowledge base has better match (≥2 more keywords)
+
+
+            5. **Technical Skills Optimization**:
+            - Append missing JD-required skills to existing categories
+            - Replace bottom 15% of existing skills with JD priorities using this hierarchy:
+                1. Direct toolchain matches (TensorFlow → PyTorch)
+                2. Conceptual equivalents (RNN → CNN if JD specifies)
+                3. Broader categories (Python → ML Pipelines)
+            - If the JD requires a closely related skill that is not in the existing resume, add it to the resume.
+
+            6. **Content Tailoring Rules**:
+            - Preserve LaTeX structure EXACTLY - only modify text within \resumeItem{}
+            - Enhance 3-5 bullet points per role using XYZ formula:
+                "Achieved [X] using [JD Keyword] through [Y] resulting in [Z metric]"
+            - Boost keyword density to 18-22% without stuffing
+
+            7. **ATS Compliance**:
+             Maintain original font/style/color EXCEPT for:
+                - Dates: \textit{MM/YYYY} formatting
+                - Links: \\href{}{} commands
+            - Ensure 1-page length through:
+                - 10% tighter verb phrasing
+                - 5% margin adjustments
+                - Bullet consolidation (never deletion)
+                - Preserve as much of the context and details as possible to know exactly what I did in the role or project.
+            - But dont have to change much of the original resume because the resume structure is good for ATS like font size, font type, font color, etc. follow the original for the most part.
+
+
+            Job Description: ${jobDesc}
+
+            Original Resume (LaTeX):
+            ${originalLatex}
+
+            Respond ONLY with updated entire LaTeX code maintaining:
+            \\resumeItem{\\textbf{...} ...} structure |
+            \\textbf{} for metrics/JD keywords |
+            \\emph{} for stacks
+            `.trim();
+
+
+      console.log('[AI Input] Sending prompt to AI:', {
+        jobDescription: jobDesc,
+        knowledgeBase: Array.from(storage.knowledgeBase),
+        originalLatexLength: originalLatex.length,
+        originalLatexPreview: originalLatex.substring(0, 200) + '...',
+        fullPrompt: prompt
+      });
 
       // Generate tailored content
       let generatedContent = await aiService.generateContent(prompt);
+      
+      console.log('[AI Output] Received response from AI:', {
+        generatedContentLength: generatedContent.length,
+        generatedContentPreview: generatedContent.substring(0, 200) + '...',
+        isDifferent: generatedContent !== originalLatex
+      });
       
       // Additional cleanup to ensure no markdown artifacts remain
       generatedContent = generatedContent.trim();
@@ -917,6 +995,15 @@ function initializeUI() {
         ${originalCoverLetter}
         Provide only the updated LaTeX code in your response without any explanation or markdown formatting.
       `.trim();
+
+      console.log('[AI Input] Sending cover letter prompt to AI:', {
+        jobDescription: jobDesc,
+        preferences: prefs,
+        knowledgeBase: Array.from(storage.knowledgeBase),
+        originalTemplateLength: originalCoverLetter.length,
+        originalTemplatePreview: originalCoverLetter.substring(0, 200) + '...',
+        fullPrompt: prompt
+      });
 
       // Call API through background script
       tailoredCoverLetter = await aiService.generateContent(prompt);

@@ -83,49 +83,81 @@ app.get('/check-latex', (req, res) => {
   });
 });
 
+// Add this helper function at the top of the file
+function sanitizeLatexContent(latex) {
+  return latex
+    // Fix common LaTeX syntax errors
+    .replace(/\{:\s/g, '{: ')  // Fix spacing after colons in braces
+    .replace(/\s*&\s*/g, ' \\& ')  // Replace standalone & with \&
+    .replace(/([^\\])%/g, '$1\\%')  // Escape % not preceded by \
+    .replace(/([^\\])_/g, '$1\\_')  // Escape _ not preceded by \
+    .replace(/\\textbf\{([^}]*)\}\{/g, '\\textbf{$1} {') // Fix textbf syntax
+    .replace(/\}\{:/g, '} {: '); // Fix brace-colon spacing
+}
+
 /**
  * Endpoint to compile LaTeX to PDF
  */
 app.post('/compile', async (req, res) => {
   const { latex, type = 'original', filename } = req.body;
+  
   console.log('[Server] Compile request received:', {
     type,
     filename,
     contentLength: latex?.length,
-    timestamp: new Date().toISOString()
-  });
-
-  if (!latex) {
-    return res.status(400).json({ 
-      success: false, 
-      error: 'LaTeX source is required' 
-    });
-  }
-
-  const safeName = filename?.replace(/[^a-zA-Z0-9-_.]/g, '_') || 'resume.tex';
-  const baseName = path.parse(safeName).name;
-  const texPath = path.join(
-    type === 'original' ? originalTexDir : generatedTexDir,
-    `${baseName}${type === 'generated' ? '_generated' : ''}.tex`
-  );
-  const outputPath = path.join(pdfDir, `${baseName}${type === 'generated' ? '_generated' : ''}.pdf`);
-
-  console.log('[Server] File paths resolved:', {
-    baseName,
-    texPath,
-    outputPath,
-    type,
-    exists: {
-      tex: fs.existsSync(texPath),
-      pdf: fs.existsSync(outputPath)
-    }
+    contentPreview: latex?.substring(0, 100)
   });
 
   try {
-    await fs.promises.writeFile(texPath, latex, 'utf8');
+    if (!latex || typeof latex !== 'string') {
+      throw new Error('Invalid LaTeX content');
+    }
+
+    // Validate LaTeX structure
+    if (!latex.includes('\\documentclass') || 
+        !latex.includes('\\begin{document}') || 
+        !latex.includes('\\end{document}')) {
+      throw new Error('Invalid LaTeX structure');
+    }
+
+    // Apply enhanced sanitization
+    const sanitizedLatex = sanitizeLatexContent(latex);
+
+    // Log the differences for debugging
+    console.log('[Server] LaTeX sanitization results:', {
+      originalLength: latex.length,
+      sanitizedLength: sanitizedLatex.length,
+      changes: {
+        ampersands: (latex.match(/&/g) || []).length,
+        sanitizedAmpersands: (sanitizedLatex.match(/\\&/g) || []).length,
+        textbfCount: (latex.match(/\\textbf\{/g) || []).length,
+        sanitizedTextbfCount: (sanitizedLatex.match(/\\textbf\{/g) || []).length
+      }
+    });
+
+    // Write sanitized content to file
+    const safeName = filename?.replace(/[^a-zA-Z0-9-_.]/g, '_') || 'resume.tex';
+    const texPath = path.join(
+      type === 'original' ? originalTexDir : generatedTexDir,
+      `${safeName}${type === 'generated' ? '_generated' : ''}.tex`
+    );
+    const outputPath = path.join(pdfDir, `${safeName}${type === 'generated' ? '_generated' : ''}.pdf`);
+
+    console.log('[Server] File paths resolved:', {
+      baseName: safeName,
+      texPath,
+      outputPath,
+      type,
+      exists: {
+        tex: fs.existsSync(texPath),
+        pdf: fs.existsSync(outputPath)
+      }
+    });
+
+    await fs.promises.writeFile(texPath, sanitizedLatex, 'utf8');
     console.log('[Server] LaTeX source written:', {
       path: texPath,
-      size: latex.length,
+      size: sanitizedLatex.length,
       timestamp: new Date().toISOString()
     });
 
@@ -255,11 +287,25 @@ app.post('/save-original', async (req, res) => {
 // Save generated LaTeX file with reference to original
 app.post('/save-generated', (req, res) => {
   const { latex, originalFilename } = req.body;
-  console.log('[Server] Saving generated LaTeX file:', {
+  
+  console.log('[Server] Received generated content:', {
     originalFilename,
     contentLength: latex?.length,
+    contentPreview: latex?.substring(0, 200) + '...',
     timestamp: new Date().toISOString()
   });
+
+  // Compare with original if available
+  const originalPath = path.join(originalTexDir, originalFilename);
+  if (fs.existsSync(originalPath)) {
+    const originalContent = fs.readFileSync(originalPath, 'utf8');
+    console.log('[Server] Comparison with original:', {
+      originalLength: originalContent.length,
+      generatedLength: latex?.length,
+      isDifferent: originalContent !== latex,
+      timestamp: new Date().toISOString()
+    });
+  }
 
   const baseName = path.parse(originalFilename || 'resume.tex').name;
   const generatedName = `${baseName}_generated.tex`;

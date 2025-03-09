@@ -1,9 +1,9 @@
 %-------------------------
-% Resume in Latex
-% Author : Jake Gutierrez
-% Based off of: https://github.com/sb2nov/resume
-% License : MIT
-%------------------------
+\% Resume in Latex
+\% Author : Jake Gutierrez
+\% Based off of: https://github.com/sb2nov/resume
+\% License : MIT
+\%------------------------
 
 \documentclass[letterpaper,10pt]{article}
 
@@ -21,25 +21,25 @@
 \input{glyphtounicode}
 
 
-%----------FONT OPTIONS----------
-% sans-serif
-%\usepackage[sfdefault]{FiraSans}
-%\usepackage[sfdefault]{roboto}
-%\usepackage[sfdefault]{noto-sans}
+\%----------FONT OPTIONS----------
+\% sans-serif
+\%\usepackage[sfdefault]{FiraSans}
+\%\usepackage[sfdefault]{roboto}
+\%\usepackage[sfdefault]{noto-sans}
 \usepackage[default]{sourcesanspro}
 
-% serif
-% \usepackage{CormorantGaramond}
-% \usepackage{charter}
+\% serif
+\% \usepackage{CormorantGaramond}
+\% \usepackage{charter}
 
 
 \pagestyle{fancy}
-\fancyhf{} % clear all header and footer fields
+\fancyhf{} \% clear all header and footer fields
 \fancyfoot{}
 \renewcommand{\headrulewidth}{0pt}
 \renewcommand{\footrulewidth}{0pt}
 
-% Adjust margins
+\% Adjust margins
 \addtolength{\oddsidemargin}{-0.625in}
 \addtolength{\evensidemargin}{-0.75in}
 \addtolength{\textwidth}{1.25in}
@@ -52,16 +52,16 @@
 \raggedright
 \setlength{\tabcolsep}{0in}
 
-% Sections formatting
+\% Sections formatting
 \titleformat{\section}{
   \vspace{-4pt}\scshape\raggedright\large
 }{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
 
-% Ensure that generate pdf is machine readable/ATS parsable
+\% Ensure that generate pdf is machine readable/ATS parsable
 \pdfgentounicode=1
 
-%-------------------------
-% Custom commands
+\%-------------------------
+\% Custom commands
 \newcommand{\resumeItem}[1]{
   \item\small{
     {#1 \vspace{-2pt}}
@@ -71,22 +71,22 @@
 \newcommand{\resumeSubheading}[4]{
   \vspace{-2pt}\item
     \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
-      \textbf{#1} & #2 \\
-      \textit{\small#3} & \textit{\small #4} \\
+      \textbf{#1} \& #2 \\
+      \textit{\small#3} \& \textit{\small #4} \\
     \end{tabular*}\vspace{-7pt}
 }
 
 \newcommand{\resumeSubSubheading}[2]{
     \item
     \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
-      \textit{\small#1} & \textit{\small #2} \\
+      \textit{\small#1} \& \textit{\small #2} \\
     \end{tabular*}\vspace{-7pt}
 }
 
 \newcommand{\resumeProjectHeading}[2]{
     \item
     \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
-      \small#1 & #2 \\
+      \small#1 \& #2 \\
     \end{tabular*}\vspace{-2pt}
 }
 
@@ -99,13 +99,13 @@
 \newcommand{\resumeItemListStart}{\begin{itemize}}
 \newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
 
-%-------------------------------------------
-%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\%-------------------------------------------
+\%%\%%\%%  RESUME STARTS HERE  \%%\%%\%%\%%\%%\%%\%%\%%\%%\%%\%%\%%\%%\%%
 
 
 \begin{document}
 
-%----------HEADING----------
+\%----------HEADING----------
 
 \begin{center}
     \textbf{\Huge \scshape Sri Ujjwal Reddy Beereddy} \\ \vspace{1pt}
@@ -115,7 +115,7 @@
 \end{center}
 
 
-%-----------EDUCATION-----------
+\%-----------EDUCATION-----------
 \section{Education}
   \resumeSubHeadingListStart
     \resumeSubheading
@@ -125,7 +125,7 @@
   \resumeSubHeadingListEnd
 
 
-%-----------EXPERIENCE-----------
+\%-----------EXPERIENCE-----------
 \section{Experience}
   \resumeSubHeadingListStart
   
@@ -164,7 +164,7 @@
 
   \resumeSubHeadingListEnd
 
-%-----------LEADERSHIP EXPERIENCE-----------
+\%-----------LEADERSHIP EXPERIENCE-----------
 \section{Leadership Experience}\vspace{-4pt}
   \resumeSubHeadingListStart
     \resumeItem{\textbf{Led} teams to secure \textbf{4 hackathon wins} — including the \textbf{Most Innovative Solution Award} at \textbf{Devil's Invent} and the \textbf{Sustainable AZ Spark Challenge} (sponsored by \textbf{Honeywell, DAASH, and ASU}).}
@@ -172,13 +172,13 @@
   \resumeSubHeadingListEnd
 
 
-%-----------PROJECTS-----------
+\%-----------PROJECTS-----------
 \section{Projects}
     \vspace{-4pt}
     \resumeSubHeadingListStart
       \resumeProjectHeading
           {\textbf{Amano – Emotion-Based Song Recommendation System} $|$ \emph{Flask, Spotify API, OpenAI API, AWS EC2}}{}
-      \vspace{-4pt} % Reduced space between title header and bullet points
+      \vspace{-4pt} \% Reduced space between title header and bullet points
           \resumeItemListStart
             \resumeItem{\textbf{Enhanced user experience} with a real-time \textbf{ChatGPT LLM chatbot} that analyzes mood and sends data to the reinforcement model for dynamic song recommendations, functioning like a personal DJ.}
             \resumeItem{\textbf{Improvised Spotify's song recommendation system} by developing a backend using \emph{Flask hosted on AWS EC2} that integrates with the \emph{Spotify API} to provide personalized song suggestions using \textbf{Reinforcement Learning}.}
@@ -203,14 +203,14 @@
 
 
 
-%-----------TECHNICAL SKILLS-----------
+\%-----------TECHNICAL SKILLS-----------
 \section{Technical Skills}
  \begin{itemize}[leftmargin=0.15in, label={}]
     \small{\item{
-     \textbf{Languages}{: Python, C/C++, Java, JavaScript, TypeScript, C\#, SQL, HTML, CSS, Flutter, LabVIEW, TestStand, ATEasy} \\
-     \textbf{Frameworks \& Libraries}{: Flask, Django, React, TensorFlow, PyTorch, scikit-learn, OpenCV, three.js, pandas, numpy} \\
-     \textbf{Tools \& Environments}{: Streamlit, Docker, AWS, Linux, Git, GitHub, Selenium, Google Colab, Jupyter Notebooks, Azure DevOps, Oscilloscopes, Logic Analyzers, Network Analyzers, Spectrum Analyzers} \\
-     \textbf{Machine Learning \& AI}{: Neural Networks, GEMINI API, Deep Learning, Reinforcement Learning, Unsupervised Learning} \\
+     \textbf{Languages} {: Python, C/C++, Java, JavaScript, TypeScript, C\#, SQL, HTML, CSS, Flutter, LabVIEW, TestStand, ATEasy} \\
+     \textbf{Frameworks \ \& Libraries} {: Flask, Django, React, TensorFlow, PyTorch, scikit-learn, OpenCV, three.js, pandas, numpy} \\
+     \textbf{Tools \ \& Environments} {: Streamlit, Docker, AWS, Linux, Git, GitHub, Selenium, Google Colab, Jupyter Notebooks, Azure DevOps, Oscilloscopes, Logic Analyzers, Network Analyzers, Spectrum Analyzers} \\
+     \textbf{Machine Learning \ \& AI} {: Neural Networks, GEMINI API, Deep Learning, Reinforcement Learning, Unsupervised Learning} \\
     }}
  \end{itemize}
 

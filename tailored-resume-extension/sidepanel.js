@@ -124,41 +124,16 @@ window.addEventListener('unload', async () => {
 function initializeUI() {
   // Select UI elements from the DOM
   const latexFileInput = document.getElementById('latexFile');
-  const coverLetterFileInput = document.getElementById('coverLetterFile');
   const jobDescInput = document.getElementById('jobDesc');
-  const coverLetterJobDescInput = document.getElementById('coverLetterJobDesc');
-  const coverLetterPrefsInput = document.getElementById('coverLetterPrefs');
   const tailorBtn = document.getElementById('tailorBtn');
-  const generateCoverLetterBtn = document.getElementById('generateCoverLetterBtn');
   const previewBtn = document.getElementById('previewBtn');
-  const previewCoverLetterBtn = document.getElementById('previewCoverLetterBtn');
   const downloadBtn = document.getElementById('downloadBtn');
-  const downloadCoverLetterBtn = document.getElementById('downloadCoverLetterBtn');
   const previewArea = document.getElementById('previewArea');
   const pdfPreviewArea = document.getElementById('pdfPreviewArea');
-  const fileNameDisplay = document.getElementById('fileName');
-  const coverLetterFileNameDisplay = document.getElementById('coverLetterFileName');
-  const copyBtn = document.getElementById('copyBtn');
   const togglePreviewBtn = document.getElementById('togglePreviewBtn');
-  const statusDiv = document.getElementById('status');
   const resumeTab = document.getElementById('resumeTab');
   const coverLetterTab = document.getElementById('coverLetterTab');
-  const resumeContent = document.getElementById('resumeContent');
-  const coverLetterContent = document.getElementById('coverLetterContent');
   const resumeList = document.getElementById('resumeList');
-  const coverLetterList = document.getElementById('coverLetterList');
-  const addResumeBtn = document.getElementById('addResumeBtn');
-  const addCoverLetterBtn = document.getElementById('addCoverLetterBtn');
-  const manageResumeBtn = document.getElementById('manageResumeBtn');
-  const saveJobBtn = document.getElementById('saveJobBtn');
-  const clearJobBtn = document.getElementById('clearJobBtn');
-  const clearCoverLetterJobBtn = document.getElementById('clearCoverLetterJobBtn');
-  const editKnowledgeBaseBtn = document.getElementById('editKnowledgeBtn');
-  const knowledgeTags = document.getElementById('knowledgeTags');
-  const addKnowledgeSection = document.getElementById('addKnowledgeSection');
-  const knowledgeInput = document.getElementById('knowledgeInput');
-  const addKnowledgeItemBtn = document.getElementById('addKnowledgeItemBtn');
-  const cancelKnowledgeBtn = document.getElementById('cancelKnowledgeBtn');
 
   // Variables to hold the content of documents and their tailored versions
   let pdfUrl = null;
@@ -183,14 +158,24 @@ function initializeUI() {
       return;
     }
 
-    // Update preview type radio buttons
+    // Update preview type radio buttons safely
     const originalRadio = document.querySelector('input[value="original"]');
     const generatedRadio = document.querySelector('input[value="generated"]');
     
-    if (originalRadio && generatedRadio) {
+    if (originalRadio) {
       originalRadio.checked = type === 'original';
+    }
+    if (generatedRadio) {
       generatedRadio.checked = type === 'generated';
       generatedRadio.disabled = !tailoredLatex;
+    }
+
+    const previewArea = document.getElementById('previewArea');
+    const pdfPreviewArea = document.getElementById('pdfPreviewArea');
+
+    if (!previewArea || !pdfPreviewArea) {
+      console.error('Preview areas not found');
+      return;
     }
 
     const isTextMode = previewArea.style.display !== 'none';
@@ -436,37 +421,6 @@ function initializeUI() {
     `;
   }
 
-  /**
-   * Event Listener for Cover Letter File Upload
-   */
-  coverLetterFileInput.addEventListener('change', async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      originalCoverLetter = e.target.result;
-      
-      // Ask user if they want to save this as a template
-      const saveName = window.prompt("Would you like to save this as a template? Enter a name or cancel.", file.name.replace('.tex', ''));
-      
-      if (saveName) {
-        const isDefault = storage.coverLetters.size === 0 || window.confirm("Make this your default cover letter template?");
-        await storage.saveCoverLetter(saveName, originalCoverLetter, isDefault);
-        displayCoverLetters();
-        showStatus(`Cover letter template "${saveName}" saved successfully.`, 'success');
-      }
-    };
-    reader.onerror = (e) => {
-      console.error("Error reading file:", e);
-      showStatus("Error reading the cover letter file.", 'error');
-    };
-    reader.readAsText(file);
-
-    if (file) {
-      coverLetterFileNameDisplay.textContent = file.name;
-    }
-  });
 
   // Resume Management Functions
   async function displayResumes() {
@@ -561,231 +515,6 @@ function initializeUI() {
     const container = latexFileInput.parentElement;
     container.insertBefore(templateSelect, latexFileInput);
   }
-
-  // Cover Letter Management Functions
-  async function displayCoverLetters() {
-    coverLetterList.innerHTML = '';
-    
-    if (storage.coverLetters.size === 0) {
-      const emptyMessage = document.createElement('div');
-      emptyMessage.className = 'empty-message';
-      emptyMessage.textContent = 'No saved templates. Upload a LaTeX cover letter template to get started.';
-      coverLetterList.appendChild(emptyMessage);
-      return;
-    }
-
-    for (const [name, data] of storage.coverLetters.entries()) {
-      const card = document.createElement('div');
-      card.className = `resume-card ${data.isDefault ? 'active' : ''}`;
-      
-      card.dataset.name = name;
-      card.innerHTML = `
-        <h4>${name}</h4>
-        <p>Last modified: ${new Date(data.timestamp).toLocaleDateString()}</p>
-        <div class="card-actions">
-          <button class="icon-button set-default-cl" title="Set as default">
-            <span class="material-icons">${data.isDefault ? 'star' : 'star_outline'}</span>
-          </button>
-          <button class="icon-button delete-cl" title="Delete">
-            <span class="material-icons">delete</span>
-          </button>
-        </div>
-      `;
-      
-      // Add event listeners
-      card.addEventListener('click', (e) => {
-        // Avoid triggering when clicking buttons
-        if (!e.target.closest('button')) {
-          loadCoverLetter(name);
-        }
-      });
-      
-      coverLetterList.appendChild(card);
-      
-      // Set up button listeners
-      const setDefaultBtn = card.querySelector('.set-default-cl');
-      const deleteBtn = card.querySelector('.delete-cl');
-      
-      setDefaultBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        setDefaultCoverLetter(name);
-      });
-      
-      deleteBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        deleteCoverLetter(name);
-      });
-    }
-  }
-
-  // Knowledge Base Management
-  function displayKnowledgeTags() {
-    knowledgeTags.innerHTML = '';
-    
-    if (storage.knowledgeBase.size === 0) {
-      const emptyMessage = document.createElement('div');
-      emptyMessage.className = 'empty-message';
-      emptyMessage.textContent = 'No items in knowledge base. Add your skills and experiences.';
-      knowledgeTags.appendChild(emptyMessage);
-      return;
-    }
-
-    for (const item of storage.knowledgeBase) {
-      const tag = document.createElement('span');
-      tag.className = 'knowledge-tag';
-      tag.textContent = item;
-      
-      // Add delete functionality on click
-      tag.addEventListener('click', () => {
-        if (confirm(`Remove "${item}" from knowledge base?`)) {
-          removeKnowledgeItem(item);
-        }
-      });
-      
-      knowledgeTags.appendChild(tag);
-    }
-  }
-
-  // Functions to handle resumes
-  async function loadResume(name) {
-    if (!storage.resumes.has(name)) {
-      showStatus(`Resume template "${name}" not found`, 'error');
-      return;
-    }
-    
-    const resumeData = storage.resumes.get(name);
-    originalLatex = resumeData.content;
-    showStatus(`Loaded resume template: ${name}`, 'success');
-  }
-
-  async function setDefaultResume(name) {
-    const success = await storage.saveResume(name, storage.resumes.get(name).content, true);
-    if (success) {
-      displayResumes();
-      showStatus(`Set "${name}" as default resume template`, 'success');
-    }
-  }
-
-  async function deleteResume(name) {
-    if (confirm(`Are you sure you want to delete the resume template "${name}"?`)) {
-      const success = await storage.deleteResume(name);
-      if (success) {
-        displayResumes();
-        showStatus(`Deleted resume template: ${name}`, 'success');
-      }
-    }
-  }
-
-  // Functions to handle cover letters
-  async function loadCoverLetter(name) {
-    if (!storage.coverLetters.has(name)) {
-      showStatus(`Cover letter template "${name}" not found`, 'error');
-      return;
-    }
-    
-    const coverLetterData = storage.coverLetters.get(name);
-    originalCoverLetter = coverLetterData.content;
-    showStatus(`Loaded cover letter template: ${name}`, 'success');
-  }
-
-  async function setDefaultCoverLetter(name) {
-    const success = await storage.saveCoverLetter(name, storage.coverLetters.get(name).content, true);
-    if (success) {
-      displayCoverLetters();
-      showStatus(`Set "${name}" as default cover letter template`, 'success');
-    }
-  }
-
-  async function deleteCoverLetter(name) {
-    if (confirm(`Are you sure you want to delete the cover letter template "${name}"?`)) {
-      const success = await storage.deleteCoverLetter(name);
-      if (success) {
-        displayCoverLetters();
-        showStatus(`Deleted cover letter template: ${name}`, 'success');
-      }
-    }
-  }
-
-  // Knowledge base functions
-  async function addKnowledgeItem(item) {
-    if (!item || item.trim() === '') return;
-    
-    const success = await storage.addKnowledgeItem(item.trim());
-    if (success) {
-      displayKnowledgeTags();
-      showStatus(`Added "${item.trim()}" to knowledge base`, 'success');
-    }
-  }
-
-  // Toggle knowledge base editor
-  editKnowledgeBaseBtn.addEventListener('click', () => {
-    console.log('Creating knowledge base modal');
-    const modal = document.createElement('div');
-    modal.className = 'modal knowledge-base-modal';
-    
-    // Add close and save buttons to the modal HTML
-    modal.innerHTML = `
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Knowledge Base</h3>
-          <button id="closeModal" class="icon-button">
-            <span class="material-icons">close</span>
-          </button>
-        </div>
-        <!-- Rest of your modal HTML -->
-        <div class="modal-footer">
-          <button id="saveKnowledgeBase" class="button primary">Save Changes</button>
-        </div>
-      </div>
-    `;
-    
-    document.body.appendChild(modal);
-    console.log('Modal added to DOM');
-    
-    // Initialize modal handlers after DOM insertion
-    setupKnowledgeBaseModalHandlers(modal);
-  });
-
-  // Cancel knowledge base addition
-  cancelKnowledgeBtn.addEventListener('click', () => {
-    addKnowledgeSection.style.display = 'none';
-    knowledgeInput.value = '';
-  });
-
-  // Add knowledge item
-  addKnowledgeItemBtn.addEventListener('click', () => {
-    addKnowledgeItem(knowledgeInput.value);
-    knowledgeInput.value = '';
-  });
-
-  // Save job
-  saveJobBtn.addEventListener('click', () => {
-    const jobDesc = jobDescInput.value.trim();
-    if (!jobDesc) {
-      showStatus('Please enter a job description first', 'error');
-      return;
-    }
-    
-    const title = prompt('Enter a title for this job:');
-    if (title) {
-      storage.saveJob(title, jobDesc);
-      showStatus(`Job "${title}" saved successfully`, 'success');
-      currentJobTitle = title;
-    }
-  });
-
-  // Clear job description
-  clearJobBtn.addEventListener('click', () => {
-    if (confirm('Clear the current job description?')) {
-      jobDescInput.value = '';
-    }
-  });
-
-  clearCoverLetterJobBtn.addEventListener('click', () => {
-    if (confirm('Clear the current job description?')) {
-      coverLetterJobDescInput.value = '';
-    }
-  });
 
   /**
    * Event Listener for the "Tailor Resume" Button
@@ -918,8 +647,12 @@ function initializeUI() {
         throw new Error('Failed to save generated resume');
       }
 
-      // Update UI
-      const previewTypeInputs = document.querySelectorAll('input[name="previewType"]');
+      // Update UI safely
+      const downloadBtn = document.getElementById('downloadBtn');
+      if (downloadBtn) {
+        downloadBtn.disabled = false;
+      }
+
       const generatedRadio = document.querySelector('input[value="generated"]');
       if (generatedRadio) {
         generatedRadio.disabled = false;
@@ -927,7 +660,6 @@ function initializeUI() {
       }
 
       await updatePreview('generated');
-      downloadBtn.disabled = false;
       showStatus("Resume tailored successfully!", 'success');
 
     } catch (error) {
@@ -935,75 +667,16 @@ function initializeUI() {
       showStatus("An error occurred while tailoring the resume: " + error.message, 'error');
     } finally {
       // Reset button state
-      tailorBtn.disabled = false;
-      tailorBtn.innerHTML = `
-        <span class="material-icons">auto_awesome</span> Generate Tailored Resume
-      `;
-    }
-  });
-
-  /**
-   * Event Listener for the "Generate Cover Letter" Button
-   */
-  generateCoverLetterBtn.addEventListener('click', async () => {
-    const jobDesc = coverLetterJobDescInput.value.trim();
-    const prefs = coverLetterPrefsInput.value.trim();
-    
-    if (!originalCoverLetter) {
-      showStatus("Please upload or select a cover letter template first", 'error');
-      return;
-    }
-    if (!jobDesc) {
-      showStatus("Please enter the job description", 'error');
-      return;
-    }
-
-    try {
-      showStatus("Generating tailored cover letter...", 'success');
-      console.log('Starting cover letter generation process');
-      
-      // Construct the prompt with knowledge base items
-      let knowledgeBaseText = '';
-      if (storage.knowledgeBase.size > 0) {
-        knowledgeBaseText = 'Additional skills and experiences:\n' + 
-                           Array.from(storage.knowledgeBase).join('\n');
+      if (tailorBtn) {
+        tailorBtn.disabled = false;
+        tailorBtn.innerHTML = `
+          <span class="material-icons">auto_awesome</span> Generate Tailored Resume
+        `;
       }
-      
-      const prompt = `
-        Create a personalized cover letter based on the template below and the job description.
-        Job Description: ${jobDesc}
-        ${prefs ? `Preferences: ${prefs}` : ''}
-        ${knowledgeBaseText ? knowledgeBaseText : ''}
-        Original Cover Letter Template (LaTeX):
-        ${originalCoverLetter}
-        Provide only the updated LaTeX code in your response without any explanation or markdown formatting.
-      `.trim();
-
-      console.log('[AI Input] Sending cover letter prompt to AI:', {
-        jobDescription: jobDesc,
-        preferences: prefs,
-        knowledgeBase: Array.from(storage.knowledgeBase),
-        originalTemplateLength: originalCoverLetter.length,
-        originalTemplatePreview: originalCoverLetter.substring(0, 200) + '...',
-        fullPrompt: prompt
-      });
-
-      // Call API through background script
-      tailoredCoverLetter = await aiService.generateContent(prompt);
-      console.log('Received tailored cover letter, length:', tailoredCoverLetter.length);
-
-      // Update UI
-      previewArea.textContent = tailoredCoverLetter;
-      previewCoverLetterBtn.disabled = false;
-      downloadCoverLetterBtn.disabled = false;
-      showStatus("Cover letter generated successfully!", 'success');
-
-    } catch (error) {
-      console.error("Error generating cover letter:", error);
-      showStatus("An error occurred while generating the cover letter. Please check the console for details.", 'error');
     }
   });
 
+  
   /**
    * Event Listener for the "Preview PDF" Buttons
    */
@@ -1058,44 +731,6 @@ function initializeUI() {
     }
   });
 
-  previewCoverLetterBtn.addEventListener('click', async () => {
-    if (!tailoredCoverLetter) {
-      showStatus("No cover letter to preview", 'error');
-      return;
-    }
-    
-    try {
-      showStatus("Generating PDF preview...", 'success');
-      
-      // Implementation similar to resume preview
-      // Call your LaTeX-to-PDF service
-      const response = await fetch('https://your-latex-compiler-api.com/preview', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ latex: tailoredCoverLetter })
-      });
-      
-      if (!response.ok) {
-        throw new Error("PDF preview generation failed");
-      }
-      
-      // Get preview URL
-      const data = await response.json();
-      
-      // Show PDF preview
-      pdfPreviewArea.innerHTML = `<iframe src="${data.previewUrl}"></iframe>`;
-      previewArea.style.display = 'none';
-      pdfPreviewArea.style.display = 'block';
-      togglePreviewBtn.innerHTML = '<span class="material-icons">code</span>';
-      
-    } catch (error) {
-      console.error("Error generating PDF preview:", error);
-      showStatus("Could not generate PDF preview", 'error');
-    }
-  });
-
   /**
    * Toggle between code and PDF preview
    */
@@ -1130,122 +765,6 @@ function initializeUI() {
         console.error('No LaTeX content available');
         showStatus("No content to preview", 'error');
       }
-    }
-  });
-
-  /**
-   * Event Listeners for the "Download PDF" Buttons
-   */
-  downloadBtn.addEventListener('click', async () => {
-    const type = document.querySelector('input[name="previewType"]:checked')?.value || 'original';
-    const content = type === 'original' ? originalLatex : tailoredLatex;
-    
-    if (!content) {
-      showStatus(`No ${type} content to download`, 'error');
-      return;
-    }
-
-    try {
-      const filename = currentFile ? currentFile.name : 'resume.tex';
-      const response = await fetch('http://localhost:3000/compile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ latex: content, type, filename })
-      });
-
-      const data = await response.json();
-      
-      if (data.success && data.pdfUrl) {
-        // Create download link
-        const downloadUrl = `http://localhost:3000/download/${type}/${data.filename}`;
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = data.filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        showStatus('PDF downloaded successfully!', 'success');
-      } else {
-        throw new Error(data.error || "PDF generation failed");
-      }
-    } catch (error) {
-      console.error("Download error:", error);
-      showStatus("Could not download PDF: " + error.message, 'error');
-    }
-  });
-
-  /**
-   * Event Listener for Cover Letter Download
-   */
-  downloadCoverLetterBtn.addEventListener('click', async () => {
-    console.log('Cover letter download button clicked');
-    
-    if (!tailoredCoverLetter) {
-      console.log('No tailored cover letter content available');
-      showStatus("No cover letter to download", 'error');
-      return;
-    }
-    
-    try {
-      showStatus("Generating PDF...", 'success');
-      console.log('Starting cover letter PDF generation');
-      
-      // Call local LaTeX compiler service
-      const response = await fetch('http://localhost:3000/compile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ latex: tailoredCoverLetter })
-      });
-      
-      console.log('Compiler service response status:', response.status);
-      
-      if (!response.ok) {
-        throw new Error(`PDF generation failed: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Received compiler response:', data);
-      
-      if (data.success && data.pdfUrl) {
-        // Create a download link using the returned URL
-        const fileName = currentJobTitle ? 
-          `cover_letter_for_${currentJobTitle.replace(/\s+/g, '_')}.pdf` :
-          'cover_letter.pdf';
-        
-        console.log('Creating download link:', {fileName, url: data.pdfUrl});
-        
-        // Create and trigger download
-        const downloadLink = document.createElement('a');
-        downloadLink.href = data.pdfUrl;
-        downloadLink.download = fileName;
-        downloadLink.style.display = 'none';
-        document.body.appendChild(downloadLink);
-        
-        // Trigger download
-        downloadLink.click();
-        
-        // Cleanup
-        document.body.removeChild(downloadLink);
-        showStatus("Cover letter PDF downloaded successfully!", 'success');
-        console.log('Cover letter download initiated successfully');
-        
-        // Update preview controls
-        updatePreviewTypeControls(true);
-        
-        // Enable generated preview option
-        const generatedRadio = document.querySelector('input[value="generated"]');
-        if (generatedRadio) {
-          generatedRadio.disabled = false;
-        }
-      } else {
-        throw new Error(data.error || "Cover letter PDF generation failed");
-      }
-    } catch (error) {
-      console.error("Error downloading cover letter PDF:", error);
-      showStatus("Could not generate cover letter PDF for download: " + error.message, 'error');
     }
   });
 
@@ -1469,27 +988,6 @@ async function loadTemplate(templatePath) {
       stack: error.stack
     });
     throw error;
-  }
-}
-
-async function deleteTemplate(path) {
-  if (!confirm('Are you sure you want to delete this template?')) return;
-  
-  try {
-    const response = await fetch('http://localhost:3000/delete-template', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path })
-    });
-    
-    const data = await response.json();
-    if (data.success) {
-      await loadExistingTemplates();
-      showStatus('Template deleted successfully!', 'success');
-    }
-  } catch (error) {
-    console.error('Failed to delete template:', error);
-    showStatus('Failed to delete template', 'error');
   }
 }
 

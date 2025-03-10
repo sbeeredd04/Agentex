@@ -7,14 +7,6 @@ class AIService {
     
     this.apiKey = apiKey;
     this.endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-    this.systemInstruction = `You are an expert ATS-optimized resume tailoring assistant. Your role is to:
-      1. Analyze job descriptions thoroughly
-      2. Identify key requirements, skills, and qualifications
-      3. Modify LaTeX resumes to highlight relevant experience
-      4. Ensure proper keyword optimization for ATS systems
-      5. Maintain professional formatting and structure
-      6. Preserve all LaTeX syntax and formatting
-      Only output the modified LaTeX code without any additional explanations or markdown.`;
   }
 
   async generateContent(prompt) {
@@ -28,7 +20,7 @@ class AIService {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `${this.systemInstruction}\n\n${prompt}`
+              text: ` ${prompt}`
             }]
           }]
         })

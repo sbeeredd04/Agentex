@@ -35,18 +35,70 @@ function showStatus(message, type = 'info') {
   }
 }
 
-// Initialize UI elements
+// Single, consolidated initializeUI function
 async function initializeUI() {
+  console.log('Initializing UI elements...');
+  
   try {
-    // Select UI elements from the DOM
-    const resumeList = document.getElementById('resumeList');
-    const coverLetterList = document.getElementById('coverLetterList');
-    const knowledgeTags = document.getElementById('knowledgeTags');
-    const latexFileInput = document.getElementById('latexFile');
-    const coverLetterFileInput = document.getElementById('coverLetterFile');
-    
-    // Set up event listeners and UI controls
-    setupEventListeners();
+    // Select all required UI elements
+    const elements = {
+      // File inputs
+      latexFileInput: document.getElementById('latexFile'),
+      coverLetterFileInput: document.getElementById('coverLetterFile'),
+      
+      // Text areas
+      jobDescInput: document.getElementById('jobDesc'),
+      coverLetterJobDescInput: document.getElementById('coverLetterJobDesc'),
+      coverLetterPrefsInput: document.getElementById('coverLetterPrefs'),
+      knowledgeBaseText: document.getElementById('knowledgeBaseText'),
+      
+      // Buttons
+      tailorBtn: document.getElementById('tailorBtn'),
+      downloadBtn: document.getElementById('downloadBtn'),
+      saveJobBtn: document.getElementById('saveJobBtn'),
+      clearJobBtn: document.getElementById('clearJobBtn'),
+      loadExistingBtn: document.getElementById('loadExistingBtn'),
+      
+      // Preview elements
+      previewArea: document.getElementById('previewArea'),
+      pdfPreviewArea: document.getElementById('pdfPreviewArea'),
+      
+      // Lists
+      resumeList: document.getElementById('resumeList'),
+      coverLetterList: document.getElementById('coverLetterList'),
+      
+      // Display elements
+      fileNameDisplay: document.getElementById('fileNameDisplay'),
+      coverLetterFileNameDisplay: document.getElementById('coverLetterFileName'),
+      
+      // Tabs
+      resumeTab: document.getElementById('resumeTab'),
+      coverLetterTab: document.getElementById('coverLetterTab'),
+      resumeContent: document.getElementById('resumeContent'),
+      coverLetterContent: document.getElementById('coverLetterContent')
+    };
+
+    // Verify critical elements exist
+    const criticalElements = ['latexFileInput', 'jobDescInput', 'tailorBtn', 'previewArea', 'pdfPreviewArea'];
+    for (const elementName of criticalElements) {
+      if (!elements[elementName]) {
+        throw new Error(`Critical UI element not found: ${elementName}`);
+      }
+    }
+
+    // Initialize state variables
+    let pdfUrl = null;
+    let isUploading = false;
+    let currentTemplate = null;
+    let currentOriginalFileId = null;
+    let currentGeneratedFileId = null;
+
+    // Set up preview UI
+    setupPreviewUI();
+
+    // Set up event listeners
+    setupEventListeners(elements);
+
     // Load any saved data
     const savedData = await storage.loadSavedData();
     if (savedData) {
@@ -57,17 +109,95 @@ async function initializeUI() {
       tailoredCoverLetter = savedData.tailoredCoverLetter || null;
       currentJobTitle = savedData.currentJobTitle || null;
     }
-    
-    // Display saved resumes and cover letters
+
+    // Initialize knowledge base
+    await loadKnowledgeBase();
+
+    // Display saved templates
     await displayResumes();
     await displayCoverLetters();
-    displayKnowledgeTags();
-    
+
+    // Set initial states
+    if (elements.downloadBtn) {
+      elements.downloadBtn.disabled = true;
+    }
+
+    // Set initial preview content
+    if (elements.previewArea) {
+      elements.previewArea.textContent = 'Your tailored document will appear here...';
+    }
+
+    // Add file upload event listener
+    elements.latexFileInput.addEventListener('change', async (event) => {
+      console.log('File input change detected');
+      const file = event.target.files[0];
+      await handleFileUpload(file);
+    });
+
+    // Add tab switching listeners
+    elements.resumeTab.addEventListener('click', () => switchTab('resume'));
+    elements.coverLetterTab.addEventListener('click', () => switchTab('coverLetter'));
+
+    // Load existing templates on startup
+    await loadExistingTemplates();
+
     console.log('UI initialized successfully');
+    return elements;
+
   } catch (error) {
     console.error('Error initializing UI:', error);
+    showStatus('Failed to initialize UI: ' + error.message, 'error');
     throw error;
   }
+}
+
+// Helper function to load knowledge base content
+async function loadKnowledgeBase() {
+  try {
+    const response = await fetch('http://localhost:3000/knowledge-base');
+    const data = await response.json();
+    
+    if (data.success) {
+      const knowledgeBaseText = document.getElementById('knowledgeBaseText');
+      if (knowledgeBaseText) {
+        knowledgeBaseText.value = data.content;
+      }
+    }
+  } catch (error) {
+    console.error('Error loading knowledge base:', error);
+    showStatus('Failed to load knowledge base', 'error');
+  }
+}
+
+// Update the setupEventListeners function to use the elements object
+function setupEventListeners(elements) {
+  // Save knowledge base button handler
+  const knowledgeBaseText = elements.knowledgeBaseText;
+  if (knowledgeBaseText) {
+    knowledgeBaseText.addEventListener('change', async () => {
+      try {
+        const content = knowledgeBaseText.value.trim();
+        const response = await fetch('http://localhost:3000/update-knowledge-base', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ content })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          showStatus('Knowledge base saved successfully', 'success');
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
+        console.error('Error saving knowledge base:', error);
+        showStatus('Failed to save knowledge base', 'error');
+      }
+    });
+  }
+
 }
 
 // Wait for DOM to load
@@ -127,12 +257,9 @@ function initializeUI() {
   const jobDescInput = document.getElementById('jobDesc');
   const tailorBtn = document.getElementById('tailorBtn');
   const previewBtn = document.getElementById('previewBtn');
-  const downloadBtn = document.getElementById('downloadBtn');
   const previewArea = document.getElementById('previewArea');
   const pdfPreviewArea = document.getElementById('pdfPreviewArea');
   const togglePreviewBtn = document.getElementById('togglePreviewBtn');
-  const resumeTab = document.getElementById('resumeTab');
-  const coverLetterTab = document.getElementById('coverLetterTab');
   const resumeList = document.getElementById('resumeList');
 
   // Variables to hold the content of documents and their tailored versions
@@ -142,9 +269,7 @@ function initializeUI() {
   let currentOriginalFileId = null;
   let currentGeneratedFileId = null;
 
-  // Set up tab switching
-  resumeTab.addEventListener('click', () => switchTab('resume'));
-  coverLetterTab.addEventListener('click', () => switchTab('coverLetter'));
+
 
   // Update preview handling
   async function updatePreview(type = 'original') {

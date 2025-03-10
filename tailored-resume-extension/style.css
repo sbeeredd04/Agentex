@@ -363,6 +363,7 @@ button:disabled .loading-spinner {
   justify-content: center;
   position: relative;
   overflow: hidden;
+  margin-left: 20px;
 }
 
 .icon-button:hover {
@@ -436,7 +437,8 @@ button:disabled .loading-spinner {
 
 .preview-type-toggle {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  gap: 5px;
 }
 
 .radio-label {
@@ -1135,4 +1137,10 @@ button:disabled .loading-spinner {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
   transform: translateY(-20px);
   transition: transform 0.3s ease;
+}
+
+.preview-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }

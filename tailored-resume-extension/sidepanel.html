@@ -17,7 +17,6 @@
       <!-- Tab Navigation -->
       <div class="tab-container">
         <div class="tab active" id="resumeTab">Resume</div>
-        <div class="tab" id="coverLetterTab">Cover Letter</div>
       </div>
 
       <!-- Resume Content -->
@@ -121,64 +120,6 @@
             <pre id="previewArea" class="preview">Your tailored document will appear here...</pre>
             <div id="pdfPreviewArea" class="pdf-preview" style="display: none;"></div>
           </div>
-        </div>
-      </div>
-
-      <!-- Cover Letter Content -->
-      <div id="coverLetterContent" style="display: none;">
-        <!-- Cover Letter Templates Section -->
-        <div class="section">
-          <div class="section-header">
-            <h3>Cover Letter Templates</h3>
-            <button id="addCoverLetterBtn" class="icon-button" title="Add new template">
-              <span class="material-icons">add</span>
-            </button>
-          </div>
-          
-          <div class="upload-section">
-            <label for="coverLetterFile" class="file-upload">
-              <span class="material-icons upload-icon">upload_file</span>
-              <span>Upload Cover Letter Template (.tex)</span>
-              <input type="file" id="coverLetterFile" accept=".tex">
-            </label>
-            <div id="coverLetterFileName" class="file-name"></div>
-          </div>
-          
-          <div class="resume-list" id="coverLetterList">
-            <!-- Cover letter templates will be inserted here -->
-          </div>
-        </div>
-
-        <!-- Job Description (shared with resume tab) -->
-        <div class="section">
-          <div class="section-header">
-            <h3>Job Details</h3>
-            <button id="clearCoverLetterJobBtn" class="icon-button" title="Clear">
-              <span class="material-icons">clear</span>
-            </button>
-          </div>
-          <textarea id="coverLetterJobDesc" rows="8" placeholder="Paste the job description here..."></textarea>
-        </div>
-
-        <!-- Cover Letter Preferences -->
-        <div class="section">
-          <div class="section-header">
-            <h3>Cover Letter Preferences</h3>
-          </div>
-          <textarea id="coverLetterPrefs" rows="4" placeholder="Specific points you want to highlight in your cover letter..."></textarea>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="button-group">
-          <button id="generateCoverLetterBtn" class="primary">
-            <span class="material-icons">auto_awesome</span> Generate Cover Letter
-          </button>
-          <button id="previewCoverLetterBtn" class="secondary" disabled>
-            <span class="material-icons">preview</span> Preview PDF
-          </button>
-          <button id="downloadCoverLetterBtn" class="secondary" disabled>
-            <span class="material-icons">download</span> Download PDF
-          </button>
         </div>
       </div>
     </main>

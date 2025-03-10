@@ -594,13 +594,24 @@ app.post('/update-knowledge-base', async (req, res) => {
   console.log('[Server] Update knowledge base request received');
 
   try {
-    // Write content directly to file
-    await fs.promises.writeFile(knowledgeBaseFile, content, 'utf8');
+    // Read existing content
+    let existingContent = '';
+    if (fs.existsSync(knowledgeBaseFile)) {
+      existingContent = await fs.promises.readFile(knowledgeBaseFile, 'utf8');
+    }
+
+    // Append new content with timestamp
+    const timestamp = new Date().toISOString();
+    const updatedContent = `${existingContent}\n\n--- Entry: ${timestamp} ---\n${content}`;
+
+    // Write updated content
+    await fs.promises.writeFile(knowledgeBaseFile, updatedContent.trim(), 'utf8');
     console.log('[Server] Knowledge base updated successfully');
 
     res.json({ 
       success: true, 
-      message: 'Knowledge base updated successfully'
+      message: 'Knowledge base updated successfully',
+      timestamp 
     });
   } catch (error) {
     console.error('[Server] Error updating knowledge base:', error);
@@ -620,7 +631,6 @@ app.get('/knowledge-base', async (req, res) => {
     let content = '';
     if (fs.existsSync(knowledgeBaseFile)) {
       content = await fs.promises.readFile(knowledgeBaseFile, 'utf8');
-      console.log('[Server] Knowledge base content loaded, length:', content.length);
     }
 
     res.json({ 

@@ -15,6 +15,9 @@ let sidebarState = {
   activeTab: 'resume',
   previewMode: 'text',
   lastJobDescription: '',
+  lastKnowledgeBaseText: '',
+  uploadedFileName: '',
+  uploadedFileContent: '',
   isPreviewExpanded: false
 };
 
@@ -79,6 +82,14 @@ function setupEventListeners(elements) {
   if (elements.jobDescInput) {
     elements.jobDescInput.addEventListener('input', debounce(() => {
       sidebarState.lastJobDescription = elements.jobDescInput.value;
+      saveState();
+    }, 500));
+  }
+
+  // Save knowledge base text on input
+  if (elements.knowledgeBaseText) {
+    elements.knowledgeBaseText.addEventListener('input', debounce(() => {
+      sidebarState.lastKnowledgeBaseText = elements.knowledgeBaseText.value;
       saveState();
     }, 500));
   }
@@ -178,13 +189,35 @@ async function restoreState() {
   if (savedState) {
     sidebarState = savedState;
     const jobDescInput = document.getElementById('jobDesc');
+    const knowledgeBaseText = document.getElementById('knowledgeBaseText');
+    const previewArea = document.getElementById('previewArea');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+
     if (sidebarState.lastJobDescription) {
       jobDescInput.value = sidebarState.lastJobDescription;
     }
+
+    if (sidebarState.lastKnowledgeBaseText) {
+      knowledgeBaseText.value = sidebarState.lastKnowledgeBaseText;
+    }
+
+    if (sidebarState.uploadedFileContent) {
+      originalLatex = sidebarState.uploadedFileContent;
+      previewArea.textContent = originalLatex;
+    }
+
+    if (sidebarState.uploadedFileName) {
+      fileNameDisplay.innerHTML = `
+        <div class="file-upload-feedback success">
+          <span class="material-icons">check_circle</span>
+          <span>${sidebarState.uploadedFileName}</span>
+        </div>
+      `;
+    }
+
     await updatePreview(sidebarState.previewMode);
   }
 }
-
 // Cleanup temporary PDF URL
 function cleanupPdfUrl(url) {
   console.log('[Cleanup] Cleaning up PDF URL:', url);
@@ -195,19 +228,19 @@ function cleanupPdfUrl(url) {
 }
 
 // Function to handle file upload
-  async function handleFileUpload(file) {
+async function handleFileUpload(file) {
   console.log('[Upload] Starting file upload:', file);
-    if (!file) {
+  if (!file) {
     console.log('[Upload] No file selected');
-      return;
-    }
-    try {
+    return;
+  }
+  try {
     currentFile = file;
-      showStatus('Reading file...', 'info');
-      showUploadingFeedback(file.name);
+    showStatus('Reading file...', 'info');
+    showUploadingFeedback(file.name);
 
     // Read file content
-      const content = await readFileContent(file);
+    const content = await readFileContent(file);
     console.log('[Upload] File content read successfully:', {
       length: content.length,
       preview: content.substring(0, 100) // Show first 100 characters
@@ -219,8 +252,8 @@ function cleanupPdfUrl(url) {
 
     // Enable the preview button
     const previewBtn = document.getElementById('previewBtn');
-      if (previewBtn) {
-        previewBtn.disabled = false;
+    if (previewBtn) {
+      previewBtn.disabled = false;
       console.log('[Upload] Preview button enabled');
     }
 
@@ -228,79 +261,84 @@ function cleanupPdfUrl(url) {
     originalLatex = content;
     console.log('[Upload] Original LaTeX content updated');
 
+    // Save the file content and filename to chrome.storage
+    sidebarState.uploadedFileName = file.name;
+    sidebarState.uploadedFileContent = content;
+    saveState();
+
     // Show successful upload feedback
-      showSuccessfulUploadFeedback(file.name);
-      showStatus('File uploaded successfully!', 'success');
-      console.log('[Upload] Process completed successfully');
-    } catch (error) {
+    showSuccessfulUploadFeedback(file.name);
+    showStatus('File uploaded successfully!', 'success');
+    console.log('[Upload] Process completed successfully');
+  } catch (error) {
     console.error('[Upload] Error during file upload:', error);
-      showStatus('Failed to upload file: ' + error.message, 'error');
-      showFailedUploadFeedback();
+    showStatus('Failed to upload file: ' + error.message, 'error');
+    showFailedUploadFeedback();
   }
 }
 
-  // Helper function to read file content
-  function readFileContent(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const content = e.target.result;
-        console.log('[FileReader] File read successfully:', {
-          length: content.length,
-          preview: content.substring(0, 100) // Show first 100 characters
-        });
-          resolve(content);
-        } catch (error) {
-        console.error('[FileReader] Error reading file:', error);
-          reject(error);
-        }
-      };
-      reader.onerror = (e) => {
-      console.error('[FileReader] Error during file reading:', e);
-        reject(new Error('Failed to read file'));
-      };
-    console.log('[FileReader] Starting to read file as text');
-      reader.readAsText(file);
-    });
-  }
+// Helper function to read file content
+function readFileContent(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target.result;
+      console.log('[FileReader] File read successfully:', {
+        length: content.length,
+        preview: content.substring(0, 100) // Show first 100 characters
+      });
+        resolve(content);
+      } catch (error) {
+      console.error('[FileReader] Error reading file:', error);
+        reject(error);
+      }
+    };
+    reader.onerror = (e) => {
+    console.error('[FileReader] Error during file reading:', e);
+      reject(new Error('Failed to read file'));
+    };
+  console.log('[FileReader] Starting to read file as text');
+    reader.readAsText(file);
+  });
+}
 
 // UI feedback functions
-  function showUploadingFeedback(fileName) {
-    const display = document.getElementById('fileNameDisplay');
-  if (display) {
-    display.innerHTML = `
-      <div class="file-upload-feedback uploading">
-        <div class="loading-spinner"></div>
-        <span class="material-icons">sync</span>
-        <span>${fileName}</span>
-      </div>
-    `;
-  }
-  }
+function showUploadingFeedback(fileName) {
+  const display = document.getElementById('fileNameDisplay');
+if (display) {
+  display.innerHTML = `
+    <div class="file-upload-feedback uploading">
+      <div class="loading-spinner"></div>
+      <span class="material-icons">sync</span>
+      <span>${fileName}</span>
+    </div>
+  `;
+}
+}
 
-  function showSuccessfulUploadFeedback(fileName) {
-    const display = document.getElementById('fileNameDisplay');
-  if (display) {
-    display.innerHTML = `
-      <div class="file-upload-feedback success">
-        <span class="material-icons">check_circle</span>
-        <span>${fileName}</span>
-      </div>
-    `;
-  }
-  }
+function showSuccessfulUploadFeedback(fileName) {
+  const display = document.getElementById('fileNameDisplay');
+if (display) {
+  display.innerHTML = `
+    <div class="file-upload-feedback success">
+      <span class="material-icons">check_circle</span>
+      <span>${fileName}</span>
+    </div>
+  `;
+}
+}
 
-  function showFailedUploadFeedback() {
-    const display = document.getElementById('fileNameDisplay');
-  if (display) {
-    display.innerHTML = `
-      <div class="file-upload-feedback error">
-        <span class="material-icons">error</span>
-        <span>Upload failed</span>
-      </div>
-    `;
-  }
+function showFailedUploadFeedback() {
+  const display = document.getElementById('fileNameDisplay');
+if (display) {
+  display.innerHTML = `
+    <div class="file-upload-feedback error">
+      <span class="material-icons">error</span>
+      <span>Upload failed</span>
+    </div>
+  `;
+}
 }
 
 // Main initialization function for the sidepanel

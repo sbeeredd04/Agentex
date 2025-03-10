@@ -25,25 +25,32 @@ const baseDir = path.join(__dirname, '..');
 const dataDir = path.join(baseDir, 'data');
 const originalTexDir = path.join(dataDir, 'originals');
 const generatedTexDir = path.join(dataDir, 'generated');
+const tempDir = path.join(dataDir, 'temp');
 const pdfDir = path.join(dataDir, 'pdf');
+const knowledgeBaseDir = path.join(dataDir, 'knowledge');
+const knowledgeBaseFile = path.join(knowledgeBaseDir, 'knowledge_base.txt');
 
 console.log('[Server] Directory structure initialized:', {
   baseDir,
   dataDir,
   originalTexDir,
   generatedTexDir,
+  tempDir,
   pdfDir,
+  knowledgeBaseDir,
   exists: {
     baseDir: fs.existsSync(baseDir),
     dataDir: fs.existsSync(dataDir),
     originalTexDir: fs.existsSync(originalTexDir),
     generatedTexDir: fs.existsSync(generatedTexDir),
-    pdfDir: fs.existsSync(pdfDir)
+    tempDir: fs.existsSync(tempDir),
+    pdfDir: fs.existsSync(pdfDir),
+    knowledgeBaseDir: fs.existsSync(knowledgeBaseDir)
   }
 });
 
 // Create directories with logging
-[dataDir, originalTexDir, generatedTexDir, pdfDir].forEach(dir => {
+[dataDir, originalTexDir, generatedTexDir, tempDir, pdfDir, knowledgeBaseDir].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
     console.log(`[Server] Created missing directory: ${dir}`);
@@ -52,6 +59,12 @@ console.log('[Server] Directory structure initialized:', {
   }
 });
 
+// Initialize knowledge base file if it doesn't exist
+if (!fs.existsSync(knowledgeBaseFile)) {
+  fs.writeFileSync(knowledgeBaseFile, '', 'utf8');
+  console.log('[Server] Created empty knowledge base file');
+}
+
 // Clean temp directory function
 function cleanTempDirectory() {
   if (fs.existsSync(tempDir)) {
@@ -59,9 +72,12 @@ function cleanTempDirectory() {
     files.forEach(file => {
       fs.unlinkSync(path.join(tempDir, file));
     });
-    console.log('Cleaned temp directory');
+    console.log('[Server] Cleaned temp directory');
   }
 }
+
+// Call cleanTempDirectory on server startup
+cleanTempDirectory();
 
 // Update the LaTeX check and compile commands to use full path
 const PDFLATEX_PATH = '/Library/TeX/texbin/pdflatex';
@@ -99,93 +115,46 @@ function sanitizeLatexContent(latex) {
  * Endpoint to compile LaTeX to PDF
  */
 app.post('/compile', async (req, res) => {
-  const { latex, type = 'original', filename } = req.body;
+  console.log('[Server] Compile request received');
   
-  console.log('[Server] Compile request received:', {
-    type,
-    filename,
-    contentLength: latex?.length,
-    contentPreview: latex?.substring(0, 100)
-  });
-
   try {
-    if (!latex || typeof latex !== 'string') {
-      throw new Error('Invalid LaTeX content');
+    const { latex } = req.body;
+    if (!latex) {
+      console.error('[Server] No LaTeX content provided');
+      return res.status(400).json({ success: false, error: 'LaTeX source is required' });
     }
 
-    // Validate LaTeX structure
-    if (!latex.includes('\\documentclass') || 
-        !latex.includes('\\begin{document}') || 
-        !latex.includes('\\end{document}')) {
-      throw new Error('Invalid LaTeX structure');
-    }
+    // Generate unique file ID
+    const fileId = uuidv4();
+    const texPath = path.join(tempDir, `${fileId}.tex`);
+    const outputPath = path.join(pdfDir, `${fileId}.pdf`);
+    const logPath = path.join(tempDir, `${fileId}.log`);
 
-    // Apply enhanced sanitization
-    const sanitizedLatex = sanitizeLatexContent(latex);
-
-    // Log the differences for debugging
-    console.log('[Server] LaTeX sanitization results:', {
-      originalLength: latex.length,
-      sanitizedLength: sanitizedLatex.length,
-      changes: {
-        ampersands: (latex.match(/&/g) || []).length,
-        sanitizedAmpersands: (sanitizedLatex.match(/\\&/g) || []).length,
-        textbfCount: (latex.match(/\\textbf\{/g) || []).length,
-        sanitizedTextbfCount: (sanitizedLatex.match(/\\textbf\{/g) || []).length
-      }
-    });
-
-    // Write sanitized content to file
-    const safeName = filename?.replace(/[^a-zA-Z0-9-_.]/g, '_') || 'resume.tex';
-    const texPath = path.join(
-      type === 'original' ? originalTexDir : generatedTexDir,
-      `${safeName}${type === 'generated' ? '_generated' : ''}.tex`
-    );
-    const outputPath = path.join(pdfDir, `${safeName}${type === 'generated' ? '_generated' : ''}.pdf`);
-
-    console.log('[Server] File paths resolved:', {
-      baseName: safeName,
+    console.log('[Server] File paths:', {
       texPath,
       outputPath,
-      type,
-      exists: {
-        tex: fs.existsSync(texPath),
-        pdf: fs.existsSync(outputPath)
-      }
+      logPath,
+      tempDirExists: fs.existsSync(tempDir),
+      pdfDirExists: fs.existsSync(pdfDir)
     });
 
-    await fs.promises.writeFile(texPath, sanitizedLatex, 'utf8');
-    console.log('[Server] LaTeX source written:', {
-      path: texPath,
-      size: sanitizedLatex.length,
-      timestamp: new Date().toISOString()
-    });
+    // Write LaTeX content to temp file
+    await fs.promises.writeFile(texPath, latex, 'utf8');
+    console.log('[Server] LaTeX file written successfully');
 
-    const cmd = `${PDFLATEX_PATH} -interaction=nonstopmode -output-directory "${pdfDir}" "${texPath}"`;
-    console.log('[Server] Executing pdflatex:', {
-      command: cmd,
-      inputFile: texPath,
-      outputDir: pdfDir,
-      timestamp: new Date().toISOString()
-    });
+    // Compile LaTeX to PDF
+    const cmd = `cd "${tempDir}" && ${PDFLATEX_PATH} -interaction=nonstopmode -output-directory="${pdfDir}" "${texPath}"`;
+    console.log('[Server] Executing command:', cmd);
 
     exec(cmd, (error, stdout, stderr) => {
-      console.log('[Server] Compilation completed:', {
-        success: !error,
-        hasStderr: !!stderr,
-        hasStdout: !!stdout,
-        outputExists: fs.existsSync(outputPath),
-        timestamp: new Date().toISOString()
+      console.log('[Server] Compilation output:', {
+        error: error?.message,
+        stdout: stdout,
+        stderr: stderr
       });
 
       if (error) {
-        console.error('[Server] LaTeX compilation error:', {
-          error: error.message,
-          stderr,
-          stdout,
-          texPath,
-          outputPath
-        });
+        console.error('[Server] Compilation error:', error);
         return res.status(500).json({
           success: false,
           error: 'LaTeX compilation failed',
@@ -193,43 +162,41 @@ app.post('/compile', async (req, res) => {
         });
       }
 
+      // Check if PDF was created
       if (fs.existsSync(outputPath)) {
-        const pdfUrl = `/output/${path.basename(outputPath)}`;
-        const stats = fs.statSync(outputPath);
+        const pdfUrl = `/output/${fileId}.pdf`;
         console.log('[Server] PDF generated successfully:', {
-          pdfUrl,
-          outputPath,
-          fileSize: stats.size,
-          modified: stats.mtime,
-          timestamp: new Date().toISOString()
+          path: outputPath,
+          url: pdfUrl
         });
+
         res.json({
           success: true,
           pdfUrl,
-          downloadUrl: `http://localhost:${PORT}${pdfUrl}`,
-          filename: path.basename(outputPath)
+          downloadUrl: `http://localhost:${PORT}${pdfUrl}`
         });
+
+        // Clean up temp files
+        setTimeout(() => {
+          try {
+            fs.unlinkSync(texPath);
+            if (fs.existsSync(logPath)) fs.unlinkSync(logPath);
+            console.log('[Server] Temp files cleaned up');
+          } catch (cleanupError) {
+            console.error('[Server] Error cleaning up temp files:', cleanupError);
+          }
+        }, 1000);
       } else {
-        console.error('[Server] PDF file not created:', {
-          expectedPath: outputPath,
-          texFileExists: fs.existsSync(texPath),
-          texFileSize: fs.existsSync(texPath) ? fs.statSync(texPath).size : null,
-          pdfDirContents: fs.readdirSync(pdfDir)
-        });
+        console.error('[Server] PDF not created');
         res.status(500).json({
           success: false,
-          error: 'PDF was not created'
+          error: 'PDF was not created',
+          details: 'Compilation completed but PDF file was not found'
         });
       }
     });
   } catch (error) {
-    console.error('[Server] Server error:', {
-      message: error.message,
-      stack: error.stack,
-      texPath,
-      outputPath,
-      timestamp: new Date().toISOString()
-    });
+    console.error('[Server] Unexpected error:', error);
     res.status(500).json({
       success: false,
       error: 'Server error',
@@ -237,6 +204,45 @@ app.post('/compile', async (req, res) => {
     });
   }
 });
+
+// Helper function to extract meaningful LaTeX errors
+function extractLatexError(output) {
+  if (!output) return null;
+  
+  // Look for common LaTeX error patterns
+  const errorPatterns = [
+    /!(.*Error.*)$/m,                    // General LaTeX errors
+    /^l\.\d+\s(.*)$/m,                   // Line specific errors
+    /^!(.*Missing.*)$/m,                 // Missing package/command errors
+    /^!(.*Undefined.*)$/m,               // Undefined control sequence
+    /^No file.*$/m,                      // Missing file errors
+    /^Package.*error:/m                  // Package specific errors
+  ];
+
+  for (const pattern of errorPatterns) {
+    const match = output.match(pattern);
+    if (match) {
+      return match[0];
+    }
+  }
+
+  // If no specific error pattern is found, return the last few lines
+  const lines = output.split('\n').filter(line => line.trim());
+  return lines.slice(-3).join('\n');
+}
+
+// Helper function to clean up temporary files
+function cleanupTempFiles(fileId) {
+  const extensions = ['.tex', '.log', '.aux', '.out'];
+  extensions.forEach(ext => {
+    const filePath = path.join(tempDir, `${fileId}${ext}`);
+    if (fs.existsSync(filePath)) {
+      fs.unlink(filePath, (err) => {
+        if (err) console.error(`Error cleaning up ${ext} file:`, err);
+      });
+    }
+  });
+}
 
 // Add file saving endpoint
 app.post('/save-original', async (req, res) => {
@@ -395,6 +401,14 @@ app.use('/output', express.static(pdfDir, {
   }
 }));
 
+app.use('/knowledge', express.static(knowledgeBaseDir, {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.txt')) {
+      res.set('Content-Type', 'text/plain');
+    }
+  }
+}));
+
 // Add download endpoint
 app.get('/download/:type/:filename', (req, res) => {
   const { type, filename } = req.params;
@@ -527,14 +541,99 @@ app.get('/load-template', async (req, res) => {
   }
 });
 
-// Delete template
-app.post('/delete-template', async (req, res) => {
-  const { path } = req.body;
+// Delete template endpoint
+app.delete('/delete-template/:filename', async (req, res) => {
+  const { filename } = req.params;
+  console.log('[Server] Delete template request received:', { filename });
+
   try {
-    await fs.promises.unlink(path);
-    res.json({ success: true });
+    // Construct file paths
+    const originalPath = path.join(originalTexDir, filename);
+    const generatedPath = path.join(generatedTexDir, `${path.parse(filename).name}_generated.tex`);
+    
+    console.log('[Server] Attempting to delete files:', {
+      originalPath,
+      generatedPath,
+      originalExists: fs.existsSync(originalPath),
+      generatedExists: fs.existsSync(generatedPath)
+    });
+
+    // Delete original file if exists
+    if (fs.existsSync(originalPath)) {
+      await fs.promises.unlink(originalPath);
+      console.log('[Server] Deleted original template:', originalPath);
+    }
+
+    // Delete generated file if exists
+    if (fs.existsSync(generatedPath)) {
+      await fs.promises.unlink(generatedPath);
+      console.log('[Server] Deleted generated template:', generatedPath);
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Template deleted successfully',
+      deletedFiles: {
+        original: originalPath,
+        generated: generatedPath
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to delete template' });
+    console.error('[Server] Error deleting template:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to delete template',
+      details: error.message 
+    });
+  }
+});
+
+// Update knowledge base endpoint
+app.post('/update-knowledge-base', async (req, res) => {
+  const { content } = req.body;
+  console.log('[Server] Update knowledge base request received');
+
+  try {
+    // Write content directly to file
+    await fs.promises.writeFile(knowledgeBaseFile, content, 'utf8');
+    console.log('[Server] Knowledge base updated successfully');
+
+    res.json({ 
+      success: true, 
+      message: 'Knowledge base updated successfully'
+    });
+  } catch (error) {
+    console.error('[Server] Error updating knowledge base:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to update knowledge base',
+      details: error.message 
+    });
+  }
+});
+
+// Get knowledge base content endpoint
+app.get('/knowledge-base', async (req, res) => {
+  console.log('[Server] Knowledge base request received');
+
+  try {
+    let content = '';
+    if (fs.existsSync(knowledgeBaseFile)) {
+      content = await fs.promises.readFile(knowledgeBaseFile, 'utf8');
+      console.log('[Server] Knowledge base content loaded, length:', content.length);
+    }
+
+    res.json({ 
+      success: true, 
+      content 
+    });
+  } catch (error) {
+    console.error('[Server] Error reading knowledge base:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to read knowledge base',
+      details: error.message 
+    });
   }
 });
 

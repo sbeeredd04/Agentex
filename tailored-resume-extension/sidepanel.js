@@ -619,30 +619,89 @@ function initializeUI() {
   }
 
   // Knowledge Base Management
-  function displayKnowledgeTags() {
-    knowledgeTags.innerHTML = '';
-    
-    if (storage.knowledgeBase.size === 0) {
-      const emptyMessage = document.createElement('div');
-      emptyMessage.className = 'empty-message';
-      emptyMessage.textContent = 'No items in knowledge base. Add your skills and experiences.';
-      knowledgeTags.appendChild(emptyMessage);
-      return;
-    }
-
-    for (const item of storage.knowledgeBase) {
-      const tag = document.createElement('span');
-      tag.className = 'knowledge-tag';
-      tag.textContent = item;
+  async function loadKnowledgeBase() {
+    console.log('[Knowledge Base] Loading knowledge base content');
+    try {
+      const response = await fetch('http://localhost:3000/knowledge-base');
+      if (!response.ok) {
+        throw new Error(`Failed to load knowledge base: ${response.status}`);
+      }
       
-      // Add delete functionality on click
-      tag.addEventListener('click', () => {
-        if (confirm(`Remove "${item}" from knowledge base?`)) {
-          removeKnowledgeItem(item);
-        }
+      const data = await response.json();
+      console.log('[Knowledge Base] Loaded content:', {
+        success: data.success,
+        contentLength: data.content?.length
       });
       
-      knowledgeTags.appendChild(tag);
+      if (data.success) {
+        const knowledgeBaseInput = document.getElementById('knowledgeBaseInput');
+        knowledgeBaseInput.value = data.content;
+      }
+    } catch (error) {
+      console.error('[Knowledge Base] Error loading:', error);
+      showStatus('Failed to load knowledge base: ' + error.message, 'error');
+    }
+  }
+
+  // Update knowledge base with debounce
+  const updateKnowledgeBase = debounce(async (content) => {
+    console.log('[Knowledge Base] Updating content');
+    try {
+      const response = await fetch('http://localhost:3000/update-knowledge-base', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ content })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update knowledge base: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('[Knowledge Base] Update response:', data);
+      
+      if (data.success) {
+        showStatus('Knowledge base updated', 'success');
+      }
+    } catch (error) {
+      console.error('[Knowledge Base] Error updating:', error);
+      showStatus('Failed to update knowledge base: ' + error.message, 'error');
+    }
+  }, 1000);
+
+  // Delete template functionality
+  async function deleteTemplate(filename) {
+    console.log('[Delete] Attempting to delete template:', filename);
+    
+    try {
+      const response = await fetch(`http://localhost:3000/delete-template/${encodeURIComponent(filename)}`, {
+        method: 'DELETE'
+      });
+      
+      console.log('[Delete] Server response:', {
+        status: response.status,
+        ok: response.ok
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('[Delete] Delete operation result:', data);
+      
+      if (data.success) {
+        showStatus(`Template "${filename}" deleted successfully`, 'success');
+        // Refresh the template list
+        await loadExistingTemplates();
+      } else {
+        throw new Error(data.error || 'Failed to delete template');
+      }
+    } catch (error) {
+      console.error('[Delete] Error:', error);
+      showStatus(`Failed to delete template: ${error.message}`, 'error');
     }
   }
 
@@ -791,7 +850,8 @@ function initializeUI() {
    * Event Listener for the "Tailor Resume" Button
    */
   tailorBtn.addEventListener('click', async () => {
-    const jobDesc = jobDescInput.value.trim();
+    const jobDesc = document.getElementById('jobDesc').value.trim();
+    const knowledgeBaseInput = document.getElementById('knowledgeBaseInput').value.trim();
     
     if (!originalLatex) {
       showStatus("Please upload or select a resume template first", 'error');
@@ -809,105 +869,85 @@ function initializeUI() {
         <div class="loading-spinner"></div>
         <span>Generating...</span>
       `;
-      showStatus("Generating tailored resume...", 'success');
+      showStatus("Generating tailored resume...", 'info');
       
       // Construct the prompt
       const prompt = `
-            Act as an expert ATS optimization specialist for software engineering roles. Analyze the job description and resume with these strict requirements:
+        Act as an expert ATS optimization specialist for software engineering roles. Analyze the job description(JD) and resume with these strict requirements:
 
-            1. **Keyword Mapping Protocol**:
-            - Extract 15-18 hard skills/technologies from JD (prioritize: languages > frameworks > tools)
-            - Identify 6-8 action verbs from Identify 5-8 soft skills/action verbs from "led", "engineered", "optimized", "developed", "integrated"
-            - Map these keywords to existing resume content using semantic matching
-            - Map using semantic matching with 85% similarity threshold for technical terms
+        1. **Keyword Mapping Protocol**:
+        - Extract 15-18 hard skills/technologies from JD (prioritize: languages > frameworks > tools)
+        - Identify 6-8 action verbs from "led", "engineered", "optimized", "developed", "integrated"
+        - Map these keywords to existing resume content using semantic matching
+        - Map using semantic matching with 85% similarity threshold for technical terms
 
-            2. **Dynamic Knowledge Base Integration**:
-            ${storage.knowledgeBase.size > 0 ? `
-            - Compare knowledge base items [${Array.from(storage.knowledgeBase).join(', ')}] against JD requirements
-            - REPLACE existing resume content ONLY if:
-                * Knowledge base item has ≥2 more JD keywords
-                * Demonstrates 25%+ better metric impact
-                * Technical stack has direct JD toolchain overlap
-                * Knowledge base item is more relevant to the JD than the existing resume content
-            - Preserve 70% of original content - only swap 30% weakest items` : ''}
+        2. **Dynamic Knowledge Base Integration**:
+        ${knowledgeBaseInput ? `
+        - Use the following knowledge base items:
+        ${knowledgeBaseInput}
+        - Integrate these experiences and skills where relevant
+        - REPLACE existing resume content ONLY if:
+            * Knowledge base item has ≥2 more JD keywords
+            * Demonstrates 25%+ better metric impact
+            * Technical stack has direct JD toolchain overlap` : ''}
 
-            3. **Experience Section Optimization**:
-            - For each role:
-                - Rewrite 2-3 bullet points using JD action verbs + technical keywords if closely related to the JD
-                - Quantify achievements using \textbf{metrics} from JD requirements
-                - Reorder bullets to put most relevant first
-                - Convert to active voice: "Engineered X using Y to achieve Z"
-                - Highlight relevant words and important information using \emph{...} and \textbf{...} formatting
+        3. **Experience Section Optimization**:
+        - For each role:
+            - Tailor bullet points to JD requirements (Do not generate fake points)
+            - Quantify achievements using \\textbf{metrics} from JD requirements
+            - Convert to active voice: "Engineered X using Y to achieve Z"
+            - Highlight relevant words using \\emph{...} and \\textbf{...} formatting
 
-            4. **Project Section Tailoring**:
-            - Prioritize projects with ≥4 JD technical keywords
-            - Add 1-2 JD-specific technologies to project descriptions by adjusting the bullet points
-            - Structure bullet points as:
-                "\\resumeItem{\\textbf{JD Keyword} used to \\textbf{Action Verb} \\emph{Tech Stack} resulting in \\textbf{Metric}}"
-            - Replace weakest project if knowledge base has better match (≥2 more keywords)
-            - Highlight relevant words and important information using \emph{...} and \textbf{...} formatting
+        4. **Project Section Tailoring**:
+        - Add 1-2 JD-specific technologies to project descriptions if closely related
+        - Structure: "\\resumeItem{\\textbf{JD Keyword} used to \\textbf{Action Verb} \\emph{Tech Stack} resulting in \\textbf{Metric}}"
+        - Replace weakest project if knowledge base has better match
+        - Highlight relevant words using \\emph{...} and \\textbf{...} formatting
 
+        5. **Technical Skills Optimization**:
+        - Append missing JD-required skills to existing categories
+        - Replace bottom 15% of existing skills with JD priorities:
+            1. Direct toolchain matches (TensorFlow → PyTorch)
+            2. Conceptual equivalents (RNN → CNN if JD specifies)
+            3. Broader categories (Python → ML Pipelines)
 
-            5. **Technical Skills Optimization**:
-            - Append missing JD-required skills to existing categories
-            - Replace bottom 15% of existing skills with JD priorities using this hierarchy:
-                1. Direct toolchain matches (TensorFlow → PyTorch)
-                2. Conceptual equivalents (RNN → CNN if JD specifies)
-                3. Broader categories (Python → ML Pipelines)
-            - If the JD requires a closely related skill that is not in the existing resume, add it to the resume.
+        6. **Content Tailoring Rules**:
+        - Preserve LaTeX structure EXACTLY - only modify text within \\resumeItem{}
+        - "Achieved [X] using [JD Keyword] through [Y] resulting in [Z metric]"
+        - Boost keyword density to 18-22% without stuffing
+        - Show strong leadership and experience relevant to JD
+        - FOCUS ON TAILORING TO THE JD REQUIREMENTS AND KEYWORDS
 
-            6. **Content Tailoring Rules**:
-            - Preserve LaTeX structure EXACTLY - only modify text within \resumeItem{}
-            - Enhance 3-5 bullet points per role using XYZ formula:
-                "Achieved [X] using [JD Keyword] through [Y] resulting in [Z metric]"
-            - Boost keyword density to 18-22% without stuffing
+        7. **ATS Compliance**:
+        - Maintain original font/style/color (NEVER CHANGE STRUCTURE)
+        - Dates: \\textit{MM/YYYY} formatting
+        - Links: \\href{}{} commands
+        - Ensure 1-page length with concise bullet points
+        - Use simple vocabulary while maintaining context
 
-            7. **ATS Compliance**:
-             Maintain original font/style/color EXCEPT for:
-                - Dates: \textit{MM/YYYY} formatting
-                - Links: \\href{}{} commands
-            - Ensure 1-page length through:
-                - 10% tighter verb phrasing
-                - 5% margin adjustments
-                - Bullet consolidation (never deletion)
-                - Preserve as much of the context and details as possible to know exactly what I did in the role or project.
-            - But dont have to change much of the original resume because the resume structure is good for ATS like font size, font type, font color, etc. follow the original for the most part.
-            - IMPORTANT: Do not change the font size, font type, font color, spacing between lines, etc.
+        Job Description:
+        ${jobDesc}
 
+        Original Resume (LaTeX):
+        ${originalLatex}
 
-            Job Description: ${jobDesc}
-
-            Original Resume (LaTeX):
-            ${originalLatex}
-
-            Respond ONLY with updated entire LaTeX code maintaining:
-            \\resumeItem{\\textbf{...} ...} structure |
-            \\textbf{} for metrics/JD keywords |
-            \\emph{} for stacks
-            `.trim();
-
+        Respond ONLY with the complete updated LaTeX code maintaining all formatting.
+      `.trim();
 
       console.log('[AI Input] Sending prompt to AI:', {
-        jobDescription: jobDesc,
-        knowledgeBase: Array.from(storage.knowledgeBase),
-        originalLatexLength: originalLatex.length,
-        originalLatexPreview: originalLatex.substring(0, 200) + '...',
-        fullPrompt: prompt
+        jobDescriptionLength: jobDesc.length,
+        knowledgeBaseLength: knowledgeBaseInput?.length,
+        originalLatexLength: originalLatex.length
       });
 
-      // Generate tailored content
-      let generatedContent = await aiService.generateContent(prompt);
-      
-      console.log('[AI Output] Received response from AI:', {
+      // Generate tailored content using AI service
+      const generatedContent = await aiService.generateContent(prompt);
+      console.log('[AI Output] Received response:', {
         generatedContentLength: generatedContent.length,
-        generatedContentPreview: generatedContent.substring(0, 200) + '...',
         isDifferent: generatedContent !== originalLatex
       });
-      
-      // Additional cleanup to ensure no markdown artifacts remain
-      generatedContent = generatedContent.trim();
-      
-      // Store the cleaned content
+
+      // Store the generated content
       tailoredLatex = generatedContent;
 
       // Save the generated resume
@@ -927,7 +967,6 @@ function initializeUI() {
       }
 
       // Update UI
-      const previewTypeInputs = document.querySelectorAll('input[name="previewType"]');
       const generatedRadio = document.querySelector('input[value="generated"]');
       if (generatedRadio) {
         generatedRadio.disabled = false;
@@ -939,8 +978,8 @@ function initializeUI() {
       showStatus("Resume tailored successfully!", 'success');
 
     } catch (error) {
-      console.error("Error tailoring resume:", error);
-      showStatus("An error occurred while tailoring the resume: " + error.message, 'error');
+      console.error("[Tailor] Error:", error);
+      showStatus("Failed to generate tailored resume: " + error.message, 'error');
     } finally {
       // Reset button state
       tailorBtn.disabled = false;
@@ -1333,91 +1372,71 @@ function initializeUI() {
 }
 
 async function loadExistingTemplates() {
-  console.log('[Client] Starting to load existing templates');
+  console.log('[Templates] Loading existing templates');
   
   try {
-    console.log('[Client] Fetching templates from server');
     const response = await fetch('http://localhost:3000/list-templates');
-    console.log('[Client] Server response status:', response.status);
+    console.log('[Templates] Server response:', response.status);
     
     if (!response.ok) {
-      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      throw new Error(`Server returned ${response.status}`);
     }
     
     const data = await response.json();
-    console.log('[Client] Received templates data:', data);
+    console.log('[Templates] Received data:', {
+      success: data.success,
+      templateCount: data.templates?.length
+    });
     
-    if (data.success && data.templates) {
-      const resumeList = document.getElementById('resumeList');
-      console.log('[Client] Found resumeList element:', !!resumeList);
+    const resumeList = document.getElementById('resumeList');
+    if (!resumeList) {
+      throw new Error('Resume list element not found');
+    }
+    
+    // Clear existing list
+    resumeList.innerHTML = '';
+    
+    if (!data.success || !data.templates?.length) {
+      resumeList.innerHTML = '<div class="empty-message">No templates found</div>';
+      return;
+    }
+    
+    // Create template cards
+    data.templates.forEach(template => {
+      console.log('[Templates] Creating card for:', template.name);
       
-      // Clear existing list
-      resumeList.innerHTML = '';
-      console.log('[Client] Cleared existing resume list');
-      
-      // Create template list
-      console.log('[Client] Processing templates:', data.templates.length);
-      
-      data.templates.forEach((file, index) => {
-        console.log('[Client] Creating card for template:', {
-          index,
-          name: file.name,
-          path: file.path
-        });
-        
-        const card = document.createElement('div');
-        card.className = 'resume-card';
-        card.innerHTML = `
-          <div class="resume-card-content">
-            <h4 class="filename">${file.name}</h4>
-            <p class="resume-card-preview">${file.preview || 'No preview available'}</p>
-            <div class="card-actions">
-              <button class="button load-btn">Load</button>
-              <button class="button delete-btn">Delete</button>
-            </div>
+      const card = document.createElement('div');
+      card.className = 'resume-card';
+      card.innerHTML = `
+        <div class="resume-card-content">
+          <h4 class="filename">${template.name}</h4>
+          <p class="resume-card-preview">${template.preview || 'No preview available'}</p>
+          <div class="card-actions">
+            <button class="button load-btn">Load</button>
+            <button class="button delete-btn">Delete</button>
           </div>
-        `;
-        
-        // Add event listeners
-        const loadBtn = card.querySelector('.load-btn');
-        const deleteBtn = card.querySelector('.delete-btn');
-        
-        loadBtn.addEventListener('click', async () => {
-          console.log('[Client] Load button clicked for:', file.name);
-          try {
-            await loadTemplate(file.path);
-            console.log('[Client] Template loaded successfully:', file.name);
-            
-            // Update current file status
-            currentFile = { name: file.name };
-            console.log('[Client] Updated current file:', currentFile);
-            
-            // Update UI
-            fileNameDisplay.textContent = file.name;
-            showStatus(`Loaded template: ${file.name}`, 'success');
-          } catch (error) {
-            console.error('[Client] Error loading template:', {
-              name: file.name,
-              error: error.message
-            });
-            showStatus('Failed to load template: ' + error.message, 'error');
-          }
-        });
-        
-        resumeList.appendChild(card);
-        console.log('[Client] Added card to resume list:', file.name);
+        </div>
+      `;
+      
+      // Add event listeners
+      const loadBtn = card.querySelector('.load-btn');
+      const deleteBtn = card.querySelector('.delete-btn');
+      
+      loadBtn.addEventListener('click', () => loadTemplate(template.path));
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm(`Are you sure you want to delete "${template.name}"?`)) {
+          deleteTemplate(template.name);
+        }
       });
       
-      console.log('[Client] Finished creating template cards');
-    } else {
-      console.warn('[Client] No templates found in response:', data);
-    }
-  } catch (error) {
-    console.error('[Client] Failed to load templates:', {
-      error: error.message,
-      stack: error.stack
+      resumeList.appendChild(card);
     });
-    showStatus('Failed to load existing templates: ' + error.message, 'error');
+    
+    console.log('[Templates] Template list updated successfully');
+  } catch (error) {
+    console.error('[Templates] Error:', error);
+    showStatus('Failed to load templates: ' + error.message, 'error');
   }
 }
 
@@ -1432,7 +1451,7 @@ async function loadTemplate(templatePath) {
     console.log('[Client] Server response status:', response.status);
     
     if (!response.ok) {
-      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      throw new Error(`Server returned ${response.status}`);
     }
     
     const data = await response.json();
@@ -1477,212 +1496,6 @@ async function loadTemplate(templatePath) {
       stack: error.stack
     });
     throw error;
-  }
-}
-
-async function deleteTemplate(path) {
-  if (!confirm('Are you sure you want to delete this template?')) return;
-  
-  try {
-    const response = await fetch('http://localhost:3000/delete-template', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path })
-    });
-    
-    const data = await response.json();
-    if (data.success) {
-      await loadExistingTemplates();
-      showStatus('Template deleted successfully!', 'success');
-    }
-  } catch (error) {
-    console.error('Failed to delete template:', error);
-    showStatus('Failed to delete template', 'error');
-  }
-}
-
-// Add to initializeUI function
-document.getElementById('loadExistingBtn').addEventListener('click', loadExistingTemplates);
-
-// Load templates on startup
-loadExistingTemplates();
-
-// Initialize UI and services
-async function initializeSidepanel() {
-  console.log('[Sidepanel] Initializing...');
-  
-  try {
-    // Check for required services
-    if (!window.StorageManager) {
-      throw new Error('StorageManager not found');
-    }
-    if (!window.AIService) {
-      throw new Error('AIService not found');
-    }
-    if (!window.FileManager) {
-      throw new Error('FileManager not found');
-    }
-    if (!window.config || !window.config.GEMINI_API_KEY) {
-      throw new Error('Config or API key not found');
-    }
-    
-    console.log('Initializing services');
-    storage = new window.StorageManager();
-    aiService = new window.AIService(window.config.GEMINI_API_KEY);
-    fileManager = new window.FileManager();
-    
-    // Initialize folders
-    await fileManager.initializeFolders();
-    
-    console.log('Services and folders initialized successfully');
-    
-    // Initialize UI elements
-    await initializeUI();
-    
-    // Restore previous state if any
-    await restoreState();
-  } catch (error) {
-    console.error('[Sidepanel] Initialization failed:', error);
-    showStatus('Failed to initialize sidepanel: ' + error.message, 'error');
-  }
-}
-
-function setupUIElements() {
-  // Select and cache UI elements
-  const elements = {
-    tabs: {
-      resume: document.getElementById('resumeTab'),
-      coverLetter: document.getElementById('coverLetterTab')
-    },
-    content: {
-      resume: document.getElementById('resumeContent'),
-      coverLetter: document.getElementById('coverLetterContent')
-    },
-    preview: {
-      area: document.getElementById('previewArea'),
-      pdf: document.getElementById('pdfPreviewArea'),
-      toggle: document.getElementById('togglePreviewBtn')
-    },
-    buttons: {
-      tailor: document.getElementById('tailorBtn'),
-      preview: document.getElementById('previewBtn'),
-      download: document.getElementById('downloadBtn'),
-      expandPreview: document.createElement('button')
-    }
-  };
-
-  // Add expand preview button
-  elements.buttons.expandPreview.className = 'secondary';
-  elements.buttons.expandPreview.innerHTML = '<span class="material-icons">open_in_new</span>';
-  elements.buttons.expandPreview.title = 'Open in full window';
-
-  return elements;
-}
-
-function setupEventListeners() {
-  const elements = setupUIElements();
-
-  // Tab switching with state persistence
-  elements.tabs.resume.addEventListener('click', () => {
-    switchTab('resume');
-    sidebarState.activeTab = 'resume';
-    saveState();
-  });
-
-  elements.tabs.coverLetter.addEventListener('click', () => {
-    switchTab('coverLetter');
-    sidebarState.activeTab = 'coverLetter';
-    saveState();
-  });
-
-  // Preview expansion handler
-  elements.buttons.expandPreview.addEventListener('click', () => {
-    const previewWindow = window.open('', '_blank', 'width=800,height=800');
-    const content = sidebarState.previewMode === 'pdf' 
-      ? elements.preview.pdf.innerHTML 
-      : elements.preview.area.textContent;
-    
-    previewWindow.document.write(`
-      <html>
-        <head>
-          <title>Resume Preview</title>
-          <link rel="stylesheet" href="styles/preview.css">
-        </head>
-        <body>
-          <div class="preview-container">
-            ${content}
-          </div>
-        </body>
-      </html>
-    `);
-  });
-
-  // Preview toggle with state persistence
-  elements.preview.toggle.addEventListener('click', async () => {
-    sidebarState.previewMode = sidebarState.previewMode === 'text' ? 'pdf' : 'text';
-    await updatePreview(sidebarState.previewMode);
-    saveState();
-  });
-
-  // Save job description as you type
-  const jobDescInput = document.getElementById('jobDesc');
-  jobDescInput.addEventListener('input', debounce(() => {
-    sidebarState.lastJobDescription = jobDescInput.value;
-    saveState();
-  }, 500));
-}
-
-// State management
-function saveState() {
-  chrome.storage.local.set({ sidebarState });
-}
-
-async function restoreState() {
-  const { sidebarState: savedState } = await chrome.storage.local.get('sidebarState');
-  if (savedState) {
-    sidebarState = savedState;
-    
-    // Restore UI state
-    switchTab(sidebarState.activeTab);
-    if (sidebarState.lastJobDescription) {
-      document.getElementById('jobDesc').value = sidebarState.lastJobDescription;
-    }
-    await updatePreview(sidebarState.previewMode);
-  }
-}
-
-// Utility functions
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
-
-// Keep existing functions but modify for sidebar context
-async function updatePreview(type) {
-  console.log('[Preview] Updating preview:', { type });
-  const previewArea = document.getElementById('previewArea');
-  const pdfPreviewArea = document.getElementById('pdfPreviewArea');
-
-  try {
-    if (type === 'pdf') {
-      previewArea.style.display = 'none';
-      pdfPreviewArea.style.display = 'block';
-      await generatePdfPreview(tailoredLatex || originalLatex);
-    } else {
-      pdfPreviewArea.style.display = 'none';
-      previewArea.style.display = 'block';
-      previewArea.textContent = tailoredLatex || originalLatex;
-    }
-  } catch (error) {
-    console.error('[Preview] Error:', error);
-    showStatus('Preview update failed', 'error');
   }
 }
 

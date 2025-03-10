@@ -1,10 +1,3 @@
-%-------------------------
-% Resume in Latex
-% Author : Jake Gutierrez
-% Based off of: https://github.com/sb2nov/resume
-% License : MIT
-%------------------------
-
 \documentclass[letterpaper,10pt]{article}
 
 \usepackage{latexsym}
@@ -19,22 +12,10 @@
 \usepackage[english]{babel}
 \usepackage{tabularx}
 \input{glyphtounicode}
-
-
-%----------FONT OPTIONS----------
-% sans-serif
-%\usepackage[sfdefault]{FiraSans}
-%\usepackage[sfdefault]{roboto}
-%\usepackage[sfdefault]{noto-sans}
 \usepackage[default]{sourcesanspro}
 
-% serif
-% \usepackage{CormorantGaramond}
-% \usepackage{charter}
-
-
 \pagestyle{fancy}
-\fancyhf{} % clear all header and footer fields
+\fancyhf{} 
 \fancyfoot{}
 \renewcommand{\headrulewidth}{0pt}
 \renewcommand{\footrulewidth}{0pt}
@@ -52,16 +33,12 @@
 \raggedright
 \setlength{\tabcolsep}{0in}
 
-% Sections formatting
 \titleformat{\section}{
   \vspace{-4pt}\scshape\raggedright\large
 }{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
 
-% Ensure that generate pdf is machine readable/ATS parsable
 \pdfgentounicode=1
 
-%-------------------------
-% Custom commands
 \newcommand{\resumeItem}[1]{
   \item\small{
     {#1 \vspace{-2pt}}
@@ -121,7 +98,7 @@
     \resumeSubheading
       {Arizona State University (4.0 GPA)}{Tempe, AZ}
       {Bachelor of Science in Computer Science (Software Engineering), Minor in Entrepreneurship}
-      {Aug \textit{08/2022} -- May \textit{05/2026}}
+      {Aug 2022 -- May 2026}
   \resumeSubHeadingListEnd
 
 
@@ -130,36 +107,37 @@
   \resumeSubHeadingListStart
   
   \resumeSubheading
-      {Software Engineering Intern (Machine Learning)}{Jul \textit{07/2024} -- Present}
+      {Software Engineering Intern (Machine Learning)}{Jul 2024 -- Present}
       {Geometric Media Lab}{Tempe, AZ}
       \resumeItemListStart
-        \resumeItem{\textbf{Engineered} a hybrid \textbf{ML pipeline} combining k-means clustering with a supervised neural network for gunshot detection, \textbf{boosting accuracy from 20\% to 80\%} on \textbf{10+ hours} of audio data processed via \emph{Librosa} and iterative model refinement.}
-        \resumeItem{\textbf{Optimized} edge deployment by tailoring the \textbf{ML pipeline} for \emph{Raspberry Pi} via hardware-specific adjustments and a custom microphone setup, ensuring real-time performance in resource-constrained forest environments.}
-        \resumeItem{\textbf{Integrated} a dynamic feedback loop to continuously refine predictions and improve noise differentiation, securing scalable analysis under diverse conditions and \textbf{enhancing model robustness}.}
+        \resumeItem{\textbf{Engineered} a hybrid \emph{ML pipeline} that combines k-means clustering with a supervised neural network for gunshot detection, boosting \textbf{accuracy from 20\% to 80\%} on \textbf{10+ hours} of audio data processed via \emph{Librosa} and iterative model refinement.}
+        \resumeItem{\textbf{Optimized} edge deployment by tailoring the pipeline for \emph{Raspberry Pi}, integrating hardware-specific adjustments, and creating a custom microphone setup for real-time performance in resource-constrained forest environments.}
+        \resumeItem{\textbf{Enhanced} model robustness by implementing a dynamic feedback loop to continuously refine predictions and improve noise differentiation, securing scalable analysis under diverse conditions.}
       \resumeItemListEnd
 
   \resumeSubheading
-      {Software Engineering Intern (Machine Learning)}{Jan \textit{01/2023} -- Dec \textit{12/2024}}
+      {Software Engineering Intern (Machine Learning)}{Jan 2023 -- Dec 2024}
       {ASU Biodesign Institute}{Tempe, AZ}
       \resumeItemListStart
-        \resumeItem{\textbf{Developed} an end-to-end data \textbf{pipeline} automating \emph{DNA-PAINT} image analysis by integrating k-means clustering and custom tracking algorithms, slashing \textbf{processing time from 4 hours to 10–30 minutes} per image.}
-        \resumeItem{\textbf{Advanced research capabilities} by delivering granular movement data and actionable metrics, transforming traditional nanotech workflows into \textbf{ML}-driven, high-impact research tools, \textbf{integrating hardware, software and firmware}}
+        \resumeItem{\textbf{Developed} an end-to-end data pipeline, automating DNA-PAINT image analysis through \emph{k-means clustering} and custom tracking algorithms, slashing \textbf{processing time from 4 hours to 10–30 minutes} per image.}
+        \resumeItem{\textbf{Advanced} research capabilities by delivering granular movement data and actionable metrics, transforming traditional nanotech workflows into \emph{ML}-driven, high-impact research tools.}
       \resumeItemListEnd
 
   \resumeSubheading
-      {Software Engineer}{Aug \textit{08/2024} -- Present}
+      {Software Engineer}{Aug 2024 -- Present}
       {Mesa Historical Museum (EPICS)}{Tempe, AZ}
       \resumeItemListStart
-        \resumeItem{\textbf{Built} an immersive digital experience by developing an interactive website using \emph{React} and \emph{Three.js}, \textbf{increasing visitor engagement by 20\%} and offering an engaging digital tour of museum collections.}
-        \resumeItem{\textbf{Led} a 7-member team to implement scalable content management and ensure sub-second website response times, \textbf{optimizing} the digital visitor experience and \textbf{increasing visitor engagement by 20\%}.}
+        \resumeItem{\textbf{Built} an immersive digital experience with an interactive website using \emph{React} and \emph{Three.js}, \textbf{increasing visitor engagement by 20\%} and offering an engaging digital tour of museum collections.}
+        \resumeItem{\textbf{Led} cross-functional teams of 7 members to implement scalable content management and ensure sub-second website response times, optimizing the digital visitor experience.}
+        \resumeItem{Ensured the \textbf{high availability} and \textbf{performance} of the website by \textbf{automating} deployment and monitoring using \emph{Linux} servers.}
       \resumeItemListEnd
 
   \resumeSubheading
-      {Software Engineer}{Jan \textit{01/2024} -- Oct \textit{10/2024}}
+      {Software Engineer}{Jan 2024 -- Oct 2024}
       {Software Developers Association (SoDA)}{Tempe, AZ}
       \resumeItemListStart
-        \resumeItem{\textbf{Automated} operational workflows, reducing \textbf{test case upload time by 98\%} using a \emph{Selenium}-based scraper for \textbf{200+ files}, streamlining annual code challenge processes.}
-        \resumeItem{\textbf{Optimized} membership systems by developing a \emph{Flask-Next.js} application that boosted \textbf{operational efficiency by 50\%} and enhanced \textbf{engagement for 600+} active members.}
+        \resumeItem{\textbf{Automated} operational workflows, reducing \textbf{test case upload time by 98\%} using a \emph{Selenium}-based scraper for \textbf{200+} files, streamlining annual code challenge processes.}
+        \resumeItem{\textbf{Optimized} membership systems with a \emph{Flask-Next.js} application that boosted \textbf{operational efficiency by 50\%} and enhanced \textbf{engagement for 600+} active members.}
       \resumeItemListEnd
 
   \resumeSubHeadingListEnd
@@ -167,7 +145,7 @@
 %-----------LEADERSHIP EXPERIENCE-----------
 \section{Leadership Experience}\vspace{-4pt}
   \resumeSubHeadingListStart
-    \resumeItem{\textbf{Led} teams to secure \textbf{4 hackathon wins} — including the \textbf{Most Innovative Solution Award} at \textbf{Devil's Invent} and the \textbf{Sustainable AZ Spark Challenge} (sponsored by \textbf{Honeywell, DAASH, and ASU}).}
+    \resumeItem{Led teams to secure \textbf{4 hackathon wins} — including the \textbf{Most Innovative Solution Award} at \textbf{Devil's Invent} and the \textbf{Sustainable AZ Spark Challenge} (sponsored by \textbf{Honeywell, DAASH, and ASU}).}
     \resumeItem{Progressed from Intern in Community Engagement to Associate Technical Director at \textbf{SoDA}, managing a team for workshop development, internal tool optimization, and outreach initiatives (e.g., hosting hackathons).}
   \resumeSubHeadingListEnd
 
@@ -178,17 +156,17 @@
     \resumeSubHeadingListStart
       \resumeProjectHeading
           {\textbf{Amano – Emotion-Based Song Recommendation System} $|$ \emph{Flask, Spotify API, OpenAI API, AWS EC2}}{}
-      \vspace{-4pt} % Reduced space between title header and bullet points
+      \vspace{-4pt}
           \resumeItemListStart
-            \resumeItem{\textbf{Enhanced user experience} with a real-time \textbf{ChatGPT LLM chatbot} that analyzes mood and sends data to the reinforcement model for dynamic song recommendations, functioning like a personal DJ.}
-            \resumeItem{\textbf{Improvised Spotify's song recommendation system} by developing a backend using \emph{Flask hosted on AWS EC2} that integrates with the \emph{Spotify API} to provide personalized song suggestions using \textbf{Reinforcement Learning}.}
+            \resumeItem{\textbf{Spotify API} used to \textbf{develop} a backend using \emph{Flask} hosted on \emph{AWS EC2} that integrates with the \emph{Spotify API} to provide personalized song suggestions using \emph{Reinforcement Learning}.}
+            \resumeItem{\textbf{OpenAI API} used to \textbf{enhance} the user experience with a real-time \emph{ChatGPT LLM chatbot} that analyzes mood and sends data to the reinforcement model for dynamic song recommendations.}
           \resumeItemListEnd
 
       \resumeProjectHeading
           {\textbf{Mine Alliance – Fullstack Sustainable Mining Website} $|$ \emph{Next.js, Flask, SQLAlchemy, AWS, OpenAI GPT-4, TailwindCSS}}{}
       \vspace{-4pt}
           \resumeItemListStart
-            \resumeItem{\textbf{Reduced environmental assessment response times by 40\%} by leading the development of a \textbf{fullstack platform} that integrated \textbf{ChatGPT-4 API} for mining site impact assessments.}
+            \resumeItem{\textbf{ChatGPT-4 API} used to \textbf{reduce} environmental assessment response times by \textbf{40\%} by leading the development of a \emph{fullstack platform} that integrated \emph{ChatGPT-4 API} for mining site impact assessments.}
             \resumeItem{Utilized \emph{SQLAlchemy, Flask, AWS EC2}, and geospatial mapping with \emph{Leaflet}, resulting in increased stakeholder engagement.}
           \resumeItemListEnd
 
@@ -196,8 +174,8 @@
           {\textbf{Market Anomaly Detection (MAD)} $|$ \emph{Python, Streamlit, Scikit-learn, GEMINI, Jupyter Notebook}}{}
       \vspace{-4pt}
           \resumeItemListStart
-            \resumeItem{\textbf{Enabled user-driven customization and improved performance} with features like \textbf{GEMINI-powered chatbot}, automated model tuning, and support for supervised and unsupervised learning pipelines.}
-            \resumeItem{\textbf{Developed an anomaly detection system} to identify potential financial market crashes, utilizing \emph{Streamlit} for an interactive user interface and \emph{Scikit-learn} for model training and tuning.}
+            \resumeItem{\textbf{Streamlit} used to \textbf{develop} an anomaly detection system to identify potential financial market crashes, utilizing \emph{Streamlit} for an interactive user interface and \emph{Scikit-learn} for model training and tuning.}
+            \resumeItem{\textbf{Machine Learning} used to \textbf{enable} user-driven customization and improved performance with features like \emph{GEMINI-powered chatbot}, automated model tuning, and support for supervised and unsupervised learning pipelines.}
           \resumeItemListEnd
     \resumeSubHeadingListEnd
 
@@ -207,9 +185,9 @@
 \section{Technical Skills}
  \begin{itemize}[leftmargin=0.15in, label={}]
     \small{\item{
-     \textbf{Languages}{: Python, Java, JavaScript, Scala, C/C++, TypeScript, C\#, SQL, HTML, CSS, Flutter, LabVIEW, TestStand, ATEasy} \\
+     \textbf{Languages}{: Python, Java, JavaScript, C/C++, Scala, C\#, SQL, HTML, CSS, Flutter} \\
      \textbf{Frameworks \& Libraries}{: Flask, Django, React, TensorFlow, PyTorch, scikit-learn, OpenCV, three.js, pandas, numpy} \\
-     \textbf{Tools \& Environments}{: Streamlit, Docker, AWS, Linux, Git, GitHub, Selenium, Google Colab, Jupyter Notebooks, Azure DevOps, Oscilloscopes, Logic Analyzers, Network Analyzers, Spectrum Analyzers, Terraform, Chef, Puppet} \\
+     \textbf{Tools \& Environments}{: Streamlit, Docker, AWS, Azure, Linux, Git, GitHub, Selenium, Google Colab, Jupyter Notebooks} \\
      \textbf{Machine Learning \& AI}{: Neural Networks, GEMINI API, Deep Learning, Reinforcement Learning, Unsupervised Learning} \\
     }}
  \end{itemize}

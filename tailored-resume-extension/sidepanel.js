@@ -102,6 +102,13 @@ function setupEventListeners(elements) {
       await handleFileUpload(file);
     });
   }
+
+  // Add this to setupEventListeners()
+  document.querySelectorAll('input[name="previewType"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      updatePreview(e.target.value);
+    });
+  });
 }
 
 // Setup preview UI controls and event listeners
@@ -122,29 +129,22 @@ function setupPreviewUI() {
   const pdfPreviewArea = document.getElementById('pdfPreviewArea');
   
   toggleButton.addEventListener('click', async () => {
-    const currentLatex = tailoredLatex || originalLatex;
+    console.log('[Preview] Switching preview mode');
+
+    // Determine the current mode and toggle it
     const isShowingPdf = pdfPreviewArea.style.display !== 'none';
-    if (isShowingPdf) {
-      // Switch to text (code) view
-      previewArea.style.display = 'block';
-      pdfPreviewArea.style.display = 'none';
+    const newMode = isShowingPdf ? 'text' : 'pdf';
+
+    // Update the preview with the new mode
+    await updatePreview(newMode);
+
+    // Update the button icon and title based on the new mode
+    if (newMode === 'text') {
       toggleButton.innerHTML = '<span class="material-icons">visibility</span>';
       toggleButton.title = 'Show PDF Preview';
     } else {
-      // Switch to PDF view
-      if (!currentLatex) {
-        console.warn('No LaTeX content available');
-        showStatus('No content to preview', 'error');
-      return;
-    }
-      showStatus('Generating PDF preview...', 'info');
-      const success = await generatePdfPreview(currentLatex);
-      if (success) {
-        previewArea.style.display = 'none';
-        pdfPreviewArea.style.display = 'block';
-        toggleButton.innerHTML = '<span class="material-icons">code</span>';
-        toggleButton.title = 'Show LaTeX Code';
-      }
+      toggleButton.innerHTML = '<span class="material-icons">code</span>';
+      toggleButton.title = 'Show LaTeX Code';
     }
   });
   console.log('Preview UI setup complete');
@@ -213,6 +213,13 @@ async function restoreState() {
           <span>${sidebarState.uploadedFileName}</span>
         </div>
       `;
+    }
+
+    // Update preview with correct content
+    if (sidebarState.previewMode === 'generated' && tailoredLatex) {
+      previewArea.textContent = tailoredLatex;
+    } else {
+      previewArea.textContent = originalLatex;
     }
 
     await updatePreview(sidebarState.previewMode);
@@ -560,12 +567,27 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
 async function updatePreview(mode) {
   const previewArea = document.getElementById('previewArea');
   const pdfPreviewArea = document.getElementById('pdfPreviewArea');
-
+  
+  // Update text content first
+  previewArea.textContent = mode === 'generated' ? tailoredLatex : originalLatex;
+  
+  // Then handle display mode
   if (mode === 'text') {
     previewArea.style.display = 'block';
     pdfPreviewArea.style.display = 'none';
   } else if (mode === 'pdf') {
     previewArea.style.display = 'none';
     pdfPreviewArea.style.display = 'block';
+    
+    // Regenerate PDF preview with correct content
+    const currentLatex = mode === 'generated' ? tailoredLatex : originalLatex;
+    await generatePdfPreview(currentLatex);
+  }
+  
+  // Update radio buttons
+  const generatedRadio = document.querySelector('input[value="generated"]');
+  if (generatedRadio && tailoredLatex) {
+    generatedRadio.disabled = false;
+    generatedRadio.checked = mode === 'generated';
   }
 }

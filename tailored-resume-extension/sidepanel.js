@@ -14,6 +14,7 @@ let currentFile = null;
 let sidebarState = {
   activeTab: 'resume',
   previewMode: 'text',
+  contentType: 'original',
   lastJobDescription: '',
   lastKnowledgeBaseText: '',
   uploadedFileName: '',
@@ -109,6 +110,24 @@ function setupEventListeners(elements) {
       updatePreview(e.target.value);
     });
   });
+
+  // Add this to setupEventListeners()
+  document.querySelectorAll('input[name="resumeVersion"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      console.log('[RadioButton] Changed to:', e.target.value);
+      console.log('[RadioButton] Previous state:', sidebarState.contentType);
+      
+      sidebarState.contentType = e.target.value;
+      console.log('[RadioButton] Updated state:', sidebarState.contentType);
+      console.log('[RadioButton] Available content:', {
+        originalLatex: originalLatex?.length || 0,
+        tailoredLatex: tailoredLatex?.length || 0
+      });
+      
+      saveState();
+      updatePreview(sidebarState.previewMode);
+    });
+  });
 }
 
 // Setup preview UI controls and event listeners
@@ -186,8 +205,15 @@ function saveState() {
 
 async function restoreState() {
   const { sidebarState: savedState } = await chrome.storage.local.get('sidebarState');
+  console.log('[State] Restoring state:', savedState);
+  
   if (savedState) {
     sidebarState = savedState;
+    console.log('[State] State restored:', {
+      contentType: sidebarState.contentType,
+      previewMode: sidebarState.previewMode
+    });
+
     const jobDescInput = document.getElementById('jobDesc');
     const knowledgeBaseText = document.getElementById('knowledgeBaseText');
     const previewArea = document.getElementById('previewArea');
@@ -222,9 +248,25 @@ async function restoreState() {
       previewArea.textContent = originalLatex;
     }
 
+    // Update radio buttons after state restore
+    const radioButtons = document.querySelectorAll('input[name="resumeVersion"]');
+    radioButtons.forEach(radio => {
+      const shouldBeChecked = radio.value === sidebarState.contentType;
+      console.log('[State] Restoring radio button:', {
+        value: radio.value,
+        shouldBeChecked,
+        currentlyChecked: radio.checked
+      });
+      radio.checked = shouldBeChecked;
+    });
+
     await updatePreview(sidebarState.previewMode);
+    console.log('[State] Preview updated after restore');
+  } else {
+    console.log('[State] No saved state found');
   }
 }
+
 // Cleanup temporary PDF URL
 function cleanupPdfUrl(url) {
   console.log('[Cleanup] Cleaning up PDF URL:', url);
@@ -565,29 +607,67 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
 });
 
 async function updatePreview(mode) {
+  console.log('[Preview] Updating preview:', {
+    mode,
+    contentType: sidebarState.contentType,
+    hasOriginal: Boolean(originalLatex),
+    hasGenerated: Boolean(tailoredLatex)
+  });
+
   const previewArea = document.getElementById('previewArea');
   const pdfPreviewArea = document.getElementById('pdfPreviewArea');
   
+  // Update preview mode in state
+  sidebarState.previewMode = mode;
+  
+  // Use contentType from state to determine which version to show
+  const contentToShow = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
+  
+  console.log('[Preview] Content selection:', {
+    selectedType: sidebarState.contentType,
+    contentLength: contentToShow?.length || 0,
+    preview: contentToShow?.substring(0, 100) + '...'
+  });
+  
   // Update text content first
-  previewArea.textContent = mode === 'generated' ? tailoredLatex : originalLatex;
+  previewArea.textContent = contentToShow;
   
   // Then handle display mode
   if (mode === 'text') {
+    console.log('[Preview] Switching to text mode');
     previewArea.style.display = 'block';
     pdfPreviewArea.style.display = 'none';
   } else if (mode === 'pdf') {
+    console.log('[Preview] Switching to PDF mode');
     previewArea.style.display = 'none';
     pdfPreviewArea.style.display = 'block';
     
-    // Regenerate PDF preview with correct content
-    const currentLatex = mode === 'generated' ? tailoredLatex : originalLatex;
-    await generatePdfPreview(currentLatex);
+    // Generate PDF preview with correct content
+    const pdfSuccess = await generatePdfPreview(contentToShow, sidebarState.contentType);
+    console.log('[Preview] PDF generation:', {
+      success: pdfSuccess,
+      contentType: sidebarState.contentType
+    });
   }
   
-  // Update radio buttons
-  const generatedRadio = document.querySelector('input[value="generated"]');
-  if (generatedRadio && tailoredLatex) {
-    generatedRadio.disabled = false;
-    generatedRadio.checked = mode === 'generated';
-  }
+  // Update radio buttons to match state
+  const radioButtons = document.querySelectorAll('input[name="resumeVersion"]');
+  radioButtons.forEach(radio => {
+    const shouldBeChecked = radio.value === sidebarState.contentType;
+    console.log('[Preview] Radio button state:', {
+      value: radio.value,
+      shouldBeChecked,
+      currentlyChecked: radio.checked
+    });
+    radio.checked = shouldBeChecked;
+  });
+  
+  // Save the current state
+  saveState();
+  console.log('[Preview] Final state saved:', {
+    mode: sidebarState.previewMode,
+    contentType: sidebarState.contentType,
+    previewAreaDisplay: previewArea.style.display,
+    pdfPreviewDisplay: pdfPreviewArea.style.display
+  });
 }

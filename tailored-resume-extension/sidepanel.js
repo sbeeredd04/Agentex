@@ -472,71 +472,41 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
       showStatus("Generating tailored resume...", 'success');
       
       // Construct the prompt
+      // Construct the prompt
       const prompt = `
-            Act as an expert ATS optimization specialist for software engineering roles. Analyze the job description(JD) and resume with these strict requirements:
+        You are an ATS resume tailoring expert for software engineering roles. Your task:
 
-            1. **Keyword Mapping Protocol**:
-            - Extract 15-18 hard skills/technologies from JD (prioritize: languages > frameworks > tools)
-            - Identify 6-8 action verbs from Identify 5-8 soft skills/action verbs from "led", "engineered", "optimized", "developed", "integrated"
-            - Map these keywords to existing resume content using semantic matching
-            - Map using semantic matching with 85% similarity threshold for technical terms
+        1. Tailor the provided LaTeX resume strictly to match the job description (JD).
+        2. Only modify existing experiences/projects if they closely align with JD requirements or if the knowledge base contains clearly superior alternatives.
+        3. Replace existing content ONLY if the knowledge base item:
+          - Matches JD significantly better (≥2 additional JD keywords).
+          - Has clearly stronger metrics or direct technology overlap.
+        4. Do NOT generate experience or skills unrelated to existing content or knowledge base. Only adjust wording if closely related (e.g., "Next.js" → "React").
+        5. Match the writing tone/personality traits described in JD (e.g., enthusiastic, proactive).
+        6. How to use the XYZ format:
+          - Identify your accomplishment: State what I accomplished [X].
+          - Measure your impact: Describe the results of my accomplishment [Y].
+          - Explain your method: Describe how I achieved my accomplishment [Z].
+        7. Highlight metrics and keywords using the XYZ format look from job description:
+          - "\\resumeItem{\\textbf{JD Keyword} used to \\textbf{Action Verb} \\emph{Tech Stack} resulting in \\textbf{Metrics}}".
+        8. Preserve original LaTeX structure exactly just edit the content.
+        9. Ensure ATS compliance and keep resume length strictly under 1 page.
+        10. IMPORTANT: Do not delete any experiences or projects only replace or edit the content.
+        11. IMPORTANT: Do not add any new experiences or projects unless they are in the knowledge base/resume template and are relevant to the job description.
+        12. IMPORTANT: Do not add any new skills unless they are in the knowledge base/resume template and are relevant to the job description.
+        13. IMPORTANT: Do not completely change the tech stack can add only relevant tech stack to the resume that closely matches the job description eg. "Next.js" → "React" but not "Next.js" → "C# and .NET".
+        Job Description:
+        ${jobDesc}
 
-            2. **Dynamic Knowledge Base Integration**:
-            ${storage.knowledgeBase.size > 0 ? `
-            - Compare knowledge base items [${Array.from(storage.knowledgeBase).join(', ')}] against JD requirements
-            - REPLACE existing resume content ONLY if:
-                * Knowledge base item has ≥2 more JD keywords
-                * Demonstrates 25%+ better metric impact
-                * Technical stack has direct JD toolchain overlap
-                * Knowledge base item is more relevant to the JD than the existing resume content` : ''}
-
-            3. **Experience Section Optimization**:
-            - For each role:
-                - Tailor the bullet points to the JD requirements (Do not generate fake bullet points, only generate if the role is closely related to the JD)
-                - Quantify achievements using \textbf{metrics} from JD requirements
-                - Convert to active voice: "Engineered X using Y to achieve Z"
-                - Highlight relevant words and important information using \emph{...} and \textbf{...} formatting
-
-            4. **Project Section Tailoring**:
-            - Add 1-2 JD-specific technologies to project descriptions by adjusting the bullet points ONLY if the project is closely related to the JD
-            - Structure bullet points as:
-                "\\resumeItem{\\textbf{JD Keyword} used to \\textbf{Action Verb} \\emph{Tech Stack} resulting in \\textbf{Metric}}"
-            - Replace weakest project if knowledge base has better match (≥2 more keywords)
-            - Highlight relevant words and important information using \emph{...} and \textbf{...} formatting
-
-
-            5. **Technical Skills Optimization**:
-            - Append missing JD-required skills to existing categories
-            - Replace bottom 15% of existing skills with JD priorities using this hierarchy:
-                1. Direct toolchain matches (TensorFlow → PyTorch)
-                2. Conceptual equivalents (RNN → CNN if JD specifies)
-                3. Broader categories (Python → ML Pipelines)
-            - If the JD requires a closely related skill that is not in the existing resume, add it to the resume.
-
-            6. **Content Tailoring Rules**:
-            - Preserve LaTeX structure EXACTLY - only modify text within \resumeItem{}
-            - "Achieved [X] using [JD Keyword] through [Y] resulting in [Z metric]"
-            - Boost keyword density to 18-22% without stuffing
-            - Show strong leadership skills and experience in the resume and really tailor the resume to the JD can change the bullet points to be more relevant to the JD.
-            - FOCUS ON TAILORING TO THE JD LOOK AT THE JD AND THE RESUME AND MAKE THE RESUME LOOK LIKE IT IS FOR THE JD (JD ACTION VERBS AND KEYWORDS AND JD REQUIREMENTS).
-
-            7. **ATS Compliance**:
-            - Maintain original font/style/color EXCEPT for (NEVER CHANGE THE STRUCUTRE OF THE RESUME like spacing between lines, font size, font type, font color, etc.):
-                - Dates: \textit{MM/YYYY} formatting
-                - Links: \\href{}{} commands
-            - ALWAYS Ensure 1-page length not too many bullet points or words in the bullet points. Use very simple vocabulary and language while maintaining the original context and details.
-            - Preserve as much of the context and details as possible to know exactly what I did in the role or project.
-
-            Job Description: ${jobDesc}
+        Knowledge Base:
+        ${storage.knowledgeBase.size > 0 ? Array.from(storage.knowledgeBase).join(', ') : 'None'}
 
             Original Resume (LaTeX):
             ${originalLatex}
 
-            Respond ONLY with updated entire LaTeX code maintaining:
-            \\resumeItem{\\textbf{...} ...} structure |
-            \\textbf{} for metrics/JD keywords |
-            \\emph{} for stacks
+        Respond ONLY with the tailored LaTeX resume code.
             `.trim();
+
 
       console.log('[AI Input] Sending prompt to AI:', {
         jobDescription: jobDesc,

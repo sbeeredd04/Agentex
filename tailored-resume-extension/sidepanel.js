@@ -11,15 +11,26 @@ let currentPdfUrl = null;
 let currentJobTitle = null;
 let currentFile = null;
 
+let currentModelSelection = {
+  type: 'gemini',
+  model: null
+};
+
 let sidebarState = {
   activeTab: 'resume',
   previewMode: 'text',
   contentType: 'original',
+  selectedModel: {
+    type: 'gemini',
+    model: null,
+    lastUsed: null
+  },
   lastJobDescription: '',
   lastKnowledgeBaseText: '',
   uploadedFileName: '',
   uploadedFileContent: '',
-  isPreviewExpanded: false
+  isPreviewExpanded: false,
+  generatedContent: null
 };
 
 // Function to display status messages
@@ -171,8 +182,19 @@ function setupPreviewUI() {
 
 // Function to generate PDF preview from LaTeX content
 async function generatePdfPreview(latex, type = 'original') {
+  console.log('[Preview] Attempting PDF preview generation:', {
+    hasContent: Boolean(latex),
+    type,
+    filename: currentFile?.name
+  });
+
+  if (!latex) {
+    console.log('[Preview] No content available for PDF preview');
+    showStatus("No content available for preview", 'warning');
+    return false;
+  }
+
   const filename = currentFile ? currentFile.name : 'resume.tex';
-  console.log('[Preview] Generating PDF preview for', filename, 'Content length:', latex.length);
   try {
     const response = await fetch('http://localhost:3000/compile', {
       method: 'POST',
@@ -191,7 +213,7 @@ async function generatePdfPreview(latex, type = 'original') {
     } else {
       throw new Error(data.error || "PDF generation failed");
     }
-      } catch (error) {
+  } catch (error) {
     console.error('[Preview] Error generating PDF preview:', error);
     showStatus("Could not generate preview: " + error.message, 'error');
     return false;
@@ -208,32 +230,45 @@ async function restoreState() {
   console.log('[State] Restoring state:', savedState);
   
   if (savedState) {
-    sidebarState = savedState;
+    // Merge saved state with default state to ensure all properties exist
+    sidebarState = {
+      ...sidebarState,
+      ...savedState
+    };
+
     console.log('[State] State restored:', {
       contentType: sidebarState.contentType,
-      previewMode: sidebarState.previewMode
+      previewMode: sidebarState.previewMode,
+      modelSelection: sidebarState.selectedModel
     });
 
-    const jobDescInput = document.getElementById('jobDesc');
-    const knowledgeBaseText = document.getElementById('knowledgeBaseText');
-    const previewArea = document.getElementById('previewArea');
-    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    // Restore UI elements
+    const elements = {
+      jobDescInput: document.getElementById('jobDesc'),
+      knowledgeBaseText: document.getElementById('knowledgeBaseText'),
+      previewArea: document.getElementById('previewArea'),
+      fileNameDisplay: document.getElementById('fileNameDisplay')
+    };
 
-    if (sidebarState.lastJobDescription) {
-      jobDescInput.value = sidebarState.lastJobDescription;
-    }
-
-    if (sidebarState.lastKnowledgeBaseText) {
-      knowledgeBaseText.value = sidebarState.lastKnowledgeBaseText;
-    }
-
+    // Restore content if available
     if (sidebarState.uploadedFileContent) {
       originalLatex = sidebarState.uploadedFileContent;
-      previewArea.textContent = originalLatex;
+      if (elements.previewArea) {
+        elements.previewArea.textContent = originalLatex;
+      }
     }
 
-    if (sidebarState.uploadedFileName) {
-      fileNameDisplay.innerHTML = `
+    // Restore other UI states
+    if (elements.jobDescInput && sidebarState.lastJobDescription) {
+      elements.jobDescInput.value = sidebarState.lastJobDescription;
+    }
+
+    if (elements.knowledgeBaseText && sidebarState.lastKnowledgeBaseText) {
+      elements.knowledgeBaseText.value = sidebarState.lastKnowledgeBaseText;
+    }
+
+    if (elements.fileNameDisplay && sidebarState.uploadedFileName) {
+      elements.fileNameDisplay.innerHTML = `
         <div class="file-upload-feedback success">
           <span class="material-icons">check_circle</span>
           <span>${sidebarState.uploadedFileName}</span>
@@ -241,29 +276,12 @@ async function restoreState() {
       `;
     }
 
-    // Update preview with correct content
-    if (sidebarState.previewMode === 'generated' && tailoredLatex) {
-      previewArea.textContent = tailoredLatex;
-    } else {
-      previewArea.textContent = originalLatex;
+    // Only update preview if we have content
+    if (originalLatex || tailoredLatex) {
+      await updatePreview(sidebarState.previewMode);
     }
-
-    // Update radio buttons after state restore
-    const radioButtons = document.querySelectorAll('input[name="resumeVersion"]');
-    radioButtons.forEach(radio => {
-      const shouldBeChecked = radio.value === sidebarState.contentType;
-      console.log('[State] Restoring radio button:', {
-        value: radio.value,
-        shouldBeChecked,
-        currentlyChecked: radio.checked
-      });
-      radio.checked = shouldBeChecked;
-    });
-
-    await updatePreview(sidebarState.previewMode);
-    console.log('[State] Preview updated after restore');
   } else {
-    console.log('[State] No saved state found');
+    console.log('[State] No saved state found, using defaults');
   }
 }
 
@@ -411,6 +429,7 @@ async function initializeSidepanel() {
     const elements = setupUIElements();
     setupEventListeners(elements);
     setupPreviewUI();
+    setupModelSelector();
     
     await restoreState();
     
@@ -448,103 +467,183 @@ async function loadKnowledgeBase() {
   }
 }
 
-// Event Listener for the "Tailor Resume" Button
+// Add this function to setup model selection
+function setupModelSelector() {
+  const modelSelect = document.getElementById('modelSelect');
+  if (!modelSelect) {
+    console.error('[ModelSelector] Model select element not found');
+    return;
+  }
+
+  modelSelect.addEventListener('change', (e) => {
+    const [type, model] = e.target.value.split(':');
+    console.log('[ModelSelector] Model changed:', {
+      value: e.target.value,
+      type,
+      model
+    });
+
+    // Update current selection
+    currentModelSelection = {
+      type,
+      model,
+      description: type === 'groq' 
+        ? aiService.models.groq.models[model]?.description 
+        : 'Gemini 2.0 Flash'
+    };
+
+    // Save to state (now saving the full object)
+    sidebarState.selectedModel = currentModelSelection;
+    saveState();
+
+    // Show model info in status
+    showStatus(`Selected model: ${currentModelSelection.description}`, 'info');
+  });
+
+  // Restore saved model selection (handling both string and object formats)
+  if (sidebarState.selectedModel) {
+    console.log('[ModelSelector] Restoring saved model:', sidebarState.selectedModel);
+    
+    // Handle legacy string format or new object format
+    if (typeof sidebarState.selectedModel === 'string') {
+      const [type, model] = sidebarState.selectedModel.split(':');
+      currentModelSelection = {
+        type,
+        model,
+        description: type === 'groq' 
+          ? aiService.models.groq.models[model]?.description 
+          : 'Gemini 2.0 Flash'
+      };
+      modelSelect.value = sidebarState.selectedModel;
+    } else {
+      // Handle object format
+      currentModelSelection = sidebarState.selectedModel;
+      const selectValue = currentModelSelection.model 
+        ? `${currentModelSelection.type}:${currentModelSelection.model}`
+        : currentModelSelection.type;
+      modelSelect.value = selectValue;
+    }
+  } else {
+    // Set default selection
+    currentModelSelection = {
+      type: 'gemini',
+      model: null,
+      description: 'Gemini 2.0 Flash'
+    };
+    modelSelect.value = 'gemini';
+  }
+
+  // Log available models on initialization
+  console.log('[ModelSelector] Available models:', {
+    gemini: aiService.models.gemini,
+    groqModels: aiService.models.groq.models,
+    currentSelection: currentModelSelection
+  });
+}
+
+// Update the tailor resume click handler
 document.getElementById('tailorBtn').addEventListener('click', async () => {
   const jobDesc = document.getElementById('jobDesc').value.trim();
+  
+  console.log('[TailorBtn] Starting generation with model:', currentModelSelection);
     
-    if (!originalLatex) {
-      showStatus("Please upload or select a resume template first", 'error');
-      return;
-    }
-    if (!jobDesc) {
-      showStatus("Please enter the job description", 'error');
-      return;
-    }
+  if (!originalLatex) {
+    showStatus("Please upload or select a resume template first", 'error');
+    return;
+  }
+  if (!jobDesc) {
+    showStatus("Please enter the job description", 'error');
+    return;
+  }
 
-    try {
-      // Show loading state
+  try {
+    // Show loading state
     const tailorBtn = document.getElementById('tailorBtn');
-      tailorBtn.disabled = true;
-      tailorBtn.innerHTML = `
-        <div class="loading-spinner"></div>
-        <span>Generating...</span>
-      `;
-      showStatus("Generating tailored resume...", 'success');
-      
-      // Construct the prompt
-      // Construct the prompt
-      const prompt = `
-        You are an ATS resume tailoring expert for software engineering roles. Your task:
+    tailorBtn.disabled = true;
+    tailorBtn.innerHTML = `
+      <div class="loading-spinner"></div>
+      <span>Generating with ${currentModelSelection.type.toUpperCase()}...</span>
+    `;
+    showStatus(`Generating tailored resume using ${currentModelSelection.type.toUpperCase()}...`, 'info');
+    
+    // Construct the prompt
+    const prompt = `
+      You are an ATS resume tailoring expert for software engineering roles. Your task:
+      1. Tailor the provided LaTeX resume strictly to match the job description (JD).
+      2. Only modify existing experiences/projects if they closely align with JD requirements or if the knowledge base contains clearly superior alternatives.
+      3. Replace existing content ONLY if the knowledge base item:
+        - Matches JD significantly better (≥2 additional JD keywords).
+        - Has clearly stronger metrics or direct technology overlap.
+      4. Do NOT generate experience or skills unrelated to existing content or knowledge base. Only adjust wording if closely related (e.g., "Next.js" → "React").
+      5. Match the writing tone/personality traits described in JD (e.g., enthusiastic, proactive).
+      6. How to use the XYZ format:
+        - Identify your accomplishment: State what I accomplished [X].
+        - Measure your impact: Describe the results of my accomplishment [Y].
+        - Explain your method: Describe how I achieved my accomplishment [Z].
+      7. Highlight metrics and keywords using the XYZ format look from job description:
+        - "\\resumeItem{\\textbf{JD Keyword} used to \\textbf{Action Verb} \\emph{Tech Stack} resulting in \\textbf{Metrics}}".
+      8. Preserve original LaTeX structure exactly just edit the content.
+      9. Ensure ATS compliance and keep resume length strictly under 1 page.
+      10. IMPORTANT: Do not delete any experiences or projects only replace or edit the content.
+      11. IMPORTANT: Do not add any new experiences or projects unless they are in the knowledge base/resume template and are relevant to the job description.
+      12. IMPORTANT: Do not add any new skills unless they are in the knowledge base/resume template and are relevant to the job description.
+      13. IMPORTANT: Do not completely change the tech stack can add only relevant tech stack to the resume that closely matches the job description eg. "Next.js" → "React" but not "Next.js" → "C# and .NET".
+      Job Description:
+      ${jobDesc}
 
-        1. Tailor the provided LaTeX resume strictly to match the job description (JD).
-        2. Only modify existing experiences/projects if they closely align with JD requirements or if the knowledge base contains clearly superior alternatives.
-        3. Replace existing content ONLY if the knowledge base item:
-          - Matches JD significantly better (≥2 additional JD keywords).
-          - Has clearly stronger metrics or direct technology overlap.
-        4. Do NOT generate experience or skills unrelated to existing content or knowledge base. Only adjust wording if closely related (e.g., "Next.js" → "React").
-        5. Match the writing tone/personality traits described in JD (e.g., enthusiastic, proactive).
-        6. How to use the XYZ format:
-          - Identify your accomplishment: State what I accomplished [X].
-          - Measure your impact: Describe the results of my accomplishment [Y].
-          - Explain your method: Describe how I achieved my accomplishment [Z].
-        7. Highlight metrics and keywords using the XYZ format look from job description:
-          - "\\resumeItem{\\textbf{JD Keyword} used to \\textbf{Action Verb} \\emph{Tech Stack} resulting in \\textbf{Metrics}}".
-        8. Preserve original LaTeX structure exactly just edit the content.
-        9. Ensure ATS compliance and keep resume length strictly under 1 page.
-        10. IMPORTANT: Do not delete any experiences or projects only replace or edit the content.
-        11. IMPORTANT: Do not add any new experiences or projects unless they are in the knowledge base/resume template and are relevant to the job description.
-        12. IMPORTANT: Do not add any new skills unless they are in the knowledge base/resume template and are relevant to the job description.
-        13. IMPORTANT: Do not completely change the tech stack can add only relevant tech stack to the resume that closely matches the job description eg. "Next.js" → "React" but not "Next.js" → "C# and .NET".
-        Job Description:
-        ${jobDesc}
+      Knowledge Base:
+      ${storage.knowledgeBase.size > 0 ? Array.from(storage.knowledgeBase).join(', ') : 'None'}
 
-        Knowledge Base:
-        ${storage.knowledgeBase.size > 0 ? Array.from(storage.knowledgeBase).join(', ') : 'None'}
+          Original Resume (LaTeX):
+          ${originalLatex}
 
-            Original Resume (LaTeX):
-            ${originalLatex}
+      Respond ONLY with the tailored LaTeX resume code.
+      `.trim();
 
-        Respond ONLY with the tailored LaTeX resume code.
-            `.trim();
+    console.log('[TailorBtn] Generation parameters:', {
+      modelType: currentModelSelection.type,
+      specificModel: currentModelSelection.model,
+      promptLength: prompt.length,
+      jobDescLength: jobDesc.length
+    });
 
+    // Generate tailored content with selected model
+    let generatedContent = await aiService.generateContent(
+      prompt,
+      currentModelSelection.type,
+      currentModelSelection.model
+    );
+    
+    console.log('[TailorBtn] Generation completed:', {
+      success: Boolean(generatedContent),
+      contentLength: generatedContent?.length || 0,
+      modelUsed: currentModelSelection
+    });
+    
+    // Additional cleanup to ensure no markdown artifacts remain
+    generatedContent = generatedContent.trim();
+    
+    // Store the cleaned content
+    tailoredLatex = generatedContent;
 
-      console.log('[AI Input] Sending prompt to AI:', {
-        jobDescription: jobDesc,
-        originalLatexLength: originalLatex.length,
-        originalLatexPreview: originalLatex.substring(0, 200) + '...',
-        fullPrompt: prompt
-      });
+    // Save the generated resume
+    const response = await fetch('http://localhost:3000/save-generated', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        latex: tailoredLatex,
+        originalFilename: currentFile?.name || 'resume.tex',
+        modelUsed: currentModelSelection // Add model info to saved file
+      })
+    });
 
-      // Generate tailored content
-      let generatedContent = await aiService.generateContent(prompt);
-      
-      console.log('[AI Output] Received response from AI:', {
-        generatedContentLength: generatedContent.length,
-        generatedContentPreview: generatedContent.substring(0, 200) + '...',
-        isDifferent: generatedContent !== originalLatex
-      });
-      
-      // Additional cleanup to ensure no markdown artifacts remain
-      generatedContent = generatedContent.trim();
-      
-      // Store the cleaned content
-      tailoredLatex = generatedContent;
+    if (!response.ok) {
+      throw new Error('Failed to save generated resume');
+    }
 
-      // Save the generated resume
-      const response = await fetch('http://localhost:3000/save-generated', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          latex: tailoredLatex,
-          originalFilename: currentFile?.name || 'resume.tex'
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save generated resume');
-      }
+    console.log('[TailorBtn] Resume saved successfully');
 
     // Update UI safely
     const downloadBtn = document.getElementById('downloadBtn');
@@ -552,20 +651,20 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
       downloadBtn.disabled = false;
     }
 
-      const generatedRadio = document.querySelector('input[value="generated"]');
-      if (generatedRadio) {
-        generatedRadio.disabled = false;
-        generatedRadio.checked = true;
-      }
+    const generatedRadio = document.querySelector('input[value="generated"]');
+    if (generatedRadio) {
+      generatedRadio.disabled = false;
+      generatedRadio.checked = true;
+    }
 
-      await updatePreview('generated');
-      showStatus("Resume tailored successfully!", 'success');
+    await updatePreview('generated');
+    showStatus(`Resume tailored successfully using ${currentModelSelection.type.toUpperCase()}!`, 'success');
 
-    } catch (error) {
-      console.error("Error tailoring resume:", error);
-      showStatus("An error occurred while tailoring the resume: " + error.message, 'error');
-    } finally {
-      // Reset button state
+  } catch (error) {
+    console.error("[TailorBtn] Error tailoring resume:", error);
+    showStatus(`Error with ${currentModelSelection.type.toUpperCase()}: ${error.message}`, 'error');
+  } finally {
+    // Reset button state
     const tailorBtn = document.getElementById('tailorBtn');
     if (tailorBtn) {
       tailorBtn.disabled = false;
@@ -587,16 +686,29 @@ async function updatePreview(mode) {
   const previewArea = document.getElementById('previewArea');
   const pdfPreviewArea = document.getElementById('pdfPreviewArea');
   
+  if (!previewArea || !pdfPreviewArea) {
+    console.error('[Preview] Required elements not found');
+    return;
+  }
+
   // Update preview mode in state
   sidebarState.previewMode = mode;
   
   // Use contentType from state to determine which version to show
   const contentToShow = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
   
+  // Handle null content case
+  if (!contentToShow) {
+    console.log('[Preview] No content available to show');
+    previewArea.textContent = 'No content available';
+    pdfPreviewArea.innerHTML = '';
+    return;
+  }
+  
   console.log('[Preview] Content selection:', {
     selectedType: sidebarState.contentType,
-    contentLength: contentToShow?.length || 0,
-    preview: contentToShow?.substring(0, 100) + '...'
+    contentLength: contentToShow.length,
+    preview: contentToShow.substring(0, 100) + '...'
   });
   
   // Update text content first
@@ -612,23 +724,13 @@ async function updatePreview(mode) {
     previewArea.style.display = 'none';
     pdfPreviewArea.style.display = 'block';
     
-    // Generate PDF preview with correct content
-    const pdfSuccess = await generatePdfPreview(contentToShow, sidebarState.contentType);
-    console.log('[Preview] PDF generation:', {
-      success: pdfSuccess,
-      contentType: sidebarState.contentType
-    });
+    await generatePdfPreview(contentToShow, sidebarState.contentType);
   }
   
   // Update radio buttons to match state
   const radioButtons = document.querySelectorAll('input[name="resumeVersion"]');
   radioButtons.forEach(radio => {
     const shouldBeChecked = radio.value === sidebarState.contentType;
-    console.log('[Preview] Radio button state:', {
-      value: radio.value,
-      shouldBeChecked,
-      currentlyChecked: radio.checked
-    });
     radio.checked = shouldBeChecked;
   });
   
@@ -637,7 +739,6 @@ async function updatePreview(mode) {
   console.log('[Preview] Final state saved:', {
     mode: sidebarState.previewMode,
     contentType: sidebarState.contentType,
-    previewAreaDisplay: previewArea.style.display,
-    pdfPreviewDisplay: pdfPreviewArea.style.display
+    modelSelection: sidebarState.selectedModel
   });
 }

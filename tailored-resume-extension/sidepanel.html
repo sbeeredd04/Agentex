@@ -89,6 +89,16 @@
           <textarea id="knowledgeBaseText" rows="8" placeholder="Add your skills, experiences, and achievements here..."></textarea>
         </div>
 
+        <!-- Model Selection Dropdown -->
+        <div class="model-selection">
+          <label for="modelSelect">Select AI Model:</label>
+          <select id="modelSelect" class="dropdown">
+            <option value="gemini">Gemini 2.0 Flash</option>
+            <option value="groq:deepseek-r1-distill-qwen-32b">DeepSeek Qwen 32B</option>
+            <option value="groq:deepseek-r1-distill-llama-70b">DeepSeek Llama 70B</option>
+          </select>
+        </div>
+
         <!-- Action Buttons (without preview) -->
         <div class="button-group">
           <button id="tailorBtn" class="primary">

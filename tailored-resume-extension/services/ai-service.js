@@ -1,54 +1,214 @@
 class AIService {
   constructor(apiKey) {
-    console.log('Initializing AI Service');
-    if (!apiKey) {
-      throw new Error('API key is required');
-    }
+    console.log('[AIService] Initializing Multi-Model AI Service');
     
-    this.apiKey = apiKey;
-    this.endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+    // Initialize endpoints and API keys from config
+    this.endpoints = {
+      gemini: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+      groq: 'https://api.groq.com/openai/v1/chat/completions'
+    };
+
+    // Simplified model configurations
+    this.models = {
+      gemini: {
+        apiKey: window.config.GEMINI_API_KEY,
+        model: 'gemini-2.0-flash'
+      },
+      groq: {
+        apiKey: window.config.GROQ_API_KEY,
+        models: {
+          'deepseek-r1-distill-qwen-32b': {},
+          'deepseek-r1-distill-llama-70b': {}
+        }
+      }
+    };
+
+    console.log('[AIService] Available models:', {
+      gemini: Boolean(this.models.gemini.apiKey),
+      groq: {
+        hasKey: Boolean(this.models.groq.apiKey),
+        models: Object.keys(this.models.groq.models)
+      }
+    });
   }
 
-  async generateContent(prompt) {
-    console.log('Generating content, prompt length:', prompt.length);
+  async generateContent(prompt, modelType = 'gemini', specificModel = null) {
+    console.log('[AIService] Generating content with:', {
+      modelType,
+      specificModel,
+      promptLength: prompt.length
+    });
+
     try {
-      const response = await fetch(`${this.endpoint}?key=${this.apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: ` ${prompt}`
-            }]
-          }]
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`API request failed: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+      switch(modelType.toLowerCase()) {
+        case 'gemini':
+          return await this._generateWithGemini(prompt);
+        case 'groq':
+          return await this._generateWithGroq(prompt, specificModel);
+        default:
+          throw new Error(`Unsupported model type: ${modelType}`);
       }
-
-      const data = await response.json();
-      if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
-        throw new Error('Invalid response format from API');
-      }
-
-      let text = data.candidates[0].content.parts[0].text;
-      
-      // Clean up the response by removing Markdown code fences
-      text = text.replace(/```latex\n/g, '').replace(/```\n?/g, '').trim();
-      
-      console.log('Generated content length:', text.length);
-      return text;
     } catch (error) {
-      console.error('Error in generateContent:', error);
+      console.error('[AIService] Generation error:', error);
       throw error;
     }
   }
+
+  async _generateWithGemini(prompt) {
+    console.log('[AIService] Gemini Generation Start:', {
+      promptPreview: prompt.substring(0, 100) + '...',
+      promptLength: prompt.length
+    });
+
+    try {
+      const requestBody = {
+        contents: [{
+          parts: [{ text: prompt }]
+        }]
+      };
+
+      console.log('[AIService] Gemini Request:', {
+        endpoint: this.endpoints.gemini,
+        requestBody: JSON.stringify(requestBody, null, 2)
+      });
+
+      const response = await fetch(`${this.endpoints.gemini}?key=${this.models.gemini.apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      });
+
+      const responseData = await response.json();
+      
+      console.log('[AIService] Gemini Raw Response:', {
+        status: response.status,
+        headers: Object.fromEntries(response.headers.entries()),
+        data: responseData
+      });
+
+      if (!response.ok) {
+        throw new Error(`Gemini API Error: ${responseData.error?.message || response.statusText}`);
+      }
+
+      if (!responseData.candidates?.[0]?.content?.parts?.[0]?.text) {
+        console.error('[AIService] Invalid Gemini response structure:', responseData);
+        throw new Error('Invalid Gemini response structure');
+      }
+
+      const generatedContent = responseData.candidates[0].content.parts[0].text;
+      
+      console.log('[AIService] Gemini Generation Success:', {
+        contentLength: generatedContent.length,
+        contentPreview: '...' + generatedContent.substring(Math.max(0, generatedContent.length - 400))
+      });
+
+      return this._cleanResponse(generatedContent);
+    } catch (error) {
+      console.error('[AIService] Gemini Generation Error:', {
+        error,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  async _generateWithGroq(prompt, specificModel) {
+    const modelId = specificModel || 'deepseek-r1-distill-llama-70b';
+    
+    console.log('[AIService] Groq Generation Start:', {
+      modelId,
+      promptPreview: prompt.substring(0, 100) + '...',
+      promptLength: prompt.length
+    });
+
+    try {
+      const requestBody = {
+        model: modelId,
+        messages: [{
+          role: "user",
+          content: prompt
+        }],
+        reasoning_format: "hidden" // Only get the final answer
+      };
+
+      console.log('[AIService] Groq Request:', {
+        endpoint: this.endpoints.groq,
+        model: modelId,
+        requestBody: JSON.stringify(requestBody, null, 2)
+      });
+
+      const response = await fetch(this.endpoints.groq, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.models.groq.apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const responseData = await response.json();
+      
+      console.log('[AIService] Groq Raw Response:', {
+        status: response.status,
+        headers: Object.fromEntries(response.headers.entries()),
+        data: responseData
+      });
+
+      if (!response.ok) {
+        throw new Error(`Groq API Error: ${responseData.error?.message || response.statusText}`);
+      }
+
+      if (!responseData.choices?.[0]?.message?.content) {
+        console.error('[AIService] Invalid Groq response structure:', responseData);
+        throw new Error('Invalid Groq response structure');
+      }
+
+      const generatedContent = responseData.choices[0].message.content;
+      
+      console.log('[AIService] Groq Generation Success:', {
+        contentLength: generatedContent.length,
+        contentPreview: '...' + generatedContent.substring(Math.max(0, generatedContent.length - 400)),
+        usage: responseData.usage,
+        modelId
+      });
+
+      return this._cleanResponse(generatedContent);
+    } catch (error) {
+      console.error('[AIService] Groq Generation Error:', {
+        error,
+        modelId,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  _cleanResponse(text) {
+    console.log('[AIService] Cleaning response:', {
+      before: {
+        length: text.length,
+        preview: '...' + text.substring(Math.max(0, text.length - 400))
+      }
+    });
+
+    const cleaned = text
+      .replace(/```latex\n/g, '')
+      .replace(/```\n?/g, '')
+      .replace(/\\boxed{/g, '')
+      .replace(/\{\\displaystyle\s+/g, '')
+      .trim();
+
+    console.log('[AIService] Cleaned response:', {
+      after: {
+        length: cleaned.length,
+        preview: '...' + cleaned.substring(Math.max(0, cleaned.length - 400))
+      }
+    });
+
+    return cleaned;
+  }
 }
 
+// Register the service globally
 window.AIService = AIService;
-console.log('AI Service class registered globally'); 
+console.log('[AIService] Class registered globally'); 

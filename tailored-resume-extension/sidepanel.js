@@ -566,13 +566,13 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
     `;
     showStatus(`Generating tailored resume using ${currentModelSelection.type.toUpperCase()}...`, 'info');
     
-    // Construct the prompt
-    const prompt = `
-      You are an ATS resume tailoring expert for software engineering roles. Your task:
+      // Construct the prompt
+      const prompt = `
+      You are an ATS resume tailoring expert for software engineering roles the goal is to pass the ATS and get an interview. Your task:
       1. Tailor the provided LaTeX resume strictly to match the job description (JD).
       2. Only modify existing experiences/projects if they closely align with JD requirements or if the knowledge base contains clearly superior alternatives.
       3. Replace existing content ONLY if the knowledge base item:
-        - Matches JD significantly better (≥2 additional JD keywords).
+        - Matches JD significantly better (1 or more additional JD keywords).
         - Has clearly stronger metrics or direct technology overlap.
       4. Do NOT generate experience or skills unrelated to existing content or knowledge base. Only adjust wording if closely related (e.g., "Next.js" → "React").
       5. Match the writing tone/personality traits described in JD (e.g., enthusiastic, proactive).
@@ -580,24 +580,25 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
         - Identify your accomplishment: State what I accomplished [X].
         - Measure your impact: Describe the results of my accomplishment [Y].
         - Explain your method: Describe how I achieved my accomplishment [Z].
-      7. Highlight metrics and keywords using the XYZ format look from job description:
+      7. Highlight metrics and keywords or any relevant information while using the XYZ format look from job description:
         - "\\resumeItem{\\textbf{JD Keyword} used to \\textbf{Action Verb} \\emph{Tech Stack} resulting in \\textbf{Metrics}}".
       8. Preserve original LaTeX structure exactly just edit the content.
       9. Ensure ATS compliance and keep resume length strictly under 1 page.
       10. IMPORTANT: Do not delete any experiences or projects only replace or edit the content.
       11. IMPORTANT: Do not add any new experiences or projects unless they are in the knowledge base/resume template and are relevant to the job description.
-      12. IMPORTANT: Do not add any new skills unless they are in the knowledge base/resume template and are relevant to the job description.
-      13. IMPORTANT: Do not completely change the tech stack can add only relevant tech stack to the resume that closely matches the job description eg. "Next.js" → "React" but not "Next.js" → "C# and .NET".
+      12. IMPORTANT: Do not completely change the tech stack can add only relevant tech stack to the resume that closely matches the job description eg. "Next.js" → "React" but not "Next.js" → "C# and .NET".
+      13. IMPORTANT: Its ok to generate some content that is possible to be true but not exactly true from the resume or knowledge base, you can do that as long as it is relevant to the job description.
+      14. IMPORTANT: Keep the content density and length of the original resume. HIGHLIGHT the relevent content from the job description at all places in the resume.
       Job Description:
       ${jobDesc}
 
       Knowledge Base:
       ${storage.knowledgeBase.size > 0 ? Array.from(storage.knowledgeBase).join(', ') : 'None'}
 
-          Original Resume (LaTeX):
-          ${originalLatex}
+      Original Resume (LaTeX):
+      ${originalLatex}
 
-      Respond ONLY with the tailored LaTeX resume code.
+      IMPORTANT: Respond ONLY with the tailored LaTeX resume code.
       `.trim();
 
     console.log('[TailorBtn] Generation parameters:', {

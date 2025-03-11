@@ -587,8 +587,8 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
       10. IMPORTANT: Do not delete any experiences or projects only replace or edit the content.
       11. IMPORTANT: Do not add any new experiences or projects unless they are in the knowledge base/resume template and are relevant to the job description.
       12. IMPORTANT: Do not completely change the tech stack can add only relevant tech stack to the resume that closely matches the job description eg. "Next.js" → "React" but not "Next.js" → "C# and .NET".
-      13. IMPORTANT: Its ok to generate some content that is possible to be true but not exactly true from the resume or knowledge base, you can do that as long as it is relevant to the job description.
-      14. IMPORTANT: Keep the content density and length of the original resume. HIGHLIGHT the relevent content from the job description at all places in the resume.
+      13. IMPORTANT: ITS OK TO GENERATE SOME CONTENT THAT IS POSSIBLE TO BE TRUE FROM THE RESUME OR KNOWLEDGE BASE, YOU CAN DO THAT AS LONG AS IT IS RELEVANT TO THE JOB DESCRIPTION.
+      14. IMPORTANT: KEEP THE CONTENT DENSITY AND LENGTH OF THE ORIGINAL RESUME. HIGHLIGHT THE RELEVANT CONTENT FROM THE JOB DESCRIPTION AT ALL PLACES IN THE RESUME.
       Job Description:
       ${jobDesc}
 

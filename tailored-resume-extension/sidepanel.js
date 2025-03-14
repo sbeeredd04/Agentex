@@ -416,11 +416,10 @@ async function initializeSidepanel() {
     if (!window.StorageManager) throw new Error('StorageManager not found');
     if (!window.AIService) throw new Error('AIService not found');
     if (!window.FileManager) throw new Error('FileManager not found');
-    if (!window.config || !window.config.GEMINI_API_KEY) throw new Error('Config or API key not found');
     
     console.log('Initializing services...');
     storage = new window.StorageManager();
-    aiService = new window.AIService(window.config.GEMINI_API_KEY);
+    aiService = new window.AIService();
     fileManager = new window.FileManager();
     await fileManager.initializeFolders();
     console.log('Services and folders initialized successfully');
@@ -430,6 +429,7 @@ async function initializeSidepanel() {
     setupEventListeners(elements);
     setupPreviewUI();
     setupModelSelector();
+    setupApiKeyManagement();
     
     await restoreState();
     
@@ -568,38 +568,78 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
     
       // Construct the prompt
       const prompt = `
-      You are an ATS resume tailoring expert for software engineering roles the goal is to pass the ATS and get an interview. Your task:
-      1. Tailor the provided LaTeX resume strictly to match the job description (JD).
-      2. Only modify existing experiences/projects if they closely align with JD requirements or if the knowledge base contains clearly superior alternatives.
-      3. Replace existing content ONLY if the knowledge base item:
-        - Matches JD significantly better (1 or more additional JD keywords).
-        - Has clearly stronger metrics or direct technology overlap.
-      4. Do NOT generate experience or skills unrelated to existing content or knowledge base. Only adjust wording if closely related (e.g., "Next.js" → "React").
-      5. Match the writing tone/personality traits described in JD (e.g., enthusiastic, proactive).
-      6. How to use the XYZ format:
-        - Identify your accomplishment: State what I accomplished [X].
-        - Measure your impact: Describe the results of my accomplishment [Y].
-        - Explain your method: Describe how I achieved my accomplishment [Z].
-      7. Highlight metrics and keywords or any relevant information while using the XYZ format look from job description:
-        - "\\resumeItem{\\textbf{JD Keyword} used to \\textbf{Action Verb} \\emph{Tech Stack} resulting in \\textbf{Metrics}}".
-      8. Preserve original LaTeX structure exactly just edit the content.
-      9. Ensure ATS compliance and keep resume length strictly under 1 page.
-      10. IMPORTANT: Do not delete any experiences or projects only replace or edit the content.
-      11. IMPORTANT: Do not add any new experiences or projects unless they are in the knowledge base/resume template and are relevant to the job description.
-      12. IMPORTANT: Do not completely change the tech stack can add only relevant tech stack to the resume that closely matches the job description eg. "Next.js" → "React" but not "Next.js" → "C# and .NET".
-      13. IMPORTANT: ITS OK TO GENERATE SOME CONTENT THAT IS POSSIBLE TO BE TRUE FROM THE RESUME OR KNOWLEDGE BASE, YOU CAN DO THAT AS LONG AS IT IS RELEVANT TO THE JOB DESCRIPTION.
-      14. IMPORTANT: KEEP THE CONTENT DENSITY AND LENGTH OF THE ORIGINAL RESUME. HIGHLIGHT THE RELEVANT CONTENT FROM THE JOB DESCRIPTION AT ALL PLACES IN THE RESUME.
-      Job Description:
-      ${jobDesc}
+        You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews by:
 
-      Knowledge Base:
-      ${storage.knowledgeBase.size > 0 ? Array.from(storage.knowledgeBase).join(', ') : 'None'}
+        ## Primary Objectives
+        1. **Precision Alignment**: Rigorously match JD requirements using keywords/metrics from both resume and knowledge base
+        2. **Strategic Replacement**: Replace ONLY the least relevant existing content with superior knowledge base items when they:
+          - Match ≥2 additional JD keywords 
+          - Demonstrate ≥25% stronger metrics
+          - Share direct technology stack alignment
+        3. **Content Preservation**: Maintain original resume structure/length while maximizing JD keyword density
 
-      Original Resume (LaTeX):
-      ${originalLatex}
+        ## Execution Protocol
+        ### Content Evaluation
+        1. Analyze JD for:
+          - Required technologies (explicit and implied)
+          - Personality cues (e.g., "proactive" → "self-initiated")
+          - Performance metrics priorities
 
-      IMPORTANT: Respond ONLY with the tailored LaTeX resume code.
-      `.trim();
+        2. For each resume section:
+          - Calculate relevance score to JD (keywords + metrics)
+          - Compare with knowledge base equivalents
+          - Replace ONLY if knowledge base item has:
+            * ≥1.5x higher relevance score
+            * Matching verb tense/context
+            * Comparable character length (±15%)
+
+        ### Optimization Rules
+        - **Tech Stack Adaptation** (Allowed):
+          Example:
+          React ↔ Next.js 
+          Python ↔ FastAPI
+          AWS ↔ GCP (if cloud mentioned)
+
+        - **Forbidden Adaptations**:
+          Example:
+          Frontend → Backend stacks
+
+        ### XYZ Format Implementation
+        \\resumeItem{\\textbf{<JD Keyword>} used to \\textbf{<Action Verb>} \\emph{<Tech>} achieving \\textbf{<Metric>} via <Method>}
+
+        ### Formatting Constraints
+        1. Preserve original:
+          - Section order
+          - Date ranges
+          - Bullet count
+          - Margin/padding
+        2. Modify ONLY text within \\resumeItem{} blocks
+        3. Strict 1-page enforcement
+
+        VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD
+        VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section
+        
+        ## Critical Requirements
+        ‼️ NEVER:
+        - Invent unverified experiences
+        - Change section hierarchy
+        - Exceed original item length by >20%
+        - Remove JD-matched content
+
+        Job Description:
+        ${jobDesc}
+
+        Knowledge Base [Priority: ${storage.knowledgeBase.size} Items]:
+        ${storage.knowledgeBase.size > 0 ? 
+          Array.from(storage.knowledgeBase)
+            .sort((a,b) => b.relevanceScore - a.relevanceScore)
+            .join('\n') 
+          : 'None'}
+
+        Original Resume LaTeX:
+        ${originalLatex}
+
+        Respond ONLY with optimized LaTeX code.`.trim();
 
     console.log('[TailorBtn] Generation parameters:', {
       modelType: currentModelSelection.type,
@@ -741,5 +781,139 @@ async function updatePreview(mode) {
     mode: sidebarState.previewMode,
     contentType: sidebarState.contentType,
     modelSelection: sidebarState.selectedModel
+  });
+}
+
+// Add this toast function at the top level of your code
+function showToast(message, type = 'success', duration = 5000) {
+  const toastContainer = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  const toastId = `toast-${Date.now()}`;
+  
+  toast.id = toastId;
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `
+    <div class="toast-content">
+      <span class="material-icons toast-icon">
+        ${type === 'success' ? 'check_circle' : 'error'}
+      </span>
+      <span class="toast-message">${message}</span>
+    </div>
+    <button class="toast-close">
+      <span class="material-icons">close</span>
+    </button>
+  `;
+
+  toastContainer.appendChild(toast);
+
+  // Add click handler for close button
+  const closeBtn = toast.querySelector('.toast-close');
+  closeBtn.addEventListener('click', () => {
+    toast.style.animation = 'slideOut 0.3s ease forwards';
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  });
+
+  // Auto remove after duration (if specified)
+  if (duration > 0) {
+    setTimeout(() => {
+      if (document.getElementById(toastId)) {
+        toast.style.animation = 'slideOut 0.3s ease forwards';
+        setTimeout(() => {
+          toast.remove();
+        }, 300);
+      }
+    }, duration);
+  }
+}
+
+// Update the setupApiKeyManagement function
+function setupApiKeyManagement() {
+  const modal = document.getElementById('settingsModal');
+  const openBtn = document.getElementById('openSettings');
+  const closeBtn = document.querySelector('.close-modal');
+  const saveBtn = document.getElementById('saveApiKeys');
+  const geminiInput = document.getElementById('geminiApiKey');
+  const groqInput = document.getElementById('groqApiKey');
+
+  // Load saved API keys
+  chrome.storage.local.get(['geminiApiKey', 'groqApiKey'], (result) => {
+    if (result.geminiApiKey) {
+      geminiInput.value = result.geminiApiKey;
+    }
+    if (result.groqApiKey) {
+      groqInput.value = result.groqApiKey;
+    }
+  });
+
+  // Toggle password visibility
+  document.querySelectorAll('.toggle-visibility').forEach(button => {
+    button.addEventListener('click', () => {
+      const inputId = button.getAttribute('data-for');
+      const input = document.getElementById(inputId);
+      const icon = button.querySelector('.material-icons');
+      
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.textContent = 'visibility';
+      } else {
+        input.type = 'password';
+        icon.textContent = 'visibility_off';
+      }
+    });
+  });
+
+  // Modal controls
+  openBtn.addEventListener('click', () => {
+    modal.style.display = 'block';
+  });
+
+  closeBtn.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+
+  window.addEventListener('click', (event) => {
+    if (event.target === modal) {
+      modal.style.display = 'none';
+    }
+  });
+
+  // Save API keys with validation and toast notifications
+  saveBtn.addEventListener('click', async () => {
+    const geminiKey = geminiInput.value.trim();
+    const groqKey = groqInput.value.trim();
+
+    try {
+      // Basic validation
+      if (!geminiKey && !groqKey) {
+        throw new Error('Please enter at least one API key');
+      }
+
+      // Save to Chrome storage
+      await chrome.storage.local.set({
+        geminiApiKey: geminiKey,
+        groqApiKey: groqKey
+      });
+
+      // Reinitialize AI service with new keys
+      aiService = new window.AIService();
+      
+      // Show success toast
+      showToast('API keys saved successfully! You can now use the selected models.', 'success');
+      
+      // Close modal
+      modal.style.display = 'none';
+
+      // Verify keys were saved
+      const savedKeys = await chrome.storage.local.get(['geminiApiKey', 'groqApiKey']);
+      if (!savedKeys.geminiApiKey && !savedKeys.groqApiKey) {
+        throw new Error('Failed to save API keys');
+      }
+
+    } catch (error) {
+      console.error('[APIKeys] Error saving keys:', error);
+      showToast(`Error saving API keys: ${error.message}`, 'error', 0); // Duration 0 means toast won't auto-dismiss
+    }
   });
 }

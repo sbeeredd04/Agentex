@@ -9,7 +9,12 @@
 <body>
   <div class="container">
     <header>
-      <h1>Smart Resume Tailoring</h1>
+      <div class="header-content">
+        <h1>Smart Resume Tailoring</h1>
+        <button id="openSettings" class="icon-button" title="Settings">
+          <span class="material-icons">settings</span>
+        </button>
+      </div>
       <p class="subtitle">AI-powered document customization for job applications</p>
     </header>
 
@@ -138,6 +143,37 @@
       <div id="status" class="status"></div>
     </footer>
   </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>API Settings</h2>
+        <span class="close-modal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="api-key-input">
+          <label for="geminiApiKey">Gemini API Key:</label>
+          <input type="password" id="geminiApiKey" placeholder="Enter your Gemini API key">
+          <button class="toggle-visibility" data-for="geminiApiKey">
+            <span class="material-icons">visibility_off</span>
+          </button>
+        </div>
+        <div class="api-key-input">
+          <label for="groqApiKey">Groq API Key:</label>
+          <input type="password" id="groqApiKey" placeholder="Enter your Groq API key">
+          <button class="toggle-visibility" data-for="groqApiKey">
+            <span class="material-icons">visibility_off</span>
+          </button>
+        </div>
+        <div class="modal-buttons">
+          <button id="saveApiKeys" class="primary">Save Keys</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
 
   <script src="config.js"></script>
   <script src="storage.js"></script>

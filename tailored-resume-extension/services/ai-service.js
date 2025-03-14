@@ -1,21 +1,19 @@
 class AIService {
-  constructor(apiKey) {
+  constructor() {
     console.log('[AIService] Initializing Multi-Model AI Service');
     
-    // Initialize endpoints and API keys from config
+    // Initialize endpoints
     this.endpoints = {
       gemini: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
       groq: 'https://api.groq.com/openai/v1/chat/completions'
     };
 
-    // Simplified model configurations
+    // Initialize models without API keys
     this.models = {
       gemini: {
-        apiKey: window.config.GEMINI_API_KEY,
-        model: 'gemini-2.0-flash'
+        model: 'gemini-2.0-flash-thinking-exp-01-21'
       },
       groq: {
-        apiKey: window.config.GROQ_API_KEY,
         models: {
           'deepseek-r1-distill-qwen-32b': {},
           'deepseek-r1-distill-llama-70b': {}
@@ -23,12 +21,18 @@ class AIService {
       }
     };
 
-    console.log('[AIService] Available models:', {
+    // Load API keys
+    this.loadApiKeys();
+  }
+
+  async loadApiKeys() {
+    const keys = await chrome.storage.local.get(['geminiApiKey', 'groqApiKey']);
+    this.models.gemini.apiKey = keys.geminiApiKey;
+    this.models.groq.apiKey = keys.groqApiKey;
+
+    console.log('[AIService] API keys loaded:', {
       gemini: Boolean(this.models.gemini.apiKey),
-      groq: {
-        hasKey: Boolean(this.models.groq.apiKey),
-        models: Object.keys(this.models.groq.models)
-      }
+      groq: Boolean(this.models.groq.apiKey)
     });
   }
 

@@ -11,7 +11,8 @@
       "contextMenus"
     ],
     "host_permissions": [
-      "http://localhost:3000/*"
+      "http://localhost:3000/*",
+      "https://agentex.vercel.app/*"
     ],
     "action": {
       "default_title": "Agentex",
@@ -36,12 +37,15 @@
     "background": {
       "service_worker": "background.js"
     },
+    "icons": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    },
     "web_accessible_resources": [{
       "resources": [
         "config.js",
-        "storage.js",
-        "services/file-manager.js",
-        "services/ai-service.js"
+        "services/ai-service.js",
+        "server/serverManager.js"
       ],
       "matches": ["<all_urls>"]
     }]

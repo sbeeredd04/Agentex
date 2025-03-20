@@ -2,7 +2,7 @@
 console.log('Initializing popup.js');
 
 // Global variables and state
-let storage, aiService, fileManager;
+let aiService;
 let originalLatex = null;
 let tailoredLatex = null;
 let originalCoverLetter = null;
@@ -180,12 +180,13 @@ function setupPreviewUI() {
   console.log('Preview UI setup complete');
 }
 
-// Function to generate PDF preview from LaTeX content
+// Update the generatePdfPreview function
 async function generatePdfPreview(latex, type = 'original') {
   console.log('[Preview] Attempting PDF preview generation:', {
     hasContent: Boolean(latex),
+    contentLength: latex?.length || 0,
     type,
-    filename: currentFile?.name
+    timestamp: new Date().toISOString()
   });
 
   if (!latex) {
@@ -194,28 +195,57 @@ async function generatePdfPreview(latex, type = 'original') {
     return false;
   }
 
-  const filename = currentFile ? currentFile.name : 'resume.tex';
   try {
-    const response = await fetch('http://localhost:3000/compile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ latex, type, filename })
+    // First save the LaTeX content and get a unique fileId
+    const saveResult = await window.ServerManager.saveGeneratedResume(latex, 'resume.tex', {
+      type,
+      timestamp: Date.now(),
+      previewGeneration: true
     });
-    const data = await response.json();
-    if (data.success && data.pdfUrl) {
-      const fullPdfUrl = `http://localhost:3000${data.pdfUrl}`;
-      console.log('[Preview] PDF URL set to', fullPdfUrl);
-      const pdfPreviewArea = document.getElementById('pdfPreviewArea');
-      pdfPreviewArea.innerHTML = `<iframe src="${fullPdfUrl}" type="application/pdf" width="100%" height="100%"></iframe>`;
-      currentPdfUrl = data.pdfUrl;
-      showStatus(`${type} PDF preview generated successfully!`, 'success');
-      return true;
-    } else {
-      throw new Error(data.error || "PDF generation failed");
+
+    console.log('[Preview] Save result:', saveResult);
+
+    if (!saveResult.success) {
+      throw new Error(`Failed to save LaTeX: ${saveResult.error}`);
     }
+
+    // Then compile to PDF using the fileId
+    const compileResult = await window.ServerManager.compileResume({
+      latex: latex,
+      fileId: saveResult.fileId // Pass unique fileId
+    });
+
+    console.log('[Preview] Compile result:', compileResult);
+
+    if (!compileResult.success) {
+      throw new Error(`PDF compilation failed: ${compileResult.error}`);
+    }
+
+    // Create blob URL from the PDF response
+    const pdfBlob = new Blob([compileResult.content], { type: 'application/pdf' });
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+
+    // Update preview with the PDF URL
+    const pdfPreviewArea = document.getElementById('pdfPreviewArea');
+    pdfPreviewArea.innerHTML = `<iframe src="${pdfUrl}" type="application/pdf" width="100%" height="100%"></iframe>`;
+    currentPdfUrl = pdfUrl;
+
+    // Cleanup old blob URL if it exists
+    if (window.lastPdfUrl) {
+      URL.revokeObjectURL(window.lastPdfUrl);
+    }
+    window.lastPdfUrl = pdfUrl;
+
+    showStatus(`${type} PDF preview generated successfully!`, 'success');
+    return true;
+
   } catch (error) {
-    console.error('[Preview] Error generating PDF preview:', error);
-    showStatus("Could not generate preview: " + error.message, 'error');
+    console.error('[Preview] Error in PDF generation pipeline:', {
+      error: error.message,
+      stack: error.stack,
+      type: error.name
+    });
+    showStatus(`Preview generation failed: ${error.message}`, 'error');
     return false;
   }
 }
@@ -282,15 +312,6 @@ async function restoreState() {
     }
   } else {
     console.log('[State] No saved state found, using defaults');
-  }
-}
-
-// Cleanup temporary PDF URL
-function cleanupPdfUrl(url) {
-  console.log('[Cleanup] Cleaning up PDF URL:', url);
-  if (url && url.startsWith('blob:')) {
-    URL.revokeObjectURL(url);
-    console.log('[Cleanup] Revoked blob URL');
   }
 }
 
@@ -412,17 +433,12 @@ if (display) {
 async function initializeSidepanel() {
   console.log('[Sidepanel] Initializing...');
   try {
-    // Initialize required services
-    if (!window.StorageManager) throw new Error('StorageManager not found');
+    // Remove StorageManager check and initialization
     if (!window.AIService) throw new Error('AIService not found');
-    if (!window.FileManager) throw new Error('FileManager not found');
+    if (!window.ServerManager) throw new Error('ServerManager not found');
     
     console.log('Initializing services...');
-    storage = new window.StorageManager();
     aiService = new window.AIService();
-    fileManager = new window.FileManager();
-    await fileManager.initializeFolders();
-    console.log('Services and folders initialized successfully');
     
     // Set up UI and event listeners
     const elements = setupUIElements();
@@ -448,24 +464,6 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error('[Sidepanel] Initialization error:', error);
   }
 });
-
-// Function to load knowledge base content
-async function loadKnowledgeBase() {
-  try {
-    const response = await fetch('http://localhost:3000/knowledge-base');
-    const data = await response.json();
-    
-    if (data.success) {
-      const knowledgeBaseText = document.getElementById('knowledgeBaseText');
-      if (knowledgeBaseText) {
-        knowledgeBaseText.value = data.content;
-      }
-    }
-  } catch (error) {
-    console.error('Error loading knowledge base:', error);
-    showStatus('Failed to load knowledge base', 'error');
-  }
-}
 
 // Add this function to setup model selection
 function setupModelSelector() {
@@ -544,8 +542,14 @@ function setupModelSelector() {
 // Update the tailor resume click handler
 document.getElementById('tailorBtn').addEventListener('click', async () => {
   const jobDesc = document.getElementById('jobDesc').value.trim();
+  const knowledgeBase = document.getElementById('knowledgeBaseText').value.trim();
   
-  console.log('[TailorBtn] Starting generation with model:', currentModelSelection);
+  console.log('[TailorBtn] Starting generation:', {
+    model: currentModelSelection,
+    hasJobDesc: Boolean(jobDesc),
+    hasKnowledgeBase: Boolean(knowledgeBase),
+    timestamp: new Date().toISOString()
+  });
     
   if (!originalLatex) {
     showStatus("Please upload or select a resume template first", 'error');
@@ -565,81 +569,77 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
       <span>Generating with ${currentModelSelection.type.toUpperCase()}...</span>
     `;
     showStatus(`Generating tailored resume using ${currentModelSelection.type.toUpperCase()}...`, 'info');
-    
-      // Construct the prompt
-      const prompt = `
-        You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews by:
 
-        ## Primary Objectives
-        1. **Precision Alignment**: Rigorously match JD requirements using keywords/metrics from both resume and knowledge base
-        2. **Strategic Replacement**: Replace ONLY the least relevant existing content with superior knowledge base items when they:
-          - Match ≥2 additional JD keywords 
-          - Demonstrate ≥25% stronger metrics
-          - Share direct technology stack alignment
-        3. **Content Preservation**: Maintain original resume structure/length while maximizing JD keyword density
+    // Construct the prompt
+    const prompt = `
+      You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews by:
 
-        ## Execution Protocol
-        ### Content Evaluation
-        1. Analyze JD for:
-          - Required technologies (explicit and implied)
-          - Personality cues (e.g., "proactive" → "self-initiated")
-          - Performance metrics priorities
+      ## Primary Objectives
+      1. **Precision Alignment**: Rigorously match JD requirements using keywords/metrics from both resume and knowledge base
+      2. **Strategic Replacement**: Replace ONLY the least relevant existing content with superior knowledge base items when they:
+        - Match ≥2 additional JD keywords 
+        - Demonstrate ≥25% stronger metrics
+        - Share direct technology stack alignment
+      3. **Content Preservation**: Maintain original resume structure/length while maximizing JD keyword density
 
-        2. For each resume section:
-          - Calculate relevance score to JD (keywords + metrics)
-          - Compare with knowledge base equivalents
-          - Replace ONLY if knowledge base item has:
-            * ≥1.5x higher relevance score
-            * Matching verb tense/context
-            * Comparable character length (±15%)
+      ## Execution Protocol
+      ### Content Evaluation
+      1. Analyze JD for:
+        - Required technologies (explicit and implied)
+        - Personality cues (e.g., "proactive" → "self-initiated")
+        - Performance metrics priorities
 
-        ### Optimization Rules
-        - **Tech Stack Adaptation** (Allowed):
-          Example:
-          React ↔ Next.js 
-          Python ↔ FastAPI
-          AWS ↔ GCP (if cloud mentioned)
+      2. For each resume section:
+        - Calculate relevance score to JD (keywords + metrics)
+        - Compare with knowledge base equivalents
+        - Replace ONLY if knowledge base item has:
+          * ≥1.5x higher relevance score
+          * Matching verb tense/context
+          * Comparable character length (±15%)
 
-        - **Forbidden Adaptations**:
-          Example:
-          Frontend → Backend stacks
+      ### Optimization Rules
+      - **Tech Stack Adaptation** (Allowed):
+        Example:
+        React ↔ Next.js 
+        Python ↔ FastAPI
+        AWS ↔ GCP (if cloud mentioned)
 
-        ### XYZ Format Implementation
-        \\resumeItem{\\textbf{<JD Keyword>} used to \\textbf{<Action Verb>} \\emph{<Tech>} achieving \\textbf{<Metric>} via <Method>}
+      - **Forbidden Adaptations**:
+        Example:
+        Frontend → Backend stacks
 
-        ### Formatting Constraints
-        1. Preserve original:
-          - Section order
-          - Date ranges
-          - Bullet count
-          - Margin/padding
-        2. Modify ONLY text within \\resumeItem{} blocks
-        3. Strict 1-page enforcement
+      ### XYZ Format Implementation
+      \\resumeItem{\\textbf{<JD Keyword>} used to \\textbf{<Action Verb>} \\emph{<Tech>} achieving \\textbf{<Metric>} via <Method>}
 
-        VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD
-        VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section
-        
-        ## Critical Requirements
-        ‼️ NEVER:
-        - Invent unverified experiences
-        - Change section hierarchy
-        - Exceed original item length by >20%
-        - Remove JD-matched content
+      ### Formatting Constraints
+      1. Preserve original:
+        - Section order
+        - Date ranges
+        - Bullet count
+        - Margin/padding
+      2. Modify ONLY text within \\resumeItem{} blocks
+      3. Strict 1-page enforcement
 
-        Job Description:
-        ${jobDesc}
+      VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD
+      VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section
+      
+      ## Critical Requirements
+      ‼️ NEVER:
+      - Invent unverified experiences
+      - Change section hierarchy
+      - Exceed original item length by >20%
+      - Remove JD-matched content
 
-        Knowledge Base [Priority: ${storage.knowledgeBase.size} Items]:
-        ${storage.knowledgeBase.size > 0 ? 
-          Array.from(storage.knowledgeBase)
-            .sort((a,b) => b.relevanceScore - a.relevanceScore)
-            .join('\n') 
-          : 'None'}
+      Job Description:
+      ${jobDesc}
 
-        Original Resume LaTeX:
-        ${originalLatex}
+      Knowledge Base:
+      ${knowledgeBase || 'None'}
 
-        Respond ONLY with optimized LaTeX code.`.trim();
+      Original Resume LaTeX:
+      ${originalLatex}
+
+      Respond ONLY with optimized LaTeX code.`.trim();
 
     console.log('[TailorBtn] Generation parameters:', {
       modelType: currentModelSelection.type,
@@ -655,41 +655,60 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
       currentModelSelection.model
     );
     
-    console.log('[TailorBtn] Generation completed:', {
+    console.log('[TailorBtn] AI generation completed:', {
       success: Boolean(generatedContent),
       contentLength: generatedContent?.length || 0,
       modelUsed: currentModelSelection
     });
-    
-    // Additional cleanup to ensure no markdown artifacts remain
-    generatedContent = generatedContent.trim();
-    
-    // Store the cleaned content
+
+    // Store the generated content
     tailoredLatex = generatedContent;
 
-    // Save the generated resume
-    const response = await fetch('http://localhost:3000/save-generated', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        latex: tailoredLatex,
-        originalFilename: currentFile?.name || 'resume.tex',
-        modelUsed: currentModelSelection // Add model info to saved file
-      })
-    });
+    // Save the generated resume and get unique fileId
+    const saveResult = await window.ServerManager.saveGeneratedResume(
+      tailoredLatex,
+      'tailored-resume.tex',
+      {
+        modelUsed: currentModelSelection,
+        timestamp: Date.now(),
+        originalFilename: currentFile?.name
+      }
+    );
 
-    if (!response.ok) {
-      throw new Error('Failed to save generated resume');
+    console.log('[TailorBtn] Save result:', saveResult);
+
+    if (!saveResult.success) {
+      throw new Error(`Failed to save generated resume: ${saveResult.error}`);
     }
 
-    console.log('[TailorBtn] Resume saved successfully');
+    // Compile PDF with the unique fileId
+    const compileResult = await window.ServerManager.compileResume({
+      latex: tailoredLatex,
+      fileId: saveResult.fileId
+    });
+    
+    console.log('[TailorBtn] Compile result:', compileResult);
 
-    // Update UI safely
+    if (!compileResult.success) {
+      throw new Error(`PDF compilation failed: ${compileResult.error}`);
+    }
+
+    // Create blob URL from the PDF response
+    const pdfBlob = new Blob([compileResult.content], { type: 'application/pdf' });
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+
+    // Store the URL for later cleanup
+    if (window.lastTailoredPdfUrl) {
+      URL.revokeObjectURL(window.lastTailoredPdfUrl);
+    }
+    window.lastTailoredPdfUrl = pdfUrl;
+
+    // Update UI
     const downloadBtn = document.getElementById('downloadBtn');
     if (downloadBtn) {
       downloadBtn.disabled = false;
+      downloadBtn.href = pdfUrl;
+      downloadBtn.download = `tailored-resume-${Date.now()}.pdf`;
     }
 
     const generatedRadio = document.querySelector('input[value="generated"]');
@@ -702,8 +721,13 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
     showStatus(`Resume tailored successfully using ${currentModelSelection.type.toUpperCase()}!`, 'success');
 
   } catch (error) {
-    console.error("[TailorBtn] Error tailoring resume:", error);
-    showStatus(`Error with ${currentModelSelection.type.toUpperCase()}: ${error.message}`, 'error');
+    console.error("[TailorBtn] Error in resume generation pipeline:", {
+      error: error.message,
+      stack: error.stack,
+      type: error.name,
+      phase: error.phase || 'unknown'
+    });
+    showStatus(`Generation failed: ${error.message}`, 'error');
   } finally {
     // Reset button state
     const tailorBtn = document.getElementById('tailorBtn');
@@ -917,3 +941,16 @@ function setupApiKeyManagement() {
     }
   });
 }
+
+// Add this function to clean up blob URLs when the panel closes or reloads
+function cleanupBlobUrls() {
+  if (window.lastPdfUrl) {
+    URL.revokeObjectURL(window.lastPdfUrl);
+  }
+  if (window.lastTailoredPdfUrl) {
+    URL.revokeObjectURL(window.lastTailoredPdfUrl);
+  }
+}
+
+// Add event listener for cleanup
+window.addEventListener('unload', cleanupBlobUrls);

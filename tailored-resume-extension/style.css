@@ -1332,3 +1332,37 @@ button:disabled .loading-spinner {
     opacity: 0;
   }
 }
+
+.settings-section {
+  margin-bottom: 20px;
+}
+
+.prompt-container {
+  position: relative;
+}
+
+#customPrompt {
+  width: 100%;
+  min-height: 200px;
+  padding: 10px;
+  font-family: monospace;
+  resize: vertical;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.secondary-button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.secondary-button:hover {
+  background: #e0e0e0;
+}

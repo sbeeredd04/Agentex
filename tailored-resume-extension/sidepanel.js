@@ -33,6 +33,65 @@ let sidebarState = {
   generatedContent: null
 };
 
+// Add this near the top of the file with other constants
+const DEFAULT_PROMPT = `You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews by:
+
+## Primary Objectives
+1. **Precision Alignment**: Rigorously match JD requirements using keywords/metrics from both resume and knowledge base
+2. **Strategic Replacement**: Replace ONLY the least relevant existing content with superior knowledge base items when they:
+  - Match ≥2 additional JD keywords 
+  - Demonstrate ≥25% stronger metrics
+  - Share direct technology stack alignment
+3. **Content Preservation**: Maintain original resume structure/length while maximizing JD keyword density
+
+## Execution Protocol
+### Content Evaluation
+1. Analyze JD for:
+  - Required technologies (explicit and implied)
+  - Personality cues (e.g., "proactive" → "self-initiated")
+  - Performance metrics priorities
+
+2. For each resume section:
+  - Calculate relevance score to JD (keywords + metrics)
+  - Compare with knowledge base equivalents
+  - Replace ONLY if knowledge base item has:
+    * ≥1.5x higher relevance score
+    * Matching verb tense/context
+    * Comparable character length (±15%)
+
+### Optimization Rules
+- **Tech Stack Adaptation** (Allowed):
+  Example:
+  React ↔ Next.js 
+  Python ↔ FastAPI
+  AWS ↔ GCP (if cloud mentioned)
+
+- **Forbidden Adaptations**:
+  Example:
+  Frontend → Backend stacks
+
+### XYZ Format Implementation
+\\resumeItem{\\textbf{<JD Keyword>} used to \\textbf{<Action Verb>} \\emph{<Tech>} achieving \\textbf{<Metric>} via <Method>}
+
+### Formatting Constraints
+1. Preserve original:
+  - Section order
+  - Date ranges
+  - Bullet count
+  - Margin/padding
+2. Modify ONLY text within \\resumeItem{} blocks
+3. Strict 1-page enforcement
+
+VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD
+VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section
+
+## Critical Requirements
+‼️ NEVER:
+- Invent unverified experiences
+- Change section hierarchy
+- Exceed original item length by >20%
+- Remove JD-matched content`;
+
 // Function to display status messages
 function showStatus(message, type = 'info') {
   console.log(`Status: ${message} (${type})`);
@@ -570,65 +629,13 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
     `;
     showStatus(`Generating tailored resume using ${currentModelSelection.type.toUpperCase()}...`, 'info');
 
-    // Construct the prompt
+    // Get the custom prompt from storage
+    const { customPrompt } = await chrome.storage.local.get('customPrompt');
+    const promptTemplate = customPrompt || DEFAULT_PROMPT;
+
+    // Construct the final prompt
     const prompt = `
-      You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews by:
-
-      ## Primary Objectives
-      1. **Precision Alignment**: Rigorously match JD requirements using keywords/metrics from both resume and knowledge base
-      2. **Strategic Replacement**: Replace ONLY the least relevant existing content with superior knowledge base items when they:
-        - Match ≥2 additional JD keywords 
-        - Demonstrate ≥25% stronger metrics
-        - Share direct technology stack alignment
-      3. **Content Preservation**: Maintain original resume structure/length while maximizing JD keyword density
-
-      ## Execution Protocol
-      ### Content Evaluation
-      1. Analyze JD for:
-        - Required technologies (explicit and implied)
-        - Personality cues (e.g., "proactive" → "self-initiated")
-        - Performance metrics priorities
-
-      2. For each resume section:
-        - Calculate relevance score to JD (keywords + metrics)
-        - Compare with knowledge base equivalents
-        - Replace ONLY if knowledge base item has:
-          * ≥1.5x higher relevance score
-          * Matching verb tense/context
-          * Comparable character length (±15%)
-
-      ### Optimization Rules
-      - **Tech Stack Adaptation** (Allowed):
-        Example:
-        React ↔ Next.js 
-        Python ↔ FastAPI
-        AWS ↔ GCP (if cloud mentioned)
-
-      - **Forbidden Adaptations**:
-        Example:
-        Frontend → Backend stacks
-
-      ### XYZ Format Implementation
-      \\resumeItem{\\textbf{<JD Keyword>} used to \\textbf{<Action Verb>} \\emph{<Tech>} achieving \\textbf{<Metric>} via <Method>}
-
-      ### Formatting Constraints
-      1. Preserve original:
-        - Section order
-        - Date ranges
-        - Bullet count
-        - Margin/padding
-      2. Modify ONLY text within \\resumeItem{} blocks
-      3. Strict 1-page enforcement
-
-      VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD
-      VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section
-      
-      ## Critical Requirements
-      ‼️ NEVER:
-      - Invent unverified experiences
-      - Change section hierarchy
-      - Exceed original item length by >20%
-      - Remove JD-matched content
+      ${promptTemplate}
 
       Job Description:
       ${jobDesc}
@@ -860,15 +867,26 @@ function setupApiKeyManagement() {
   const saveBtn = document.getElementById('saveApiKeys');
   const geminiInput = document.getElementById('geminiApiKey');
   const groqInput = document.getElementById('groqApiKey');
+  const promptInput = document.getElementById('customPrompt');
 
-  // Load saved API keys
-  chrome.storage.local.get(['geminiApiKey', 'groqApiKey'], (result) => {
+  // Load saved API keys and prompt
+  chrome.storage.local.get(['geminiApiKey', 'groqApiKey', 'customPrompt'], (result) => {
     if (result.geminiApiKey) {
       geminiInput.value = result.geminiApiKey;
     }
     if (result.groqApiKey) {
       groqInput.value = result.groqApiKey;
     }
+    if (result.customPrompt) {
+      promptInput.value = result.customPrompt;
+    } else {
+      promptInput.value = DEFAULT_PROMPT;
+    }
+  });
+
+  // Reset prompt button
+  document.getElementById('resetPrompt').addEventListener('click', () => {
+    promptInput.value = DEFAULT_PROMPT;
   });
 
   // Toggle password visibility
@@ -903,41 +921,40 @@ function setupApiKeyManagement() {
     }
   });
 
-  // Save API keys with validation and toast notifications
+  // Save settings with validation and toast notifications
   saveBtn.addEventListener('click', async () => {
     const geminiKey = geminiInput.value.trim();
     const groqKey = groqInput.value.trim();
+    const customPrompt = promptInput.value.trim();
 
     try {
       // Basic validation
       if (!geminiKey && !groqKey) {
         throw new Error('Please enter at least one API key');
       }
+      if (!customPrompt) {
+        throw new Error('Prompt template cannot be empty');
+      }
 
       // Save to Chrome storage
       await chrome.storage.local.set({
         geminiApiKey: geminiKey,
-        groqApiKey: groqKey
+        groqApiKey: groqKey,
+        customPrompt: customPrompt
       });
 
       // Reinitialize AI service with new keys
       aiService = new window.AIService();
       
       // Show success toast
-      showToast('API keys saved successfully! You can now use the selected models.', 'success');
+      showToast('Settings saved successfully!', 'success');
       
       // Close modal
       modal.style.display = 'none';
 
-      // Verify keys were saved
-      const savedKeys = await chrome.storage.local.get(['geminiApiKey', 'groqApiKey']);
-      if (!savedKeys.geminiApiKey && !savedKeys.groqApiKey) {
-        throw new Error('Failed to save API keys');
-      }
-
     } catch (error) {
-      console.error('[APIKeys] Error saving keys:', error);
-      showToast(`Error saving API keys: ${error.message}`, 'error', 0); // Duration 0 means toast won't auto-dismiss
+      console.error('[Settings] Error saving settings:', error);
+      showToast(`Error saving settings: ${error.message}`, 'error', 0);
     }
   });
 }

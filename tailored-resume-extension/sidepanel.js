@@ -95,13 +95,7 @@ VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are
 // Function to display status messages
 function showStatus(message, type = 'info') {
   console.log(`Status: ${message} (${type})`);
-  const statusDiv = document.getElementById('status');
-  if (statusDiv) {
-    statusDiv.textContent = message;
-    statusDiv.className = `status ${type}`;
-    statusDiv.style.display = 'block';
-    setTimeout(() => { statusDiv.style.display = 'none'; }, 5000);
-  }
+  showToast(message, type);
 }
 
 // Utility debounce function
@@ -488,13 +482,36 @@ if (display) {
 }
 }
 
-// Main initialization function for the sidepanel
+// Add this at the beginning of your sidepanel.js
+function waitForServerManager() {
+  return new Promise((resolve, reject) => {
+    let attempts = 0;
+    const maxAttempts = 50;
+    
+    const check = () => {
+      attempts++;
+      if (window.ServerManager) {
+        console.log('[Sidepanel] ServerManager found');
+        resolve(window.ServerManager);
+      } else if (attempts > maxAttempts) {
+        reject(new Error('ServerManager not found after maximum attempts'));
+      } else {
+        setTimeout(check, 100);
+      }
+    };
+    
+    check();
+  });
+}
+
+// Update your initialization function
 async function initializeSidepanel() {
   console.log('[Sidepanel] Initializing...');
   try {
-    // Remove StorageManager check and initialization
+    // Wait for ServerManager to be available
+    await waitForServerManager();
+    
     if (!window.AIService) throw new Error('AIService not found');
-    if (!window.ServerManager) throw new Error('ServerManager not found');
     
     console.log('Initializing services...');
     aiService = new window.AIService();
@@ -511,16 +528,17 @@ async function initializeSidepanel() {
     console.log('[Sidepanel] UI initialized successfully');
   } catch (error) {
     console.error('[Sidepanel] Initialization failed:', error);
-    showStatus('Failed to initialize sidepanel: ' + error.message, 'error');
+    showToast('Failed to initialize sidepanel: ' + error.message, 'error');
   }
 }
 
-// Initialize the sidepanel when DOM is ready
+// Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   try {
     initializeSidepanel();
   } catch (error) {
     console.error('[Sidepanel] Initialization error:', error);
+    showToast('Initialization error: ' + error.message, 'error');
   }
 });
 
@@ -815,18 +833,21 @@ async function updatePreview(mode) {
   });
 }
 
-// Add this toast function at the top level of your code
-function showToast(message, type = 'success', duration = 5000) {
+// Update the showToast function to handle more types
+function showToast(message, type = 'info', duration = 5000) {
   const toastContainer = document.getElementById('toastContainer');
   const toast = document.createElement('div');
   const toastId = `toast-${Date.now()}`;
   
+  // Map info type to success for visual purposes
+  const visualType = type === 'info' ? 'success' : type;
+  
   toast.id = toastId;
-  toast.className = `toast ${type}`;
+  toast.className = `toast ${visualType}`;
   toast.innerHTML = `
     <div class="toast-content">
       <span class="material-icons toast-icon">
-        ${type === 'success' ? 'check_circle' : 'error'}
+        ${visualType === 'success' ? 'check_circle' : visualType === 'error' ? 'error' : 'info'}
       </span>
       <span class="toast-message">${message}</span>
     </div>

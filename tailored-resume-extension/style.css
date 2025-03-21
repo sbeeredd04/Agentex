@@ -646,28 +646,6 @@ button:disabled .loading-spinner {
   border-bottom: 2px solid var(--accent-primary);
 }
 
-/* Status Messages */
-.status {
-  text-align: center;
-  padding: 12px;
-  margin-top: var(--inner-spacing);
-  border-radius: 8px;
-  font-size: 15px;
-  animation: fadeIn 0.3s ease;
-}
-
-.status.error {
-  background-color: rgba(239, 68, 68, 0.1);
-  color: var(--error-color);
-  border-left: 4px solid var(--error-color);
-}
-
-.status.success {
-  background-color: rgba(14, 231, 183, 0.1);
-  color: var(--success-color);
-  border-left: 4px solid var(--success-color);
-}
-
 /* Loading Indicator */
 .loading {
   display: inline-block;
@@ -1250,11 +1228,13 @@ button:disabled .loading-spinner {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  pointer-events: none; /* Allow clicking through container */
 }
 
 /* Toast Notification */
 .toast {
   min-width: 300px;
+  max-width: 400px;
   padding: 16px;
   border-radius: 8px;
   background: var(--bg-secondary);
@@ -1265,6 +1245,12 @@ button:disabled .loading-spinner {
   justify-content: space-between;
   animation: slideIn 0.3s ease;
   border-left: 4px solid;
+  pointer-events: auto; /* Re-enable pointer events for toast */
+  margin-top: 8px;
+}
+
+.toast.info {
+  border-left-color: var(--accent-primary);
 }
 
 .toast.success {
@@ -1275,14 +1261,23 @@ button:disabled .loading-spinner {
   border-left-color: var(--error-color);
 }
 
+.toast.warning {
+  border-left-color: #ff9800;
+}
+
 .toast-content {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1;
 }
 
 .toast-icon {
   font-size: 20px;
+}
+
+.toast.info .toast-icon {
+  color: var(--accent-primary);
 }
 
 .toast.success .toast-icon {
@@ -1293,9 +1288,14 @@ button:disabled .loading-spinner {
   color: var(--error-color);
 }
 
+.toast.warning .toast-icon {
+  color: #ff9800;
+}
+
 .toast-message {
   font-size: 14px;
   line-height: 1.5;
+  word-break: break-word;
 }
 
 .toast-close {
@@ -1305,9 +1305,12 @@ button:disabled .loading-spinner {
   cursor: pointer;
   padding: 4px;
   margin-left: 12px;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
 }
 
 .toast-close:hover {
+  opacity: 1;
   color: var(--text-primary);
 }
 

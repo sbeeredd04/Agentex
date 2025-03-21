@@ -139,9 +139,7 @@
       </div>
     </main>
 
-    <footer>
-      <div id="status" class="status"></div>
-    </footer>
+    <div id="toastContainer" class="toast-container"></div>
   </div>
 
   <!-- Settings Modal -->
@@ -187,11 +185,11 @@
     </div>
   </div>
 
-  <div id="toastContainer" class="toast-container"></div>
-
+  <!-- Load scripts in the correct order -->
   <script src="config.js"></script>
   <script src="services/ai-service.js"></script>
-  <script src="server/serverManager.js"></script>
+  <script src="serverManager.js"></script>
+  <!-- Load sidepanel.js last -->
   <script src="sidepanel.js"></script>
 </body>
 </html>

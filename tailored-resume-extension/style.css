@@ -110,11 +110,19 @@ main {
   align-items: center;
 }
 
+.header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .header-title h1 {
   font-size: 24px;
   font-weight: 700;
   color: var(--accent-primary);
-  margin-bottom: var(--spacing-xs);
+  margin: 0;
+  display: flex;
+  align-items: center;
 }
 
 .subtitle {
@@ -1608,4 +1616,23 @@ main {
 /* Update modal background */
 .modal-content {
   background: var(--bg-secondary);
+}
+
+/* Logo styles */
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-logo {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.3));
+  transition: transform var(--transition-normal);
+}
+
+.logo-container:hover .app-logo {
+  transform: scale(1.1);
 }

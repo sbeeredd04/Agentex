@@ -4,136 +4,122 @@
   <meta charset="UTF-8">
   <title>Smart Resume Tailoring</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono:wght@400;700&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="container">
-    <header>
+    <header class="app-header">
       <div class="header-content">
-        <h1>Smart Resume Tailoring</h1>
-        <button id="openSettings" class="icon-button" title="Settings">
+        <div class="header-title">
+          <h1>Agentex</h1>
+          <p class="subtitle">AI-powered resume tailoring software</p>
+        </div>
+        <button id="openSettings" class="icon-button settings-btn" title="Settings">
           <span class="material-icons">settings</span>
         </button>
       </div>
-      <p class="subtitle">AI-powered document customization for job applications</p>
     </header>
 
-    <main>
-      <!-- Tab Navigation -->
-      <div class="tab-container">
-        <div class="tab active" id="resumeTab">Resume</div>
+    <main class="main-content">
+      <div class="section upload-section glass-morphism">
+        <div class="section-header">
+          <h3>Resume Template</h3>
+          <div class="action-buttons">
+            <button class="icon-button" title="Load existing">
+              <span class="material-icons">folder_open</span>
+            </button>
+            <button class="icon-button" title="Create new">
+              <span class="material-icons">add</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="upload-area">
+          <label for="latexFile" class="file-upload-label">
+            <div class="upload-content">
+              <span class="material-icons upload-icon">upload_file</span>
+              <span class="upload-text">Upload LaTeX Resume</span>
+              <span class="file-type">.tex files supported</span>
+            </div>
+            <input type="file" id="latexFile" accept=".tex" hidden>
+          </label>
+          <div id="fileNameDisplay" class="file-status"></div>
+        </div>
       </div>
 
-      <!-- Resume Content -->
-      <div id="resumeContent">
-        <!-- Resume Templates Section -->
-        <div class="section">
-          <div class="section-header">
-            <h3>Resume Templates</h3>
-            <div class="button-group">
-              <button id="loadExistingBtn" class="icon-button" title="Load existing template">
-                <span class="material-icons">folder_open</span>
-              </button>
-              <button id="addResumeBtn" class="icon-button" title="Add new template">
-                <span class="material-icons">add</span>
-              </button>
-            </div>
-          </div>
-          
-          <div class="upload-section" id="resumeUploadSection">
-            <label for="latexFile" class="file-upload">
-              <span class="material-icons upload-icon">upload_file</span>
-              <span>Upload Your LaTeX Resume (.tex)</span>
-              <input type="file" id="latexFile" accept=".tex">
-            </label>
-            <div id="fileNameDisplay" class="file-name-display"></div>
-          </div>
-          
-          <div class="resume-list" id="resumeList">
-            <!-- Template for resume cards -->
-            <template id="resumeCardTemplate">
-              <div class="resume-card">
-                <div class="resume-card-header">
-                  <span class="filename"></span>
-                  <div class="card-actions">
-                    <button class="icon-button load-btn" title="Load this template">
-                      <span class="material-icons">file_open</span>
-                    </button>
-                    <button class="icon-button delete-btn" title="Delete template">
-                      <span class="material-icons">delete</span>
-                    </button>
-                  </div>
-                </div>
-                <div class="resume-card-preview"></div>
-              </div>
-            </template>
+      <div class="section job-section glass-morphism">
+        <div class="section-header">
+          <h3>Job Description</h3>
+          <div class="action-buttons">
+            <button class="icon-button" title="Save">
+              <span class="material-icons">bookmark</span>
+            </button>
+            <button class="icon-button" title="Clear">
+              <span class="material-icons">clear</span>
+            </button>
           </div>
         </div>
+        <textarea id="jobDesc" class="modern-input" placeholder="Paste the job description here..."></textarea>
+      </div>
 
-        <!-- Job Description Section -->
-        <div class="section">
-          <div class="section-header">
-            <h3>Job Details</h3>
-            <div class="button-group">
-              <button id="saveJobBtn" class="icon-button" title="Save for later">
-                <span class="material-icons">bookmark</span>
-              </button>
-              <button id="clearJobBtn" class="icon-button" title="Clear">
-                <span class="material-icons">clear</span>
-              </button>
-            </div>
-          </div>
-          <textarea id="jobDesc" rows="8" placeholder="Paste the job description here..."></textarea>
+      <div class="section knowledge-section glass-morphism">
+        <div class="section-header">
+          <h3>Knowledge Base</h3>
+          <button class="icon-button" title="Add entry">
+            <span class="material-icons">add</span>
+          </button>
         </div>
+        <textarea id="knowledgeBaseText" class="modern-input" placeholder="Add your skills, experiences, and achievements..."></textarea>
+      </div>
 
-        <!-- Knowledge Base Section -->
-        <div class="section">
-          <div class="section-header">
-            <h3>Knowledge Base</h3>
-          </div>
-          <textarea id="knowledgeBaseText" rows="8" placeholder="Add your skills, experiences, and achievements here..."></textarea>
-        </div>
-
-        <!-- Model Selection Dropdown -->
+      <div class="section model-section glass-morphism">
         <div class="model-selection">
-          <label for="modelSelect">Select AI Model:</label>
-          <select id="modelSelect" class="dropdown">
+          <label for="modelSelect">AI Model</label>
+          <select id="modelSelect" class="modern-select">
             <option value="gemini">Gemini 2.0 Flash</option>
             <option value="groq:deepseek-r1-distill-qwen-32b">DeepSeek Qwen 32B</option>
             <option value="groq:deepseek-r1-distill-llama-70b">DeepSeek Llama 70B</option>
           </select>
         </div>
+      </div>
 
-        <!-- Action Buttons (without preview) -->
-        <div class="button-group">
-          <button id="tailorBtn" class="primary">
-            <span class="material-icons">auto_awesome</span> Generate Tailored Resume
-          </button>
-          <button id="downloadBtn" class="secondary" disabled>
-            <span class="material-icons">download</span> Download PDF
-          </button>
-        </div>
+      <div class="action-buttons-container">
+        <button id="tailorBtn" class="action-button primary">
+          <span class="material-icons">auto_awesome</span>
+          <span>Generate Resume</span>
+        </button>
+        <button id="downloadBtn" class="action-button secondary" disabled>
+          <span class="material-icons">download</span>
+          <span>Download PDF</span>
+        </button>
+      </div>
 
-        <!-- Preview Section (shared between tabs) -->
-        <div class="preview-section">
-          <div class="preview-header">
-            <h3>Preview</h3>
-            <div class="preview-control">
-              <div class="preview-type-toggle">
-                <label class="radio-label">
-                  <input type="radio" name="previewType" value="original" checked>
-                  <span>Original</span>
-                </label>
-                <label class="radio-label">
-                  <input type="radio" name="previewType" value="generated" disabled>
-                  <span>Generated</span>
-                </label>
-              </div>
+      <div class="section preview-section glass-morphism">
+        <div class="preview-header">
+          <h3>Preview</h3>
+          <div class="preview-controls">
+            <div class="preview-toggle-group">
+              <button class="preview-toggle-btn active" data-view="raw">
+                <span class="material-icons">code</span>
+                Raw
+              </button>
+              <button class="preview-toggle-btn" data-view="compiled">
+                <span class="material-icons">description</span>
+                Compiled
+              </button>
             </div>
+            <button class="icon-button view-toggle" title="Toggle fullscreen">
+              <span class="material-icons">fullscreen</span>
+            </button>
           </div>
-          <div class="preview-content">
-            <pre id="previewArea" class="preview">Your tailored document will appear here...</pre>
-            <div id="pdfPreviewArea" class="pdf-preview" style="display: none;"></div>
+        </div>
+        <div class="preview-content custom-scroll">
+          <div id="rawPreview" class="preview-view">
+            <pre id="previewArea" class="preview-text custom-scroll">Your resume content will appear here...</pre>
+          </div>
+          <div id="compiledPreview" class="preview-view" style="display: none;">
+            <div id="pdfPreviewArea" class="preview-pdf"></div>
           </div>
         </div>
       </div>
@@ -143,43 +129,70 @@
   </div>
 
   <!-- Settings Modal -->
-  <div id="settingsModal" class="modal">
-    <div class="modal-content">
+  <div id="settingsModal" class="modal glass-morphism">
+    <div class="modal-content glass-morphism">
       <div class="modal-header">
-        <h2>API Settings</h2>
-        <span class="close-modal">&times;</span>
+        <h2>Settings</h2>
+        <button class="icon-button close-modal" title="Close">
+          <span class="material-icons">close</span>
+        </button>
       </div>
       <div class="modal-body">
-        <div class="api-key-input">
-          <label for="geminiApiKey">Gemini API Key:</label>
-          <input type="password" id="geminiApiKey" placeholder="Enter your Gemini API key">
-          <button class="toggle-visibility" data-for="geminiApiKey">
-            <span class="material-icons">visibility_off</span>
-          </button>
-        </div>
-        <div class="api-key-input">
-          <label for="groqApiKey">Groq API Key:</label>
-          <input type="password" id="groqApiKey" placeholder="Enter your Groq API key">
-          <button class="toggle-visibility" data-for="groqApiKey">
-            <span class="material-icons">visibility_off</span>
-          </button>
-        </div>
         <div class="settings-section">
-          <h3>Custom Prompt Template</h3>
-          <div class="prompt-container">
-            <textarea 
-              id="customPrompt" 
-              rows="10" 
-              placeholder="Enter your custom prompt template..."
-            ></textarea>
-            <button id="resetPrompt" class="secondary-button">
-              <span class="material-icons">restart_alt</span>
-              Reset to Default
-            </button>
+          <h3>API Keys</h3>
+          <div class="api-key-input glass-morphism">
+            <div class="api-key-header">
+              <label for="geminiApiKey">Gemini API Key</label>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" class="api-link" title="Get Gemini API Key">
+                <span class="material-icons">key</span>
+                Get API Key
+              </a>
+            </div>
+            <div class="input-group">
+              <input type="password" id="geminiApiKey" class="modern-input" placeholder="Enter your Gemini API key">
+              <button class="icon-button toggle-visibility" data-for="geminiApiKey" title="Toggle visibility">
+                <span class="material-icons">visibility_off</span>
+              </button>
+            </div>
+          </div>
+          <div class="api-key-input glass-morphism">
+            <div class="api-key-header">
+              <label for="groqApiKey">Groq API Key</label>
+              <a href="https://console.groq.com/keys" target="_blank" class="api-link" title="Get Groq API Key">
+                <span class="material-icons">key</span>
+                Get API Key
+              </a>
+            </div>
+            <div class="input-group">
+              <input type="password" id="groqApiKey" class="modern-input" placeholder="Enter your Groq API key">
+              <button class="icon-button toggle-visibility" data-for="groqApiKey" title="Toggle visibility">
+                <span class="material-icons">visibility_off</span>
+              </button>
+            </div>
           </div>
         </div>
-        <div class="modal-buttons">
-          <button id="saveApiKeys" class="primary">Save Keys</button>
+
+        <div class="settings-section">
+          <div class="section-header">
+            <h3>Custom Prompt Template</h3>
+            <button id="resetPrompt" class="icon-button" title="Reset to default">
+              <span class="material-icons">restart_alt</span>
+            </button>
+          </div>
+          <div class="prompt-container glass-morphism">
+            <textarea 
+              id="customPrompt" 
+              class="modern-input custom-scroll"
+              placeholder="Enter your custom prompt template..."
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="saveApiKeys" class="action-button primary">
+            <span class="material-icons">save</span>
+            Save Changes
+          </button>
         </div>
       </div>
     </div>
@@ -187,9 +200,8 @@
 
   <!-- Load scripts in the correct order -->
   <script src="config.js"></script>
+  <script src="server/serverManager.js"></script>
   <script src="services/ai-service.js"></script>
-  <script src="serverManager.js"></script>
-  <!-- Load sidepanel.js last -->
   <script src="sidepanel.js"></script>
 </body>
 </html>

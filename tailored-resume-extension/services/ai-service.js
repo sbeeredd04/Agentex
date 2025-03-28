@@ -132,7 +132,7 @@ class AIService {
           role: "user",
           content: prompt
         }],
-        reasoning_format: "hidden" // Only get the final answer
+        reasoning_format: "hidden"
       };
 
       console.log('[AIService] Groq Request:', {

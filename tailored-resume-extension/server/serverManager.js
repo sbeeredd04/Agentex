@@ -267,7 +267,17 @@ class ServerManager {
     }
   }
   
-  // Register the service globally
-  window.ServerManager = new ServerManager();
-  console.log('[ServerManager] Class registered globally');
+  // Update the global registration
+  if (typeof window !== 'undefined') {
+    console.log('[ServerManager] Registering globally');
+    if (!window.ServerManager) {
+        window.ServerManager = new ServerManager();
+        console.log('[ServerManager] Class registered globally');
+    }
+  }
+
+  // Export for module usage
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = ServerManager;
+  }
   

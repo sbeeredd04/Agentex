@@ -90,7 +90,10 @@ VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are
 - Invent unverified experiences
 - Change section hierarchy
 - Exceed original item length by >20%
-- Remove JD-matched content`;
+- Remove JD-matched content
+
+!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE!!
+`;
 
 // Function to display status messages
 function showStatus(message, type = 'info') {
@@ -235,40 +238,36 @@ function setupPreviewUI() {
 
 // Update the generatePdfPreview function
 async function generatePdfPreview(latex, type = 'original') {
-  console.log('[Preview] Attempting PDF preview generation:', {
-    hasContent: Boolean(latex),
-    contentLength: latex?.length || 0,
-    type,
-    timestamp: new Date().toISOString()
-  });
-
   if (!latex) {
-    console.log('[Preview] No content available for PDF preview');
     showStatus("No content available for preview", 'warning');
     return false;
   }
 
   try {
-    // First save the LaTeX content and get a unique fileId
+    // Show loading state in the preview area
+    const pdfPreviewArea = document.getElementById('pdfPreviewArea');
+    pdfPreviewArea.innerHTML = `
+      <div class="loading-preview">
+        <div class="loading-spinner"></div>
+        <span>Compiling PDF...</span>
+      </div>
+    `;
+
+    // Save and compile the LaTeX content
     const saveResult = await window.ServerManager.saveGeneratedResume(latex, 'resume.tex', {
       type,
       timestamp: Date.now(),
       previewGeneration: true
     });
 
-    console.log('[Preview] Save result:', saveResult);
-
     if (!saveResult.success) {
       throw new Error(`Failed to save LaTeX: ${saveResult.error}`);
     }
 
-    // Then compile to PDF using the fileId
     const compileResult = await window.ServerManager.compileResume({
       latex: latex,
-      fileId: saveResult.fileId // Pass unique fileId
+      fileId: saveResult.fileId
     });
-
-    console.log('[Preview] Compile result:', compileResult);
 
     if (!compileResult.success) {
       throw new Error(`PDF compilation failed: ${compileResult.error}`);
@@ -279,25 +278,25 @@ async function generatePdfPreview(latex, type = 'original') {
     const pdfUrl = URL.createObjectURL(pdfBlob);
 
     // Update preview with the PDF URL
-    const pdfPreviewArea = document.getElementById('pdfPreviewArea');
-    pdfPreviewArea.innerHTML = `<iframe src="${pdfUrl}" type="application/pdf" width="100%" height="100%"></iframe>`;
-    currentPdfUrl = pdfUrl;
+    pdfPreviewArea.innerHTML = `
+      <iframe 
+        src="${pdfUrl}#zoom=FitH" 
+        type="application/pdf" 
+        width="100%" 
+        height="100%"
+        title="Resume Preview"
+      ></iframe>
+    `;
 
-    // Cleanup old blob URL if it exists
+    // Cleanup old blob URL
     if (window.lastPdfUrl) {
       URL.revokeObjectURL(window.lastPdfUrl);
     }
     window.lastPdfUrl = pdfUrl;
 
-    showStatus(`${type} PDF preview generated successfully!`, 'success');
     return true;
-
   } catch (error) {
-    console.error('[Preview] Error in PDF generation pipeline:', {
-      error: error.message,
-      stack: error.stack,
-      type: error.name
-    });
+    console.error('[Preview] Error in PDF generation:', error);
     showStatus(`Preview generation failed: ${error.message}`, 'error');
     return false;
   }
@@ -482,21 +481,25 @@ if (display) {
 }
 }
 
-// Add this at the beginning of your sidepanel.js
+// Update the waitForServerManager function
 function waitForServerManager() {
   return new Promise((resolve, reject) => {
     let attempts = 0;
     const maxAttempts = 50;
+    const interval = 100; // 100ms between attempts
     
     const check = () => {
       attempts++;
+      console.log('[Sidepanel] Checking for ServerManager, attempt:', attempts);
+      
       if (window.ServerManager) {
         console.log('[Sidepanel] ServerManager found');
         resolve(window.ServerManager);
       } else if (attempts > maxAttempts) {
-        reject(new Error('ServerManager not found after maximum attempts'));
+        console.error('[Sidepanel] ServerManager not found after', maxAttempts, 'attempts');
+        reject(new Error(`ServerManager not found after ${maxAttempts} attempts`));
       } else {
-        setTimeout(check, 100);
+        setTimeout(check, interval);
       }
     };
     
@@ -504,16 +507,80 @@ function waitForServerManager() {
   });
 }
 
-// Update your initialization function
+// Add this function to handle preview toggling
+function setupPreviewToggle() {
+  const toggleButtons = document.querySelectorAll('.preview-toggle-btn');
+  const previewSection = document.querySelector('.preview-section');
+  const fullscreenBtn = document.querySelector('.view-toggle');
+  let isFullscreen = false;
+
+  toggleButtons.forEach(button => {
+    button.addEventListener('click', async () => {
+      // Update button states
+      toggleButtons.forEach(btn => btn.classList.remove('active'));
+      button.classList.add('active');
+
+      const view = button.dataset.view;
+      const rawPreview = document.getElementById('rawPreview');
+      const compiledPreview = document.getElementById('compiledPreview');
+      
+      if (view === 'raw') {
+        rawPreview.style.display = 'block';
+        compiledPreview.style.display = 'none';
+      } else {
+        rawPreview.style.display = 'none';
+        compiledPreview.style.display = 'block';
+        
+        // Generate PDF preview if needed
+        const content = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
+        if (content) {
+          showStatus('Compiling PDF preview...', 'info');
+          const success = await generatePdfPreview(content, sidebarState.contentType);
+          if (success) {
+            showStatus('PDF preview generated successfully!', 'success');
+          }
+        }
+      }
+    });
+  });
+
+  // Handle fullscreen toggle
+  fullscreenBtn.addEventListener('click', () => {
+    isFullscreen = !isFullscreen;
+    
+    if (isFullscreen) {
+      previewSection.classList.add('fullscreen');
+      fullscreenBtn.querySelector('.material-icons').textContent = 'fullscreen_exit';
+      document.body.style.overflow = 'hidden';
+    } else {
+      previewSection.classList.remove('fullscreen');
+      fullscreenBtn.querySelector('.material-icons').textContent = 'fullscreen';
+      document.body.style.overflow = '';
+    }
+  });
+
+  // Handle escape key to exit fullscreen
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isFullscreen) {
+      fullscreenBtn.click();
+    }
+  });
+}
+
+// Update the initialization function
 async function initializeSidepanel() {
   console.log('[Sidepanel] Initializing...');
   try {
     // Wait for ServerManager to be available
-    await waitForServerManager();
+    const serverManager = await waitForServerManager();
+    console.log('[Sidepanel] ServerManager loaded:', serverManager);
     
-    if (!window.AIService) throw new Error('AIService not found');
+    // Check for AIService
+    if (!window.AIService) {
+      throw new Error('AIService not found');
+    }
     
-    console.log('Initializing services...');
+    console.log('[Sidepanel] Initializing services...');
     aiService = new window.AIService();
     
     // Set up UI and event listeners
@@ -522,6 +589,7 @@ async function initializeSidepanel() {
     setupPreviewUI();
     setupModelSelector();
     setupApiKeyManagement();
+    setupPreviewToggle();
     
     await restoreState();
     
@@ -532,15 +600,12 @@ async function initializeSidepanel() {
   }
 }
 
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  try {
-    initializeSidepanel();
-  } catch (error) {
-    console.error('[Sidepanel] Initialization error:', error);
-    showToast('Initialization error: ' + error.message, 'error');
-  }
-});
+// Make sure DOM is loaded before initializing
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeSidepanel);
+} else {
+  initializeSidepanel();
+}
 
 // Add this function to setup model selection
 function setupModelSelector() {
@@ -773,64 +838,35 @@ async function updatePreview(mode) {
     hasGenerated: Boolean(tailoredLatex)
   });
 
+  const rawPreview = document.getElementById('rawPreview');
+  const compiledPreview = document.getElementById('compiledPreview');
   const previewArea = document.getElementById('previewArea');
-  const pdfPreviewArea = document.getElementById('pdfPreviewArea');
   
-  if (!previewArea || !pdfPreviewArea) {
+  if (!previewArea) {
     console.error('[Preview] Required elements not found');
     return;
   }
 
-  // Update preview mode in state
-  sidebarState.previewMode = mode;
-  
   // Use contentType from state to determine which version to show
   const contentToShow = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
   
-  // Handle null content case
   if (!contentToShow) {
     console.log('[Preview] No content available to show');
     previewArea.textContent = 'No content available';
-    pdfPreviewArea.innerHTML = '';
     return;
   }
   
-  console.log('[Preview] Content selection:', {
-    selectedType: sidebarState.contentType,
-    contentLength: contentToShow.length,
-    preview: contentToShow.substring(0, 100) + '...'
-  });
-  
-  // Update text content first
+  // Update text content
   previewArea.textContent = contentToShow;
   
-  // Then handle display mode
-  if (mode === 'text') {
-    console.log('[Preview] Switching to text mode');
-    previewArea.style.display = 'block';
-    pdfPreviewArea.style.display = 'none';
-  } else if (mode === 'pdf') {
-    console.log('[Preview] Switching to PDF mode');
-    previewArea.style.display = 'none';
-    pdfPreviewArea.style.display = 'block';
-    
-    await generatePdfPreview(contentToShow, sidebarState.contentType);
+  // If we're showing the compiled view, generate the PDF
+  const activeView = document.querySelector('.preview-toggle-btn.active').dataset.view;
+  if (activeView === 'compiled') {
+    await generatePdfPreview(contentToShow);
   }
-  
-  // Update radio buttons to match state
-  const radioButtons = document.querySelectorAll('input[name="resumeVersion"]');
-  radioButtons.forEach(radio => {
-    const shouldBeChecked = radio.value === sidebarState.contentType;
-    radio.checked = shouldBeChecked;
-  });
   
   // Save the current state
   saveState();
-  console.log('[Preview] Final state saved:', {
-    mode: sidebarState.previewMode,
-    contentType: sidebarState.contentType,
-    modelSelection: sidebarState.selectedModel
-  });
 }
 
 // Update the showToast function to handle more types
@@ -890,7 +926,7 @@ function setupApiKeyManagement() {
   const groqInput = document.getElementById('groqApiKey');
   const promptInput = document.getElementById('customPrompt');
 
-  // Load saved API keys and prompt
+  // Load saved settings
   chrome.storage.local.get(['geminiApiKey', 'groqApiKey', 'customPrompt'], (result) => {
     if (result.geminiApiKey) {
       geminiInput.value = result.geminiApiKey;
@@ -905,12 +941,17 @@ function setupApiKeyManagement() {
     }
   });
 
-  // Reset prompt button
+  // Reset prompt with animation
   document.getElementById('resetPrompt').addEventListener('click', () => {
-    promptInput.value = DEFAULT_PROMPT;
+    promptInput.style.opacity = '0';
+    setTimeout(() => {
+      promptInput.value = DEFAULT_PROMPT;
+      promptInput.style.opacity = '1';
+    }, 200);
+    showToast('Prompt reset to default', 'info');
   });
 
-  // Toggle password visibility
+  // Toggle password visibility with icon update
   document.querySelectorAll('.toggle-visibility').forEach(button => {
     button.addEventListener('click', () => {
       const inputId = button.getAttribute('data-for');
@@ -927,35 +968,49 @@ function setupApiKeyManagement() {
     });
   });
 
-  // Modal controls
+  // Modal controls with animations
   openBtn.addEventListener('click', () => {
     modal.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => modal.style.opacity = '1', 10);
   });
 
-  closeBtn.addEventListener('click', () => {
-    modal.style.display = 'none';
-  });
+  const closeModal = () => {
+    modal.style.opacity = '0';
+    document.body.style.overflow = '';
+    setTimeout(() => modal.style.display = 'none', 300);
+  };
 
-  window.addEventListener('click', (event) => {
+  closeBtn.addEventListener('click', closeModal);
+
+  // Close on outside click
+  modal.addEventListener('click', (event) => {
     if (event.target === modal) {
-      modal.style.display = 'none';
+      closeModal();
     }
   });
 
-  // Save settings with validation and toast notifications
+  // Save settings with validation and feedback
   saveBtn.addEventListener('click', async () => {
     const geminiKey = geminiInput.value.trim();
     const groqKey = groqInput.value.trim();
     const customPrompt = promptInput.value.trim();
 
     try {
-      // Basic validation
+      // Validate inputs
       if (!geminiKey && !groqKey) {
         throw new Error('Please enter at least one API key');
       }
       if (!customPrompt) {
         throw new Error('Prompt template cannot be empty');
       }
+
+      // Show saving state
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = `
+        <div class="loading-spinner"></div>
+        <span>Saving...</span>
+      `;
 
       // Save to Chrome storage
       await chrome.storage.local.set({
@@ -964,19 +1019,34 @@ function setupApiKeyManagement() {
         customPrompt: customPrompt
       });
 
-      // Reinitialize AI service with new keys
+      // Reinitialize AI service
       aiService = new window.AIService();
       
-      // Show success toast
       showToast('Settings saved successfully!', 'success');
-      
-      // Close modal
-      modal.style.display = 'none';
+      closeModal();
 
     } catch (error) {
       console.error('[Settings] Error saving settings:', error);
-      showToast(`Error saving settings: ${error.message}`, 'error', 0);
+      showToast(error.message, 'error');
+    } finally {
+      // Reset button state
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = `
+        <span class="material-icons">save</span>
+        Save Changes
+      `;
     }
+  });
+
+  // Add click tracking for API key links
+  document.querySelectorAll('.api-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      const service = link.closest('.api-key-input').querySelector('label').textContent;
+      console.log(`[Settings] Opening ${service} API key page`);
+      
+      // Show helper toast
+      showToast(`Opening ${service} page in new tab`, 'info');
+    });
   });
 }
 

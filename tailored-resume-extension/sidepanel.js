@@ -117,9 +117,7 @@ function setupUIElements() {
     jobDescInput: document.getElementById('jobDesc'),
     tailorBtn: document.getElementById('tailorBtn'),
     downloadBtn: document.getElementById('downloadBtn'),
-    resumeList: document.getElementById('resumeList'),
     knowledgeBaseText: document.getElementById('knowledgeBaseText'),
-    resumeTab: document.getElementById('resumeTab'),
     previewArea: document.getElementById('previewArea'),
     pdfPreviewArea: document.getElementById('pdfPreviewArea')
   };
@@ -199,41 +197,46 @@ function setupEventListeners(elements) {
 
 // Setup preview UI controls and event listeners
 function setupPreviewUI() {
-  const previewControl = document.querySelector('.preview-control');
-  if (!previewControl) {
-    console.error('Preview control not found');
+  const previewControls = document.querySelector('.preview-controls');
+  if (!previewControls) {
+    console.error('[Preview] Preview controls not found');
     return;
   }
-  const toggleButton = document.createElement('button');
-  toggleButton.id = 'togglePreviewMode';
-  toggleButton.className = 'icon-button';
-  toggleButton.title = 'Toggle Preview Mode';
-  toggleButton.innerHTML = '<span class="material-icons">visibility</span>';
-  previewControl.appendChild(toggleButton);
+
+  // The toggle buttons are already present in HTML, no need to create them
+  const toggleButtons = document.querySelectorAll('.preview-toggle-btn');
+  const rawPreview = document.getElementById('rawPreview');
+  const compiledPreview = document.getElementById('compiledPreview');
   
-  const previewArea = document.getElementById('previewArea');
-  const pdfPreviewArea = document.getElementById('pdfPreviewArea');
-  
-  toggleButton.addEventListener('click', async () => {
-    console.log('[Preview] Switching preview mode');
+  toggleButtons.forEach(button => {
+    button.addEventListener('click', async () => {
+      // Update button states
+      toggleButtons.forEach(btn => btn.classList.remove('active'));
+      button.classList.add('active');
 
-    // Determine the current mode and toggle it
-    const isShowingPdf = pdfPreviewArea.style.display !== 'none';
-    const newMode = isShowingPdf ? 'text' : 'pdf';
-
-    // Update the preview with the new mode
-    await updatePreview(newMode);
-
-    // Update the button icon and title based on the new mode
-    if (newMode === 'text') {
-      toggleButton.innerHTML = '<span class="material-icons">visibility</span>';
-      toggleButton.title = 'Show PDF Preview';
-    } else {
-      toggleButton.innerHTML = '<span class="material-icons">code</span>';
-      toggleButton.title = 'Show LaTeX Code';
-    }
+      const view = button.dataset.view;
+      
+      if (view === 'raw') {
+        rawPreview.style.display = 'block';
+        compiledPreview.style.display = 'none';
+      } else {
+        rawPreview.style.display = 'none';
+        compiledPreview.style.display = 'block';
+        
+        // Generate PDF preview if needed
+        const content = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
+        if (content) {
+          showStatus('Compiling PDF preview...', 'info');
+          const success = await generatePdfPreview(content, sidebarState.contentType);
+          if (success) {
+            showStatus('PDF preview generated successfully!', 'success');
+          }
+        }
+      }
+    });
   });
-  console.log('Preview UI setup complete');
+
+  console.log('[Preview] UI setup complete');
 }
 
 // Update the generatePdfPreview function

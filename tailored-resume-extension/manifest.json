@@ -45,6 +45,7 @@
       "resources": [
         "config.js",
         "services/ai-service.js",
+        "services/docx-ai-service.js",
         "server/serverManager.js",
         "lib/vendor/*"
       ],

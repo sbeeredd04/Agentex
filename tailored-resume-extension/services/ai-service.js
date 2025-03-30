@@ -36,24 +36,51 @@ class AIService {
     });
   }
 
-  async generateContent(prompt, modelType = 'gemini', specificModel = null) {
-    console.log('[AIService] Generating content with:', {
-      modelType,
-      specificModel,
-      promptLength: prompt.length
+  async generateWithCurrentModel(prompt) {
+    console.log('[AIService] Generating with current model:', {
+      type: this.currentModelSelection?.type,
+      model: this.currentModelSelection?.model
     });
 
+    if (this.currentModelSelection?.type === 'groq') {
+      return await this._generateWithGroq(prompt, this.currentModelSelection.model);
+    } else {
+      return await this._generateWithGemini(prompt);
+    }
+  }
+
+  async generateContent(prompt, contentType = 'latex', modelType = 'gemini', model = null) {
     try {
-      switch(modelType.toLowerCase()) {
-        case 'gemini':
-          return await this._generateWithGemini(prompt);
-        case 'groq':
-          return await this._generateWithGroq(prompt, specificModel);
-        default:
-          throw new Error(`Unsupported model type: ${modelType}`);
+      console.log('[AIService] Generating content:', {
+        contentType,
+        modelType,
+        model,
+        promptLength: prompt.length
+      });
+
+      this.currentModelSelection = { type: modelType, model };
+
+      // Add content type specific instructions
+      let finalPrompt = prompt;
+      if (contentType === 'docx') {
+        finalPrompt += "\nIMPORTANT: Return ONLY plain text content without any formatting markers or LaTeX commands.";
+        console.log('[AIService] Using DOCX-specific prompt');
+      } else {
+        console.log('[AIService] Using LaTeX-specific prompt');
       }
+
+      const response = await this.generateWithCurrentModel(finalPrompt);
+      
+      // Clean response based on content type
+      if (contentType === 'docx') {
+        console.log('[AIService] Cleaning DOCX response');
+        return this.cleanDocxResponse(response);
+      }
+      console.log('[AIService] Cleaning LaTeX response');
+      return this.cleanLatexResponse(response);
+
     } catch (error) {
-      console.error('[AIService] Generation error:', error);
+      console.error(`[AIService] ${contentType.toUpperCase()} Generation error:`, error);
       throw error;
     }
   }
@@ -210,6 +237,17 @@ class AIService {
     });
 
     return cleaned;
+  }
+
+  cleanDocxResponse(response) {
+    // Remove any LaTeX commands or other formatting
+    let cleaned = response.replace(/\\[a-zA-Z]+{([^}]*)}/g, '$1');
+    cleaned = cleaned.replace(/\\[a-zA-Z]+/g, '');
+    return cleaned.trim();
+  }
+
+  cleanLatexResponse(response) {
+    return this._cleanResponse(response);
   }
 }
 

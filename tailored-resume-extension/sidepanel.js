@@ -311,9 +311,7 @@ function setupPreviewUI() {
 async function updatePreview() {
   console.log('[Preview] Starting preview update:', {
     contentType: sidebarState.contentType,
-    fileType: sidebarState.fileType,
-    hasOriginalLatex: !!originalLatex,
-    hasTailoredLatex: !!tailoredLatex
+    fileType: sidebarState.fileType
   });
 
   if (window.isPreviewUpdating) {
@@ -323,13 +321,16 @@ async function updatePreview() {
   window.isPreviewUpdating = true;
 
   try {
-    // Get the appropriate content based on type and file type
+    // Get content based on type
     let contentToShow;
     if (sidebarState.fileType === 'latex') {
       contentToShow = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
     } else {
+      // For DOCX, get the stored raw content
+      const { generatedRawContent } = await chrome.storage.local.get('generatedRawContent');
       contentToShow = sidebarState.contentType === 'generated' ? 
-        sidebarState.tailoredContent : sidebarState.originalContent;
+        generatedRawContent : 
+        sidebarState.originalContent;
     }
 
     console.log('[Preview] Content validation:', {
@@ -381,6 +382,12 @@ async function generatePdfPreview(content, type = 'original') {
           type: content?.type,
           hasData: !!content?.data,
           dataType: typeof content?.data
+        },
+        sidebarState: {
+          fileType: sidebarState.fileType,
+          contentType: sidebarState.contentType,
+          hasOriginalDocx: !!sidebarState.originalDocx,
+          hasTailoredDocx: !!sidebarState.tailoredDocx
         }
       });
 
@@ -399,42 +406,65 @@ async function generatePdfPreview(content, type = 'original') {
 
       showStatus('Generating PDF preview...', 'info');
 
-      // Get the current HTML content
-      const rawPreview = document.querySelector('.preview-text-content');
-      const currentHtml = rawPreview?.innerHTML;
+      // Get the appropriate DOCX content with enhanced debugging
+      const docxContent = type === 'generated' ? 
+        sidebarState.tailoredDocx : 
+        sidebarState.originalDocx;
 
-      if (!currentHtml) {
-        throw new Error('No content available for preview');
-      }
-
-      // Get the original DOCX content
-      const originalDocx = sidebarState.contentType === 'generated' 
-        ? sidebarState.tailoredDocx 
-        : sidebarState.originalDocx;
-
-      if (!originalDocx || !originalDocx.data) {
-        throw new Error('Original DOCX content not found');
-      }
-
-      // Update DOCX content while preserving formatting
-      const docxService = new DocxService();
-      const updatedDocx = await docxService.updateDocxContent(originalDocx, currentHtml);
-
-      console.log('[PdfPreview] DOCX updated with new content:', {
-        originalSize: originalDocx.data.length,
-        updatedSize: updatedDocx.data.length
+      console.log('[PdfPreview] Selected DOCX content:', {
+        type: type,
+        docxContent: {
+          exists: !!docxContent,
+          type: docxContent?.type,
+          hasData: !!docxContent?.data,
+          dataLength: docxContent?.data?.length,
+          originalName: docxContent?.originalName
+        }
       });
 
-      // Generate PDF from updated DOCX
-      const pdfBlob = await docxService.generatePdf(updatedDocx);
+      if (!docxContent || !docxContent.data) {
+        throw new Error('DOCX content not found');
+      }
 
-      console.log('[PdfPreview] PDF generated:', {
-        size: pdfBlob.size,
-        type: pdfBlob.type
+      // Convert to ArrayBuffer if needed
+      let docxBuffer;
+      if (docxContent.type === 'ArrayBuffer' && docxContent.data) {
+        docxBuffer = new Uint8Array(
+          atob(docxContent.data)
+            .split('')
+            .map(char => char.charCodeAt(0))
+        ).buffer;
+      } else {
+        throw new Error('Invalid DOCX format');
+      }
+
+      // Create blob for upload
+      const docxBlob = new Blob([docxBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
+
+      // Save DOCX to server
+      const serverManager = window.ServerManager;
+      const saveResult = await serverManager.saveGeneratedDocx(
+        docxBlob,
+        docxContent.originalName || 'resume.docx'
+      );
+
+      if (!saveResult.success) {
+        throw new Error('Failed to save DOCX: ' + saveResult.error);
+      }
+
+      // Generate PDF
+      const pdfResult = await serverManager.compileDocxToPdf({
+        fileId: saveResult.fileId
+      });
+
+      if (!pdfResult.success) {
+        throw new Error('Failed to generate PDF: ' + pdfResult.error);
+      }
 
       // Create URL for the PDF
-      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const pdfUrl = URL.createObjectURL(pdfResult.content);
 
       // Create iframe for PDF preview
       const iframe = document.createElement('iframe');
@@ -449,17 +479,26 @@ async function generatePdfPreview(content, type = 'original') {
 
       // Monitor iframe loading
       iframe.onload = () => {
-        console.log('[PdfPreview] PDF iframe loaded:', {
-          src: iframe.src,
-          contentWindow: !!iframe.contentWindow,
-          height: iframe.height
-        });
+        console.log('[PdfPreview] PDF iframe loaded successfully');
         showStatus('PDF preview loaded successfully!', 'success');
       };
 
       return true;
+
     } catch (error) {
-      console.error('[PdfPreview] Error:', error);
+      console.error('[PdfPreview] Error:', {
+        error,
+        message: error.message,
+        stack: error.stack,
+        state: {
+          type: type,
+          hasContent: !!content,
+          sidebarState: {
+            contentType: sidebarState.contentType,
+            fileType: sidebarState.fileType
+          }
+        }
+      });
       showStatus(`Preview generation failed: ${error.message}`, 'error');
       return false;
     }
@@ -883,130 +922,84 @@ function setupModelSelector() {
 
 // Update the tailor function to handle both types
 async function generateTailoredContent() {
-  const jobDesc = document.getElementById('jobDesc').value.trim();
-  const knowledgeBase = document.getElementById('knowledgeBaseText').value.trim();
-  
-  console.log('[Tailor] Starting generation:', {
-    model: currentModelSelection,
-    hasJobDesc: Boolean(jobDesc),
-    hasKnowledgeBase: Boolean(knowledgeBase),
-    timestamp: new Date().toISOString()
-  });
-    
-  if (!originalLatex) {
-    showStatus("Please upload or select a resume template first", 'error');
-    return;
-  }
-  if (!jobDesc) {
-    showStatus("Please enter the job description", 'error');
-    return;
-  }
-
   try {
-    const content = sidebarState.fileType === 'docx' 
-      ? await generateTailoredDocx()
-      : await generateTailoredLatex();
-
-    await updatePreview(content);
-    showStatus(`Resume tailored successfully!`, 'success');
-  } catch (error) {
-    console.error('[Tailor] Generation failed:', error);
-    showStatus(`Generation failed: ${error.message}`, 'error');
-  }
-}
-
-// Add this function to handle DOCX tailoring
-async function generateTailoredDocx() {
-  try {
-    console.log('[DocxGenerate] Starting DOCX tailoring process', {
-      hasOriginalDocx: !!sidebarState.originalDocx,
-      fileName: sidebarState.uploadedFileName
-    });
-
     const jobDesc = document.getElementById('jobDesc').value.trim();
     const knowledgeBase = document.getElementById('knowledgeBaseText').value.trim();
-
-    console.log('[DocxGenerate] Input validation', {
-      hasJobDesc: !!jobDesc,
-      hasKnowledgeBase: !!knowledgeBase
-    });
-
-    if (!sidebarState.originalDocx) {
-      throw new Error('No original DOCX file found');
-    }
-
-    // Convert stored base64 back to ArrayBuffer if needed
-    let docxBuffer;
-    if (sidebarState.originalDocx.type === 'ArrayBuffer' && sidebarState.originalDocx.data) {
-      const binaryString = window.atob(sidebarState.originalDocx.data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      docxBuffer = bytes.buffer;
-    } else {
-      throw new Error('Invalid DOCX format in storage');
-    }
-
-    showStatus('Processing DOCX file...', 'info');
-    const docxService = new DocxService();
     
-    console.log('[DocxGenerate] Calling DocxService.tailorDocx');
-    const result = await docxService.tailorDocx(
-      docxBuffer,
-      jobDesc,
-      knowledgeBase
-    );
-
-    console.log('[DocxGenerate] Tailor result:', {
-      success: result.success,
-      hasDocx: !!result.docx,
-      hasHtml: !!result.html,
-      hasText: !!result.text
+    console.log('[Tailor] Starting generation:', {
+      fileType: sidebarState.fileType,
+      model: currentModelSelection,
+      hasJobDesc: Boolean(jobDesc),
+      hasKnowledgeBase: Boolean(knowledgeBase)
     });
 
-    if (!result.success) {
-      throw new Error(result.error || 'DOCX tailoring failed');
+    if (!jobDesc) {
+      throw new Error("Please enter the job description");
     }
 
-    // Store tailored content
-    sidebarState.tailoredDocx = result.docx;
-    sidebarState.tailoredHtml = result.html;
-    sidebarState.tailoredContent = result.text;
-    sidebarState.contentType = 'generated';
+    // Determine pipeline based on file type
+    let result;
+    if (sidebarState.fileType === 'docx') {
+      console.log('[Tailor] Using DOCX Pipeline');
+      if (!sidebarState.originalDocx) {
+        throw new Error("Please upload a DOCX file first");
+      }
+      result = await generateTailoredDocx();
+    } else if (sidebarState.fileType === 'latex') {
+      console.log('[Tailor] Using LaTeX Pipeline');
+      if (!originalLatex) {
+        throw new Error("Please upload a LaTeX file first");
+      }
+      result = await generateTailoredLatex();
+    } else {
+      throw new Error("Unsupported file type");
+    }
 
-    // Save state
-    await chrome.storage.local.set({ sidebarState });
-    console.log('[DocxGenerate] State updated with tailored content');
+    if (result.success) {
+      // Update state based on file type
+      if (sidebarState.fileType === 'docx') {
+        sidebarState.tailoredDocx = result.docx;
+        sidebarState.tailoredHtml = result.html;
+        sidebarState.tailoredContent = result.text;
+      } else {
+        tailoredLatex = result.content;
+        sidebarState.tailoredContent = result.content;
+      }
+      
+      sidebarState.contentType = 'generated';
+      await chrome.storage.local.set({ sidebarState });
+      
+      showStatus(`${sidebarState.fileType.toUpperCase()} tailoring completed!`, 'success');
+      await updatePreview();
+    } else {
+      throw new Error(result.error || 'Generation failed');
+    }
 
-    return {
-      success: true,
-      docx: result.docx,
-      html: result.html,
-      text: result.text
-    };
+    return result;
 
   } catch (error) {
-    console.error('[DocxGenerate] Error:', error);
-    return {
-      success: false,
-      error: error.message
-    };
+    console.error('[Tailor] Generation failed:', {
+      error,
+      fileType: sidebarState.fileType
+    });
+    showStatus(`Generation failed: ${error.message}`, 'error');
+    throw error;
   }
 }
 
-// Add after generateTailoredDocx function
+// Update generateTailoredLatex with better debugging
 async function generateTailoredLatex() {
   try {
-    console.log('[LatexGenerate] Starting LaTeX tailoring process', {
+    console.log('[LaTeX] Starting LaTeX tailoring process', {
       hasOriginalLatex: !!originalLatex,
-      contentLength: originalLatex?.length
+      contentLength: originalLatex?.length,
+      pipeline: 'LaTeX'
     });
 
     const jobDesc = document.getElementById('jobDesc').value.trim();
     const knowledgeBase = document.getElementById('knowledgeBaseText').value.trim();
 
-    console.log('[LatexGenerate] Input validation', {
+    console.log('[LaTeX] Input validation', {
       hasJobDesc: !!jobDesc,
       hasKnowledgeBase: !!knowledgeBase
     });
@@ -1034,49 +1027,134 @@ ${knowledgeBase}
 
 Please provide the complete tailored LaTeX resume.`;
 
-    console.log('[LatexGenerate] Sending to AI service', {
+    console.log('[LaTeX] Sending to AI service', {
       promptLength: fullPrompt.length,
       modelType: currentModelSelection.type,
       model: currentModelSelection.model
     });
 
-    // Generate content using AI service
+    // Update the AI service call with explicit type
     const tailoredContent = await aiService.generateContent(
       fullPrompt,
+      'latex',
       currentModelSelection.type,
       currentModelSelection.model
     );
 
-    console.log('[LatexGenerate] Received AI response', {
-      responseLength: tailoredContent?.length,
-      previewContent: tailoredContent?.substring(0, 100) + '...'
-    });
-
-    if (!tailoredContent) {
-      throw new Error('No content generated');
-    }
-
-    // Store the tailored content
-    tailoredLatex = tailoredContent;
-    sidebarState.contentType = 'generated';
-    sidebarState.tailoredContent = tailoredContent;
-    
-    // Save state
-    await chrome.storage.local.set({ 
-      sidebarState,
-      tailoredLatex 
+    console.log('[LaTeX] Generation completed:', {
+      success: true,
+      contentLength: tailoredContent?.length
     });
 
     return {
       success: true,
-      content: tailoredContent
+      content: tailoredContent,
+      type: 'latex'
     };
 
   } catch (error) {
-    console.error('[LatexGenerate] Error:', error);
+    console.error('[LaTeX] Generation error:', error);
     return {
       success: false,
-      error: error.message
+      error: error.message,
+      type: 'latex'
+    };
+  }
+}
+
+// Update generateTailoredDocx function to properly handle content
+async function generateTailoredDocx() {
+  try {
+    console.log('[DOCX] Starting DOCX tailoring process', {
+      hasOriginalDocx: !!sidebarState.originalDocx,
+      originalDocxDetails: {
+        type: sidebarState.originalDocx?.type,
+        hasData: !!sidebarState.originalDocx?.data,
+        originalName: sidebarState.originalDocx?.originalName
+      }
+    });
+
+    const jobDesc = document.getElementById('jobDesc').value.trim();
+    const knowledgeBase = document.getElementById('knowledgeBaseText').value.trim();
+
+    // Validate inputs
+    if (!jobDesc) {
+      throw new Error('Please enter a job description');
+    }
+
+    // Get original DOCX from storage
+    const originalDocx = sidebarState.originalDocx;
+    if (!originalDocx || !originalDocx.data) {
+      throw new Error('Original DOCX content not found');
+    }
+
+    // Convert stored base64 back to ArrayBuffer
+    let docxBuffer;
+    try {
+      if (originalDocx.type === 'ArrayBuffer' && originalDocx.data) {
+        const binaryString = window.atob(originalDocx.data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        docxBuffer = bytes.buffer;
+      } else {
+        throw new Error('Invalid DOCX format in storage');
+      }
+    } catch (error) {
+      console.error('[DOCX] Buffer conversion error:', error);
+      throw new Error('Failed to process DOCX file: ' + error.message);
+    }
+
+    showStatus('Processing DOCX file...', 'info');
+    const docxService = new DocxService();
+    
+    console.log('[DOCX] Calling DocxService.tailorDocx with model:', currentModelSelection);
+    const result = await docxService.tailorDocx(
+      docxBuffer,
+      jobDesc,
+      knowledgeBase
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'DOCX generation failed');
+    }
+
+    // Store the generated content immediately
+    console.log('[DOCX] Storing generation result:', {
+      hasRawContent: !!result.text,
+      hasDocx: !!result.docx,
+      hasHtml: !!result.html
+    });
+
+    // Save both raw content and DOCX data to Chrome storage
+    await chrome.storage.local.set({
+      generatedRawContent: result.text,
+      generatedDocx: {
+        type: 'ArrayBuffer',
+        data: result.docx,
+        originalName: sidebarState.uploadedFileName
+      }
+    });
+
+    return {
+      success: true,
+      docx: {
+        type: 'ArrayBuffer',
+        data: result.docx,
+        originalName: sidebarState.uploadedFileName
+      },
+      text: result.text,
+      html: result.html,
+      type: 'docx'
+    };
+
+  } catch (error) {
+    console.error('[DOCX] Generation error:', error);
+    return {
+      success: false,
+      error: error.message,
+      type: 'docx'
     };
   }
 }
@@ -1284,27 +1362,68 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// Update handleGenerateClick function
+// Update handleGenerateClick function to properly handle file types
 async function handleGenerateClick() {
   const generateBtn = document.getElementById('generateBtn');
   const originalBtnContent = generateBtn.innerHTML;
 
   try {
+    console.log('[Generate] Starting generation process:', {
+      fileType: sidebarState.fileType,
+      contentType: sidebarState.contentType,
+      hasOriginalLatex: !!originalLatex,
+      hasOriginalDocx: !!sidebarState.originalDocx,
+      currentState: {
+        ...sidebarState,
+        originalDocxPreview: sidebarState.originalDocx ? 'Present' : 'Missing'
+      }
+    });
+
     // Show loading state
     generateBtn.disabled = true;
     generateBtn.innerHTML = `
       <div class="loading-spinner"></div>
-      <span>Generating Resume...</span>
+      <span>Generating ${sidebarState.fileType?.toUpperCase() || 'Resume'}...</span>
     `;
 
-    showToast('Starting resume generation...', 'info');
+    showToast(`Starting ${sidebarState.fileType?.toUpperCase() || 'resume'} generation...`, 'info');
+
+    // Validate file type and content
+    if (!sidebarState.fileType) {
+      throw new Error('No file type detected. Please upload a file first.');
+    }
+
+    console.log('[Generate] Checking file type pipeline:', {
+      detectedType: sidebarState.fileType,
+      hasContent: sidebarState.fileType === 'docx' ? 
+        !!sidebarState.originalDocx : 
+        !!originalLatex
+    });
 
     // Generate content based on file type
-    const result = await generateTailoredLatex();
-    
+    let result;
+    if (sidebarState.fileType === 'docx') {
+      console.log('[Generate] Using DOCX pipeline');
+      if (!sidebarState.originalDocx) {
+        throw new Error('DOCX content not found. Please upload your DOCX file again.');
+      }
+      result = await generateTailoredDocx();
+    } else if (sidebarState.fileType === 'latex') {
+      console.log('[Generate] Using LaTeX pipeline');
+      if (!originalLatex) {
+        throw new Error('LaTeX content not found. Please upload your LaTeX file again.');
+      }
+      result = await generateTailoredLatex();
+    } else {
+      throw new Error(`Unsupported file type: ${sidebarState.fileType}`);
+    }
+
     console.log('[Generate] Generation result:', {
       success: result.success,
-      hasContent: !!result.content,
+      type: result.type,
+      hasContent: result.type === 'docx' ? 
+        !!result.docx : 
+        !!result.content,
       error: result.error
     });
 
@@ -1312,23 +1431,48 @@ async function handleGenerateClick() {
       throw new Error(result.error || 'Generation failed');
     }
 
-    // Update state
-    sidebarState.contentType = 'generated';
-    tailoredLatex = result.content;
+    // Update state based on file type
+    if (result.type === 'docx') {
+      sidebarState.tailoredDocx = result.docx;
+      sidebarState.tailoredHtml = result.html;
+      sidebarState.tailoredContent = result.text;
+      console.log('[Generate] Updated DOCX state:', {
+        hasDocx: !!sidebarState.tailoredDocx,
+        hasHtml: !!sidebarState.tailoredHtml,
+        contentLength: sidebarState.tailoredContent?.length
+      });
+    } else {
+      tailoredLatex = result.content;
+      sidebarState.tailoredContent = result.content;
+      console.log('[Generate] Updated LaTeX state:', {
+        hasLatex: !!tailoredLatex,
+        contentLength: result.content?.length
+      });
+    }
 
-    // Save state
+    sidebarState.contentType = 'generated';
     await chrome.storage.local.set({ 
       sidebarState,
-      tailoredLatex 
+      tailoredLatex: result.type === 'latex' ? result.content : null
+    });
+
+    console.log('[Generate] State saved:', {
+      contentType: sidebarState.contentType,
+      fileType: sidebarState.fileType,
+      stateUpdated: true
     });
 
     // Update preview
     await updatePreview();
     
-    showToast('Resume generated successfully!', 'success');
+    showToast(`${sidebarState.fileType.toUpperCase()} generated successfully!`, 'success');
 
   } catch (error) {
-    console.error('[Generate] Error:', error);
+    console.error('[Generate] Error:', {
+      message: error.message,
+      fileType: sidebarState.fileType,
+      stack: error.stack
+    });
     showToast(error.message, 'error');
   } finally {
     // Restore button state
@@ -1337,12 +1481,41 @@ async function handleGenerateClick() {
   }
 }
 
-// Add event listener setup for the generate button
+// Add this function to validate current state
+function validateCurrentState() {
+  const state = {
+    fileType: sidebarState.fileType,
+    hasOriginalLatex: !!originalLatex,
+    hasOriginalDocx: !!sidebarState.originalDocx,
+    contentType: sidebarState.contentType,
+    hasTailoredContent: sidebarState.fileType === 'docx' ? 
+      !!sidebarState.tailoredDocx : 
+      !!tailoredLatex
+  };
+
+  console.log('[State] Current state validation:', state);
+  return state;
+}
+
+// Update the setupGenerateButton function
 function setupGenerateButton() {
   const generateBtn = document.getElementById('generateBtn');
   if (generateBtn) {
-    generateBtn.addEventListener('click', handleGenerateClick);
-    console.log('[Setup] Generate button handler attached');
+    // Remove any existing listeners
+    generateBtn.removeEventListener('click', handleGenerateClick);
+    
+    // Add new listener
+    generateBtn.addEventListener('click', async () => {
+      console.log('[Setup] Generate button clicked');
+      
+      // Validate current state before proceeding
+      const currentState = validateCurrentState();
+      console.log('[Setup] Pre-generation state check:', currentState);
+      
+      await handleGenerateClick();
+    });
+    
+    console.log('[Setup] Generate button handler attached with state validation');
   } else {
     console.error('[Setup] Generate button not found');
   }

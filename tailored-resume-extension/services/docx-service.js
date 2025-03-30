@@ -201,124 +201,75 @@ class DocxService {
 
   async tailorDocx(originalDocx, jobDescription, knowledgeBase) {
     try {
-      this.log('Starting DOCX tailoring process', {
-        originalDocxType: typeof originalDocx,
-        originalDocxInstance: originalDocx instanceof Blob ? 'Blob' : 
-                            originalDocx instanceof ArrayBuffer ? 'ArrayBuffer' : 
-                            'Other',
-        originalDocxSize: originalDocx instanceof Blob ? originalDocx.size : 
-                         originalDocx instanceof ArrayBuffer ? originalDocx.byteLength : 
-                         'unknown',
+      this.log('Starting DOCX tailoring process:', {
+        hasOriginalDocx: !!originalDocx,
         jobDescLength: jobDescription?.length,
         hasKnowledgeBase: !!knowledgeBase
       });
 
-      // Validate input
-      if (!originalDocx) {
-        throw new Error('Original DOCX content is required');
-      }
-
-      // Convert to ArrayBuffer if it's a Blob
-      let docxBuffer;
-      if (originalDocx instanceof Blob) {
-        this.log('Converting Blob to ArrayBuffer...');
-        docxBuffer = await originalDocx.arrayBuffer();
-      } else if (originalDocx instanceof ArrayBuffer) {
-        this.log('Using existing ArrayBuffer...');
-        docxBuffer = originalDocx;
-      } else if (typeof originalDocx === 'string') {
-        this.log('Converting base64 string to ArrayBuffer...');
-        try {
-          // Handle base64 string
-          const binaryString = window.atob(originalDocx);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          docxBuffer = bytes.buffer;
-        } catch (e) {
-          throw new Error(`Failed to convert base64 string: ${e.message}`);
-        }
-      } else {
-        throw new Error(`Invalid DOCX format: received ${typeof originalDocx}`);
-      }
-
-      this.log('DocxBuffer details:', {
-        size: docxBuffer.byteLength,
-        isArrayBuffer: docxBuffer instanceof ArrayBuffer
-      });
-
       // First, extract text content
-      const textContent = await this.extractText(docxBuffer);
+      const textContent = await this.extractText(originalDocx);
       this.log('Extracted original text content', {
         length: textContent?.length
       });
 
-      // Create AI service instance
-      this.log('Initializing AI service');
-      const aiService = new window.AIService();
+      // Create DOCX-specific AI service instance
+      this.log('Initializing DOCX AI service');
+      if (!window.DocxAIService) {
+        throw new Error('DocxAIService not found. Please ensure the service is properly loaded.');
+      }
+      const docxAiService = new window.DocxAIService();
 
-      // Create tailoring prompt
-      const prompt = `
-        Original Resume:
-        ${textContent}
+      // Wait for API keys to be loaded
+      await docxAiService.loadApiKeys();
+      this.log('API keys loaded for DOCX AI service');
 
-        Job Description:
-        ${jobDescription}
+      // Generate tailored content
+      this.log('Generating tailored content');
+      const tailoredText = await docxAiService.generateContent(
+        textContent,
+        jobDescription,
+        knowledgeBase,
+        window.currentModelSelection?.type || 'gemini',
+        window.currentModelSelection?.model
+      );
 
-        Additional Experience:
-        ${knowledgeBase || 'None provided'}
+      if (!tailoredText) {
+        throw new Error('No content generated from AI service');
+      }
 
-        Instructions:
-        1. Analyze the job description for key requirements and skills
-        2. Review the resume content and identify areas for improvement
-        3. Incorporate relevant experience from additional experience section
-        4. Maintain professional formatting and structure
-        5. Ensure all modifications are factual and based on provided content
-        6. Return the tailored content in a clear, structured format
-        7. Highlight relevant skills and experience for the position
-        8. Keep the same overall format and section organization
-
-        Please provide the tailored content maintaining the original structure.
-      `;
-
-      this.log('Sending content to AI for tailoring');
-      const tailoredText = await aiService.generateContent(prompt);
       this.log('Received tailored content', {
-        length: tailoredText?.length
+        length: tailoredText?.length,
+        preview: tailoredText?.substring(0, 100) + '...'
       });
 
       // Create new document from template
-      this.log('Creating new document from template');
-      const zip = new this.PizZip(docxBuffer);
+      const zip = new this.PizZip(originalDocx);
       const doc = new this.Docxtemplater();
       doc.loadZip(zip);
 
-      // Replace content
-      this.log('Setting document data');
+      // Set the content while preserving formatting
       doc.setData({
         content: tailoredText
       });
 
-      this.log('Rendering tailored document');
       doc.render();
 
+      // Generate output as base64
       const output = doc.getZip().generate({
-        type: 'blob',
+        type: 'base64',
         mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
 
       // Convert to HTML for preview
-      this.log('Converting to HTML for preview');
-      const arrayBuffer = await output.arrayBuffer();
+      const arrayBuffer = this.base64ToArrayBuffer(output);
       const htmlResult = await this.mammoth.convertToHtml({ arrayBuffer });
 
-      this.log('Tailoring completed successfully');
       return {
         success: true,
-        docx: output,
+        docx: output, // base64 string
         html: htmlResult.value,
-        text: tailoredText
+        text: tailoredText // raw content
       };
 
     } catch (error) {

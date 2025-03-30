@@ -6,6 +6,19 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono:wght@400;700&display=swap">
   <link rel="stylesheet" href="style.css">
+  
+  <!-- Vendor scripts in correct order -->
+  <script src="lib/vendor/pizzip.min.js"></script>
+  <script src="lib/vendor/mammoth.browser.min.js"></script>
+  <script src="lib/vendor/docxtemplater.js"></script>
+  
+  <!-- Your application scripts -->
+  <script src="config.js"></script>
+  <script src="services/docx-service.js"></script>
+  <script src="services/file-handler.js"></script>
+  <script src="server/serverManager.js"></script>
+  <script src="services/ai-service.js"></script>
+  <script src="sidepanel.js"></script>
 </head>
 <body>
   <div class="container">
@@ -42,10 +55,10 @@
           <label for="latexFile" class="file-upload-label">
             <div class="upload-content">
               <span class="material-icons upload-icon">upload_file</span>
-              <span class="upload-text">Upload LaTeX Resume</span>
-              <span class="file-type">.tex files supported</span>
+              <span class="upload-text">Upload Resume</span>
+              <span class="file-type">.tex or .docx files supported</span>
             </div>
-            <input type="file" id="latexFile" accept=".tex" hidden>
+            <input type="file" id="latexFile" accept=".tex,.docx" hidden>
           </label>
           <div id="fileNameDisplay" class="file-status"></div>
         </div>
@@ -88,8 +101,8 @@
       </div>
 
       <div class="action-buttons-container">
-        <button id="tailorBtn" class="action-button primary">
-          <span class="material-icons">auto_awesome</span>
+        <button id="generateBtn" class="action-button primary">
+          <span class="material-icons">auto_fix_high</span>
           <span>Generate Resume</span>
         </button>
         <button id="downloadBtn" class="action-button secondary" disabled>
@@ -112,17 +125,17 @@
                 Compiled
               </button>
             </div>
-            <button class="icon-button view-toggle" title="Toggle fullscreen">
+            <button class="icon-button fullscreen-toggle" title="Toggle fullscreen">
               <span class="material-icons">fullscreen</span>
             </button>
           </div>
         </div>
-        <div class="preview-content custom-scroll">
+        <div class="preview-content">
           <div id="rawPreview" class="preview-view">
-            <pre id="previewArea" class="preview-text custom-scroll">Your resume content will appear here...</pre>
+            <div class="preview-text-content"></div>
           </div>
           <div id="compiledPreview" class="preview-view" style="display: none;">
-            <div id="pdfPreviewArea" class="preview-pdf"></div>
+            <div id="pdfPreviewArea" class="pdf-container"></div>
           </div>
         </div>
       </div>
@@ -200,11 +213,5 @@
       </div>
     </div>
   </div>
-
-  <!-- Load scripts in the correct order -->
-  <script src="config.js"></script>
-  <script src="server/serverManager.js"></script>
-  <script src="services/ai-service.js"></script>
-  <script src="sidepanel.js"></script>
 </body>
 </html>

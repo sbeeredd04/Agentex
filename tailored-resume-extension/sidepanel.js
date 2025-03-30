@@ -30,7 +30,11 @@ let sidebarState = {
   uploadedFileName: '',
   uploadedFileContent: '',
   isPreviewExpanded: false,
-  generatedContent: null
+  generatedContent: null,
+  fileType: null, // 'latex' or 'docx'
+  originalContent: null,
+  originalDocx: null,
+  tailoredContent: null
 };
 
 // Add this near the top of the file with other constants
@@ -105,10 +109,46 @@ function showStatus(message, type = 'info') {
 function debounce(func, wait) {
   let timeout;
   return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
     clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
+    timeout = setTimeout(later, wait);
   };
 }
+
+// Create a debounced version of updatePreview
+const debouncedUpdatePreview = debounce(updatePreview, 500);
+
+// Add a request tracking system
+const requestTracker = {
+  currentRequest: null,
+  isProcessing: false,
+  lastRequestTime: 0,
+  DEBOUNCE_TIME: 1000, // 1 second
+
+  async process(requestFn) {
+    const now = Date.now();
+    if (this.isProcessing) {
+      console.log('[RequestTracker] Request already in progress, skipping');
+      return null;
+    }
+    
+    if (now - this.lastRequestTime < this.DEBOUNCE_TIME) {
+      console.log('[RequestTracker] Request too soon, skipping');
+      return null;
+    }
+
+    try {
+      this.isProcessing = true;
+      this.lastRequestTime = now;
+      return await requestFn();
+    } finally {
+      this.isProcessing = false;
+    }
+  }
+};
 
 // Set up UI elements (returns an object with key elements)
 function setupUIElements() {
@@ -197,19 +237,48 @@ function setupEventListeners(elements) {
 
 // Setup preview UI controls and event listeners
 function setupPreviewUI() {
-  const previewControls = document.querySelector('.preview-controls');
-  if (!previewControls) {
-    console.error('[Preview] Preview controls not found');
-    return;
-  }
-
-  // The toggle buttons are already present in HTML, no need to create them
+  const previewSection = document.querySelector('.preview-section');
+  const fullscreenToggle = document.querySelector('.fullscreen-toggle');
   const toggleButtons = document.querySelectorAll('.preview-toggle-btn');
   const rawPreview = document.getElementById('rawPreview');
   const compiledPreview = document.getElementById('compiledPreview');
-  
+
+  if (fullscreenToggle) {
+    fullscreenToggle.addEventListener('click', () => {
+      previewSection.classList.toggle('fullscreen');
+      
+      const icon = fullscreenToggle.querySelector('.material-icons');
+      const isFullscreen = previewSection.classList.contains('fullscreen');
+      
+      icon.textContent = isFullscreen ? 'fullscreen_exit' : 'fullscreen';
+      
+      // Update preview container height
+      const previewContent = previewSection.querySelector('.preview-content');
+      if (previewContent) {
+        previewContent.style.height = isFullscreen ? 'calc(100vh - 120px)' : '500px';
+      }
+
+      // Refresh PDF view if active
+      const compiledPreview = document.getElementById('compiledPreview');
+      if (compiledPreview && compiledPreview.style.display !== 'none') {
+        setTimeout(() => {
+          const iframe = compiledPreview.querySelector('iframe');
+          if (iframe) {
+            iframe.src = iframe.src;
+          }
+        }, 300);
+      }
+    });
+  }
+
+  // Handle preview toggle
   toggleButtons.forEach(button => {
     button.addEventListener('click', async () => {
+      if (requestTracker.isProcessing) {
+        console.log('[Preview] Update in progress, ignoring click');
+        return;
+      }
+
       // Update button states
       toggleButtons.forEach(btn => btn.classList.remove('active'));
       button.classList.add('active');
@@ -223,14 +292,13 @@ function setupPreviewUI() {
         rawPreview.style.display = 'none';
         compiledPreview.style.display = 'block';
         
-        // Generate PDF preview if needed
-        const content = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
+        // Get the appropriate content
+        const content = sidebarState.contentType === 'generated' 
+          ? sidebarState.tailoredDocx 
+          : sidebarState.originalDocx;
+
         if (content) {
-          showStatus('Compiling PDF preview...', 'info');
-          const success = await generatePdfPreview(content, sidebarState.contentType);
-          if (success) {
-            showStatus('PDF preview generated successfully!', 'success');
-          }
+          await generatePdfPreview(content, sidebarState.contentType);
         }
       }
     });
@@ -239,71 +307,188 @@ function setupPreviewUI() {
   console.log('[Preview] UI setup complete');
 }
 
-// Update the generatePdfPreview function
-async function generatePdfPreview(latex, type = 'original') {
-  if (!latex) {
-    showStatus("No content available for preview", 'warning');
-    return false;
+// Update the updatePreview function
+async function updatePreview() {
+  console.log('[Preview] Starting preview update:', {
+    contentType: sidebarState.contentType,
+    fileType: sidebarState.fileType,
+    hasOriginalLatex: !!originalLatex,
+    hasTailoredLatex: !!tailoredLatex
+  });
+
+  if (window.isPreviewUpdating) {
+    console.log('[Preview] Update already in progress, skipping');
+    return;
   }
+  window.isPreviewUpdating = true;
 
   try {
-    // Show loading state in the preview area
-    const pdfPreviewArea = document.getElementById('pdfPreviewArea');
-    pdfPreviewArea.innerHTML = `
-      <div class="loading-preview">
-        <div class="loading-spinner"></div>
-        <span>Compiling PDF...</span>
-      </div>
-    `;
+    // Get the appropriate content based on type and file type
+    let contentToShow;
+    if (sidebarState.fileType === 'latex') {
+      contentToShow = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
+    } else {
+      contentToShow = sidebarState.contentType === 'generated' ? 
+        sidebarState.tailoredContent : sidebarState.originalContent;
+    }
 
-    // Save and compile the LaTeX content
-    const saveResult = await window.ServerManager.saveGeneratedResume(latex, 'resume.tex', {
-      type,
-      timestamp: Date.now(),
-      previewGeneration: true
+    console.log('[Preview] Content validation:', {
+      hasContent: !!contentToShow,
+      contentLength: contentToShow?.length,
+      fileType: sidebarState.fileType,
+      contentType: sidebarState.contentType
     });
 
-    if (!saveResult.success) {
-      throw new Error(`Failed to save LaTeX: ${saveResult.error}`);
+    if (!contentToShow) {
+      throw new Error('No content available for preview');
     }
 
-    const compileResult = await window.ServerManager.compileResume({
-      latex: latex,
-      fileId: saveResult.fileId
-    });
-
-    if (!compileResult.success) {
-      throw new Error(`PDF compilation failed: ${compileResult.error}`);
+    // Update raw preview
+    const rawPreview = document.getElementById('rawPreview');
+    const textContent = rawPreview.querySelector('.preview-text-content');
+    if (textContent) {
+      textContent.style.opacity = '0';
+      setTimeout(() => {
+        textContent.innerHTML = contentToShow;
+        textContent.style.opacity = '1';
+      }, 300);
     }
 
-    // Create blob URL from the PDF response
-    const pdfBlob = new Blob([compileResult.content], { type: 'application/pdf' });
-    const pdfUrl = URL.createObjectURL(pdfBlob);
-
-    // Update preview with the PDF URL
-    pdfPreviewArea.innerHTML = `
-      <iframe 
-        src="${pdfUrl}#zoom=FitH" 
-        type="application/pdf" 
-        width="100%" 
-        height="100%"
-        title="Resume Preview"
-      ></iframe>
-    `;
-
-    // Cleanup old blob URL
-    if (window.lastPdfUrl) {
-      URL.revokeObjectURL(window.lastPdfUrl);
+    // Handle PDF preview if needed
+    const compiledPreview = document.getElementById('compiledPreview');
+    if (compiledPreview && compiledPreview.style.display !== 'none') {
+      if (sidebarState.fileType === 'latex') {
+        await generateLatexPreview(contentToShow);
+      }
     }
-    window.lastPdfUrl = pdfUrl;
 
-    return true;
   } catch (error) {
-    console.error('[Preview] Error in PDF generation:', error);
-    showStatus(`Preview generation failed: ${error.message}`, 'error');
-    return false;
+    console.error('[Preview] Error:', error);
+    showStatus(error.message, 'error');
+  } finally {
+    window.isPreviewUpdating = false;
   }
 }
+
+// Update generatePdfPreview with better content validation
+async function generatePdfPreview(content, type = 'original') {
+  return requestTracker.process(async () => {
+    try {
+      console.log('[PdfPreview] Starting PDF generation:', {
+        contentType: typeof content,
+        type: type,
+        contentDetails: {
+          type: content?.type,
+          hasData: !!content?.data,
+          dataType: typeof content?.data
+        }
+      });
+
+      const pdfPreviewArea = document.getElementById('pdfPreviewArea');
+      if (!pdfPreviewArea) {
+        throw new Error("PDF preview area not found");
+      }
+
+      // Show loading state
+      pdfPreviewArea.innerHTML = `
+        <div class="loading-preview">
+          <div class="loading-spinner"></div>
+          <span>Generating PDF preview...</span>
+        </div>
+      `;
+
+      showStatus('Generating PDF preview...', 'info');
+
+      // Get the current HTML content
+      const rawPreview = document.querySelector('.preview-text-content');
+      const currentHtml = rawPreview?.innerHTML;
+
+      if (!currentHtml) {
+        throw new Error('No content available for preview');
+      }
+
+      // Get the original DOCX content
+      const originalDocx = sidebarState.contentType === 'generated' 
+        ? sidebarState.tailoredDocx 
+        : sidebarState.originalDocx;
+
+      if (!originalDocx || !originalDocx.data) {
+        throw new Error('Original DOCX content not found');
+      }
+
+      // Update DOCX content while preserving formatting
+      const docxService = new DocxService();
+      const updatedDocx = await docxService.updateDocxContent(originalDocx, currentHtml);
+
+      console.log('[PdfPreview] DOCX updated with new content:', {
+        originalSize: originalDocx.data.length,
+        updatedSize: updatedDocx.data.length
+      });
+
+      // Generate PDF from updated DOCX
+      const pdfBlob = await docxService.generatePdf(updatedDocx);
+
+      console.log('[PdfPreview] PDF generated:', {
+        size: pdfBlob.size,
+        type: pdfBlob.type
+      });
+
+      // Create URL for the PDF
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+
+      // Create iframe for PDF preview
+      const iframe = document.createElement('iframe');
+      iframe.src = `${pdfUrl}#zoom=FitH`;
+      iframe.style.width = '100%';
+      iframe.style.height = '500px';
+      iframe.style.border = 'none';
+
+      // Clear previous content and add iframe
+      pdfPreviewArea.innerHTML = '';
+      pdfPreviewArea.appendChild(iframe);
+
+      // Monitor iframe loading
+      iframe.onload = () => {
+        console.log('[PdfPreview] PDF iframe loaded:', {
+          src: iframe.src,
+          contentWindow: !!iframe.contentWindow,
+          height: iframe.height
+        });
+        showStatus('PDF preview loaded successfully!', 'success');
+      };
+
+      return true;
+    } catch (error) {
+      console.error('[PdfPreview] Error:', error);
+      showStatus(`Preview generation failed: ${error.message}`, 'error');
+      return false;
+    }
+  });
+}
+
+// Move retry function to window scope
+window.retryPdfPreview = async () => {
+  try {
+    const content = sidebarState.contentType === 'generated' 
+      ? sidebarState.tailoredDocx 
+      : sidebarState.originalDocx;
+    
+    console.log('[PdfPreview] Retrying with content:', {
+      hasContent: !!content,
+      contentType: content?.type,
+      hasData: !!content?.data
+    });
+
+    if (!content || !content.type || !content.data) {
+      throw new Error('Invalid content for retry. Please upload your file again.');
+    }
+    
+    await generatePdfPreview(content, sidebarState.contentType);
+  } catch (error) {
+    console.error('[PdfPreview] Retry failed:', error);
+    showStatus(error.message, 'error');
+  }
+};
 
 // Save and restore state using chrome.storage
 function saveState() {
@@ -311,139 +496,157 @@ function saveState() {
 }
 
 async function restoreState() {
-  const { sidebarState: savedState } = await chrome.storage.local.get('sidebarState');
-  console.log('[State] Restoring state:', savedState);
-  
-  if (savedState) {
-    // Merge saved state with default state to ensure all properties exist
+  try {
+    const { sidebarState: savedState, tailoredLatex: savedTailoredLatex } = 
+      await chrome.storage.local.get(['sidebarState', 'tailoredLatex']);
+    
+    console.log('[State] Restoring state:', {
+      hasState: !!savedState,
+      hasTailoredLatex: !!savedTailoredLatex,
+      contentType: savedState?.contentType
+    });
+    
+    if (savedState) {
+      // Merge saved state with default state
+      sidebarState = {
+        ...sidebarState,
+        ...savedState
+      };
+
+      // Restore content variables
+      if (savedState.originalContent) {
+        originalLatex = savedState.originalContent;
+      }
+      if (savedTailoredLatex) {
+        tailoredLatex = savedTailoredLatex;
+      }
+
+      // Update UI elements
+      const elements = {
+        jobDescInput: document.getElementById('jobDesc'),
+        knowledgeBaseText: document.getElementById('knowledgeBaseText'),
+        fileNameDisplay: document.getElementById('fileNameDisplay')
+      };
+
+      // Restore input values
+      if (elements.jobDescInput && sidebarState.lastJobDescription) {
+        elements.jobDescInput.value = sidebarState.lastJobDescription;
+      }
+      if (elements.knowledgeBaseText && sidebarState.lastKnowledgeBaseText) {
+        elements.knowledgeBaseText.value = sidebarState.lastKnowledgeBaseText;
+      }
+
+      // Update file display
+      if (elements.fileNameDisplay && sidebarState.uploadedFileName) {
+        showSuccessfulUploadFeedback(sidebarState.uploadedFileName);
+      }
+
+      // Update preview content
+      await updatePreviewContent();
+    }
+  } catch (error) {
+    console.error('[State] Error restoring state:', error);
+    showToast('Error restoring previous session', 'error');
+  }
+}
+
+// Add new function to handle preview content updates
+async function updatePreviewContent() {
+  const rawPreview = document.querySelector('.preview-text-content');
+  if (!rawPreview) return;
+
+  try {
+    const contentToShow = sidebarState.contentType === 'generated' ? 
+      tailoredLatex : sidebarState.originalContent;
+
+    console.log('[Preview] Updating content:', {
+      type: sidebarState.contentType,
+      hasContent: !!contentToShow,
+      fileType: sidebarState.fileType
+    });
+
+    if (contentToShow) {
+      rawPreview.style.opacity = '0';
+      setTimeout(() => {
+        rawPreview.innerHTML = contentToShow;
+        rawPreview.style.opacity = '1';
+      }, 300);
+
+      // Update compiled view if active
+      const compiledPreview = document.getElementById('compiledPreview');
+      if (compiledPreview && compiledPreview.style.display !== 'none') {
+        await generatePdfPreview(contentToShow, sidebarState.contentType);
+      }
+    }
+  } catch (error) {
+    console.error('[Preview] Error updating content:', error);
+    showToast('Error updating preview', 'error');
+  }
+}
+
+// Update the file upload handler
+async function handleFileUpload(file) {
+  try {
+    console.log('[FileUpload] Starting file upload process', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      extension: file.name.split('.').pop().toLowerCase()
+    });
+
+    showUploadingFeedback(file.name);
+    showStatus('Reading file...', 'info');
+
+    const fileHandler = new FileHandler();
+    const result = await fileHandler.handleFile(file);
+
+    console.log('[FileUpload] File processing result:', {
+      type: result.type,
+      hasContent: !!result.content,
+      hasPreview: !!result.preview,
+      hasDocx: !!result.docx,
+      success: result.success
+    });
+
+    if (!result.success && result.error) {
+      throw new Error(result.error);
+    }
+
+    // Update state based on file type
+    if (result.type === 'latex') {
+      originalLatex = result.content;
+      tailoredLatex = null;
+    }
+
+    // Update sidebar state
     sidebarState = {
       ...sidebarState,
-      ...savedState
+      fileType: result.type,
+      contentType: 'original',
+      originalContent: result.content,
+      originalHtml: result.preview,
+      originalDocx: result.docx,
+      uploadedFileName: file.name
     };
 
-    console.log('[State] State restored:', {
-      contentType: sidebarState.contentType,
-      previewMode: sidebarState.previewMode,
-      modelSelection: sidebarState.selectedModel
-    });
+    // Save state
+    await chrome.storage.local.set({ sidebarState });
 
-    // Restore UI elements
-    const elements = {
-      jobDescInput: document.getElementById('jobDesc'),
-      knowledgeBaseText: document.getElementById('knowledgeBaseText'),
-      previewArea: document.getElementById('previewArea'),
-      fileNameDisplay: document.getElementById('fileNameDisplay')
-    };
-
-    // Restore content if available
-    if (sidebarState.uploadedFileContent) {
-      originalLatex = sidebarState.uploadedFileContent;
-      if (elements.previewArea) {
-        elements.previewArea.textContent = originalLatex;
-      }
-    }
-
-    // Restore other UI states
-    if (elements.jobDescInput && sidebarState.lastJobDescription) {
-      elements.jobDescInput.value = sidebarState.lastJobDescription;
-    }
-
-    if (elements.knowledgeBaseText && sidebarState.lastKnowledgeBaseText) {
-      elements.knowledgeBaseText.value = sidebarState.lastKnowledgeBaseText;
-    }
-
-    if (elements.fileNameDisplay && sidebarState.uploadedFileName) {
-      elements.fileNameDisplay.innerHTML = `
-        <div class="file-upload-feedback success">
-          <span class="material-icons">check_circle</span>
-          <span>${sidebarState.uploadedFileName}</span>
-        </div>
-      `;
-    }
-
-    // Only update preview if we have content
-    if (originalLatex || tailoredLatex) {
-      await updatePreview(sidebarState.previewMode);
-    }
-  } else {
-    console.log('[State] No saved state found, using defaults');
-  }
-}
-
-// Function to handle file upload
-async function handleFileUpload(file) {
-  console.log('[Upload] Starting file upload:', file);
-  if (!file) {
-    console.log('[Upload] No file selected');
-    return;
-  }
-  try {
-    currentFile = file;
-    showStatus('Reading file...', 'info');
-    showUploadingFeedback(file.name);
-
-    // Read file content
-    const content = await readFileContent(file);
-    console.log('[Upload] File content read successfully:', {
-      length: content.length,
-      preview: content.substring(0, 100) // Show first 100 characters
-    });
-
-    // Display the content in the preview area
-    document.getElementById('previewArea').textContent = content;
-    console.log('[Upload] Content displayed in preview area');
-
-    // Enable the preview button
-    const previewBtn = document.getElementById('previewBtn');
-    if (previewBtn) {
-      previewBtn.disabled = false;
-      console.log('[Upload] Preview button enabled');
-    }
-
-    // Update the original LaTeX content
-    originalLatex = content;
-    console.log('[Upload] Original LaTeX content updated');
-
-    // Save the file content and filename to chrome.storage
-    sidebarState.uploadedFileName = file.name;
-    sidebarState.uploadedFileContent = content;
-    saveState();
-
-    // Show successful upload feedback
+    // Update UI
     showSuccessfulUploadFeedback(file.name);
     showStatus('File uploaded successfully!', 'success');
-    console.log('[Upload] Process completed successfully');
-  } catch (error) {
-    console.error('[Upload] Error during file upload:', error);
-    showStatus('Failed to upload file: ' + error.message, 'error');
-    showFailedUploadFeedback();
-  }
-}
 
-// Helper function to read file content
-function readFileContent(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const content = e.target.result;
-      console.log('[FileReader] File read successfully:', {
-        length: content.length,
-        preview: content.substring(0, 100) // Show first 100 characters
-      });
-        resolve(content);
-      } catch (error) {
-      console.error('[FileReader] Error reading file:', error);
-        reject(error);
-      }
-    };
-    reader.onerror = (e) => {
-    console.error('[FileReader] Error during file reading:', e);
-      reject(new Error('Failed to read file'));
-    };
-  console.log('[FileReader] Starting to read file as text');
-    reader.readAsText(file);
-  });
+    // Update preview immediately
+    await updatePreview();
+
+    return result;
+
+  } catch (error) {
+    console.error('[FileUpload] Error:', error);
+    showFailedUploadFeedback();
+    showStatus(`Upload failed: ${error.message}`, 'error');
+    throw error;
+  }
 }
 
 // UI feedback functions
@@ -510,22 +713,26 @@ function waitForServerManager() {
   });
 }
 
-// Add this function to handle preview toggling
+// Update the preview toggle handling
 function setupPreviewToggle() {
   const toggleButtons = document.querySelectorAll('.preview-toggle-btn');
-  const previewSection = document.querySelector('.preview-section');
-  const fullscreenBtn = document.querySelector('.view-toggle');
-  let isFullscreen = false;
+  const rawPreview = document.getElementById('rawPreview');
+  const compiledPreview = document.getElementById('compiledPreview');
 
   toggleButtons.forEach(button => {
     button.addEventListener('click', async () => {
+      if (requestTracker.isProcessing) {
+        console.log('[Preview] Update in progress, ignoring click');
+        return;
+      }
+
+      console.log('[Preview] Switching view to:', button.dataset.view);
+
       // Update button states
       toggleButtons.forEach(btn => btn.classList.remove('active'));
       button.classList.add('active');
 
       const view = button.dataset.view;
-      const rawPreview = document.getElementById('rawPreview');
-      const compiledPreview = document.getElementById('compiledPreview');
       
       if (view === 'raw') {
         rawPreview.style.display = 'block';
@@ -534,39 +741,26 @@ function setupPreviewToggle() {
         rawPreview.style.display = 'none';
         compiledPreview.style.display = 'block';
         
-        // Generate PDF preview if needed
-        const content = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
-        if (content) {
-          showStatus('Compiling PDF preview...', 'info');
-          const success = await generatePdfPreview(content, sidebarState.contentType);
-          if (success) {
-            showStatus('PDF preview generated successfully!', 'success');
+        // Get the appropriate content for PDF preview
+        let content;
+        if (sidebarState.fileType === 'latex') {
+          content = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
+          
+          console.log('[Preview] Preparing LaTeX content for PDF:', {
+            hasContent: !!content,
+            contentType: sidebarState.contentType,
+            contentLength: content?.length
+          });
+
+          if (content) {
+            await generateLatexPreview(content);
+          } else {
+            console.error('[Preview] No content available for PDF preview');
+            showStatus('No content available for preview', 'error');
           }
         }
       }
     });
-  });
-
-  // Handle fullscreen toggle
-  fullscreenBtn.addEventListener('click', () => {
-    isFullscreen = !isFullscreen;
-    
-    if (isFullscreen) {
-      previewSection.classList.add('fullscreen');
-      fullscreenBtn.querySelector('.material-icons').textContent = 'fullscreen_exit';
-      document.body.style.overflow = 'hidden';
-    } else {
-      previewSection.classList.remove('fullscreen');
-      fullscreenBtn.querySelector('.material-icons').textContent = 'fullscreen';
-      document.body.style.overflow = '';
-    }
-  });
-
-  // Handle escape key to exit fullscreen
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && isFullscreen) {
-      fullscreenBtn.click();
-    }
   });
 }
 
@@ -574,6 +768,7 @@ function setupPreviewToggle() {
 async function initializeSidepanel() {
   console.log('[Sidepanel] Initializing...');
   try {
+    injectPreviewStyles();
     // Wait for ServerManager to be available
     const serverManager = await waitForServerManager();
     console.log('[Sidepanel] ServerManager loaded:', serverManager);
@@ -595,6 +790,8 @@ async function initializeSidepanel() {
     setupPreviewToggle();
     
     await restoreState();
+    
+    setupGenerateButton();
     
     console.log('[Sidepanel] UI initialized successfully');
   } catch (error) {
@@ -684,12 +881,12 @@ function setupModelSelector() {
   });
 }
 
-// Update the tailor resume click handler
-document.getElementById('tailorBtn').addEventListener('click', async () => {
+// Update the tailor function to handle both types
+async function generateTailoredContent() {
   const jobDesc = document.getElementById('jobDesc').value.trim();
   const knowledgeBase = document.getElementById('knowledgeBaseText').value.trim();
   
-  console.log('[TailorBtn] Starting generation:', {
+  console.log('[Tailor] Starting generation:', {
     model: currentModelSelection,
     hasJobDesc: Boolean(jobDesc),
     hasKnowledgeBase: Boolean(knowledgeBase),
@@ -706,170 +903,182 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
   }
 
   try {
-    // Show loading state
-    const tailorBtn = document.getElementById('tailorBtn');
-    tailorBtn.disabled = true;
-    tailorBtn.innerHTML = `
-      <div class="loading-spinner"></div>
-      <span>Generating with ${currentModelSelection.type.toUpperCase()}...</span>
-    `;
-    showStatus(`Generating tailored resume using ${currentModelSelection.type.toUpperCase()}...`, 'info');
+    const content = sidebarState.fileType === 'docx' 
+      ? await generateTailoredDocx()
+      : await generateTailoredLatex();
+
+    await updatePreview(content);
+    showStatus(`Resume tailored successfully!`, 'success');
+  } catch (error) {
+    console.error('[Tailor] Generation failed:', error);
+    showStatus(`Generation failed: ${error.message}`, 'error');
+  }
+}
+
+// Add this function to handle DOCX tailoring
+async function generateTailoredDocx() {
+  try {
+    console.log('[DocxGenerate] Starting DOCX tailoring process', {
+      hasOriginalDocx: !!sidebarState.originalDocx,
+      fileName: sidebarState.uploadedFileName
+    });
+
+    const jobDesc = document.getElementById('jobDesc').value.trim();
+    const knowledgeBase = document.getElementById('knowledgeBaseText').value.trim();
+
+    console.log('[DocxGenerate] Input validation', {
+      hasJobDesc: !!jobDesc,
+      hasKnowledgeBase: !!knowledgeBase
+    });
+
+    if (!sidebarState.originalDocx) {
+      throw new Error('No original DOCX file found');
+    }
+
+    // Convert stored base64 back to ArrayBuffer if needed
+    let docxBuffer;
+    if (sidebarState.originalDocx.type === 'ArrayBuffer' && sidebarState.originalDocx.data) {
+      const binaryString = window.atob(sidebarState.originalDocx.data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      docxBuffer = bytes.buffer;
+    } else {
+      throw new Error('Invalid DOCX format in storage');
+    }
+
+    showStatus('Processing DOCX file...', 'info');
+    const docxService = new DocxService();
+    
+    console.log('[DocxGenerate] Calling DocxService.tailorDocx');
+    const result = await docxService.tailorDocx(
+      docxBuffer,
+      jobDesc,
+      knowledgeBase
+    );
+
+    console.log('[DocxGenerate] Tailor result:', {
+      success: result.success,
+      hasDocx: !!result.docx,
+      hasHtml: !!result.html,
+      hasText: !!result.text
+    });
+
+    if (!result.success) {
+      throw new Error(result.error || 'DOCX tailoring failed');
+    }
+
+    // Store tailored content
+    sidebarState.tailoredDocx = result.docx;
+    sidebarState.tailoredHtml = result.html;
+    sidebarState.tailoredContent = result.text;
+    sidebarState.contentType = 'generated';
+
+    // Save state
+    await chrome.storage.local.set({ sidebarState });
+    console.log('[DocxGenerate] State updated with tailored content');
+
+    return {
+      success: true,
+      docx: result.docx,
+      html: result.html,
+      text: result.text
+    };
+
+  } catch (error) {
+    console.error('[DocxGenerate] Error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// Add after generateTailoredDocx function
+async function generateTailoredLatex() {
+  try {
+    console.log('[LatexGenerate] Starting LaTeX tailoring process', {
+      hasOriginalLatex: !!originalLatex,
+      contentLength: originalLatex?.length
+    });
+
+    const jobDesc = document.getElementById('jobDesc').value.trim();
+    const knowledgeBase = document.getElementById('knowledgeBaseText').value.trim();
+
+    console.log('[LatexGenerate] Input validation', {
+      hasJobDesc: !!jobDesc,
+      hasKnowledgeBase: !!knowledgeBase
+    });
+
+    if (!originalLatex) {
+      throw new Error('No LaTeX content found');
+    }
 
     // Get the custom prompt from storage
     const { customPrompt } = await chrome.storage.local.get('customPrompt');
-    const promptTemplate = customPrompt || DEFAULT_PROMPT;
+    const prompt = customPrompt || DEFAULT_PROMPT;
 
-    // Construct the final prompt
-    const prompt = `
-      ${promptTemplate}
+    // Prepare the prompt with content
+    const fullPrompt = `
+${prompt}
 
-      Job Description:
-      ${jobDesc}
+Original LaTeX Resume:
+${originalLatex}
 
-      Knowledge Base:
-      ${knowledgeBase || 'None'}
+Job Description:
+${jobDesc}
 
-      Original Resume LaTeX:
-      ${originalLatex}
+Knowledge Base / Additional Experience:
+${knowledgeBase}
 
-      Respond ONLY with optimized LaTeX code.`.trim();
+Please provide the complete tailored LaTeX resume.`;
 
-    console.log('[TailorBtn] Generation parameters:', {
+    console.log('[LatexGenerate] Sending to AI service', {
+      promptLength: fullPrompt.length,
       modelType: currentModelSelection.type,
-      specificModel: currentModelSelection.model,
-      promptLength: prompt.length,
-      jobDescLength: jobDesc.length
+      model: currentModelSelection.model
     });
 
-    // Generate tailored content with selected model
-    let generatedContent = await aiService.generateContent(
-      prompt,
+    // Generate content using AI service
+    const tailoredContent = await aiService.generateContent(
+      fullPrompt,
       currentModelSelection.type,
       currentModelSelection.model
     );
-    
-    console.log('[TailorBtn] AI generation completed:', {
-      success: Boolean(generatedContent),
-      contentLength: generatedContent?.length || 0,
-      modelUsed: currentModelSelection
+
+    console.log('[LatexGenerate] Received AI response', {
+      responseLength: tailoredContent?.length,
+      previewContent: tailoredContent?.substring(0, 100) + '...'
     });
 
-    // Store the generated content
-    tailoredLatex = generatedContent;
-
-    // Save the generated resume and get unique fileId
-    const saveResult = await window.ServerManager.saveGeneratedResume(
-      tailoredLatex,
-      'tailored-resume.tex',
-      {
-        modelUsed: currentModelSelection,
-        timestamp: Date.now(),
-        originalFilename: currentFile?.name
-      }
-    );
-
-    console.log('[TailorBtn] Save result:', saveResult);
-
-    if (!saveResult.success) {
-      throw new Error(`Failed to save generated resume: ${saveResult.error}`);
+    if (!tailoredContent) {
+      throw new Error('No content generated');
     }
 
-    // Compile PDF with the unique fileId
-    const compileResult = await window.ServerManager.compileResume({
-      latex: tailoredLatex,
-      fileId: saveResult.fileId
-    });
+    // Store the tailored content
+    tailoredLatex = tailoredContent;
+    sidebarState.contentType = 'generated';
+    sidebarState.tailoredContent = tailoredContent;
     
-    console.log('[TailorBtn] Compile result:', compileResult);
+    // Save state
+    await chrome.storage.local.set({ 
+      sidebarState,
+      tailoredLatex 
+    });
 
-    if (!compileResult.success) {
-      throw new Error(`PDF compilation failed: ${compileResult.error}`);
-    }
-
-    // Create blob URL from the PDF response
-    const pdfBlob = new Blob([compileResult.content], { type: 'application/pdf' });
-    const pdfUrl = URL.createObjectURL(pdfBlob);
-
-    // Store the URL for later cleanup
-    if (window.lastTailoredPdfUrl) {
-      URL.revokeObjectURL(window.lastTailoredPdfUrl);
-    }
-    window.lastTailoredPdfUrl = pdfUrl;
-
-    // Update UI
-    const downloadBtn = document.getElementById('downloadBtn');
-    if (downloadBtn) {
-      downloadBtn.disabled = false;
-      downloadBtn.href = pdfUrl;
-      downloadBtn.download = `tailored-resume-${Date.now()}.pdf`;
-    }
-
-    const generatedRadio = document.querySelector('input[value="generated"]');
-    if (generatedRadio) {
-      generatedRadio.disabled = false;
-      generatedRadio.checked = true;
-    }
-
-    await updatePreview('generated');
-    showStatus(`Resume tailored successfully using ${currentModelSelection.type.toUpperCase()}!`, 'success');
+    return {
+      success: true,
+      content: tailoredContent
+    };
 
   } catch (error) {
-    console.error("[TailorBtn] Error in resume generation pipeline:", {
-      error: error.message,
-      stack: error.stack,
-      type: error.name,
-      phase: error.phase || 'unknown'
-    });
-    showStatus(`Generation failed: ${error.message}`, 'error');
-  } finally {
-    // Reset button state
-    const tailorBtn = document.getElementById('tailorBtn');
-    if (tailorBtn) {
-      tailorBtn.disabled = false;
-      tailorBtn.innerHTML = `
-        <span class="material-icons">auto_awesome</span> Generate Tailored Resume
-      `;
-    }
+    console.error('[LatexGenerate] Error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
   }
-});
-
-async function updatePreview(mode) {
-  console.log('[Preview] Updating preview:', {
-    mode,
-    contentType: sidebarState.contentType,
-    hasOriginal: Boolean(originalLatex),
-    hasGenerated: Boolean(tailoredLatex)
-  });
-
-  const rawPreview = document.getElementById('rawPreview');
-  const compiledPreview = document.getElementById('compiledPreview');
-  const previewArea = document.getElementById('previewArea');
-  
-  if (!previewArea) {
-    console.error('[Preview] Required elements not found');
-    return;
-  }
-
-  // Use contentType from state to determine which version to show
-  const contentToShow = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
-  
-  if (!contentToShow) {
-    console.log('[Preview] No content available to show');
-    previewArea.textContent = 'No content available';
-    return;
-  }
-  
-  // Update text content
-  previewArea.textContent = contentToShow;
-  
-  // If we're showing the compiled view, generate the PDF
-  const activeView = document.querySelector('.preview-toggle-btn.active').dataset.view;
-  if (activeView === 'compiled') {
-    await generatePdfPreview(contentToShow);
-  }
-  
-  // Save the current state
-  saveState();
 }
 
 // Update the showToast function to handle more types
@@ -1057,11 +1266,418 @@ function setupApiKeyManagement() {
 function cleanupBlobUrls() {
   if (window.lastPdfUrl) {
     URL.revokeObjectURL(window.lastPdfUrl);
+    window.lastPdfUrl = null;
   }
   if (window.lastTailoredPdfUrl) {
     URL.revokeObjectURL(window.lastTailoredPdfUrl);
+    window.lastTailoredPdfUrl = null;
+  }
+  if (window.isPreviewUpdating) {
+    window.isPreviewUpdating = false;
   }
 }
 
-// Add event listener for cleanup
-window.addEventListener('unload', cleanupBlobUrls);
+// Add cleanup on tab visibility change
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    cleanupBlobUrls();
+  }
+});
+
+// Update handleGenerateClick function
+async function handleGenerateClick() {
+  const generateBtn = document.getElementById('generateBtn');
+  const originalBtnContent = generateBtn.innerHTML;
+
+  try {
+    // Show loading state
+    generateBtn.disabled = true;
+    generateBtn.innerHTML = `
+      <div class="loading-spinner"></div>
+      <span>Generating Resume...</span>
+    `;
+
+    showToast('Starting resume generation...', 'info');
+
+    // Generate content based on file type
+    const result = await generateTailoredLatex();
+    
+    console.log('[Generate] Generation result:', {
+      success: result.success,
+      hasContent: !!result.content,
+      error: result.error
+    });
+
+    if (!result.success) {
+      throw new Error(result.error || 'Generation failed');
+    }
+
+    // Update state
+    sidebarState.contentType = 'generated';
+    tailoredLatex = result.content;
+
+    // Save state
+    await chrome.storage.local.set({ 
+      sidebarState,
+      tailoredLatex 
+    });
+
+    // Update preview
+    await updatePreview();
+    
+    showToast('Resume generated successfully!', 'success');
+
+  } catch (error) {
+    console.error('[Generate] Error:', error);
+    showToast(error.message, 'error');
+  } finally {
+    // Restore button state
+    generateBtn.disabled = false;
+    generateBtn.innerHTML = originalBtnContent;
+  }
+}
+
+// Add event listener setup for the generate button
+function setupGenerateButton() {
+  const generateBtn = document.getElementById('generateBtn');
+  if (generateBtn) {
+    generateBtn.addEventListener('click', handleGenerateClick);
+    console.log('[Setup] Generate button handler attached');
+  } else {
+    console.error('[Setup] Generate button not found');
+  }
+}
+
+// Add this function to inject required CSS
+function injectPreviewStyles() {
+  const styleSheet = document.createElement("style");
+  styleSheet.textContent = `
+    .preview-section {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 600px;
+      transition: all 0.3s ease;
+    }
+
+    .preview-section.fullscreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 1000;
+      height: 100vh;
+      width: 100vw;
+      border-radius: 0;
+      background: #ffffff;
+    }
+
+    .preview-content {
+      flex: 1;
+      position: relative;
+      height: 100%;
+      min-height: 500px;
+      overflow: hidden;
+    }
+
+    .preview-view {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+    }
+
+    #rawPreview {
+      background-color: #1e1e2e;
+      color: #ffffff;
+      padding: 20px;
+    }
+
+    .preview-text-content {
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      color: #ffffff;
+    }
+
+    #compiledPreview {
+      background: #ffffff;
+    }
+
+    .pdf-container {
+      width: 100%;
+      height: 100%;
+      min-height: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .pdf-container iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: white;
+    }
+
+    /* Loading and error states */
+    .loading-preview,
+    .error-message {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      padding: 20px;
+      text-align: center;
+      gap: 12px;
+    }
+
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #3498db;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Loading button styles */
+    #generateBtn {
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    #generateBtn:disabled {
+      background-color: #e0e0e0;
+      cursor: not-allowed;
+    }
+
+    #generateBtn .loading-spinner {
+      width: 20px;
+      height: 20px;
+      margin-right: 8px;
+    }
+
+    /* Preview transitions */
+    .preview-text-content,
+    #rawPreview,
+    #compiledPreview {
+      transition: opacity 0.3s ease;
+    }
+
+    /* Loading preview styles */
+    .loading-preview {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 200px;
+      padding: 20px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    .loading-preview .loading-spinner {
+      width: 40px;
+      height: 40px;
+      margin-bottom: 16px;
+    }
+
+    /* Animation keyframes */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+  `;
+  document.head.appendChild(styleSheet);
+}
+
+// Add this function to check PDF visibility
+function checkPdfVisibility() {
+  const pdfPreviewArea = document.getElementById('pdfPreviewArea');
+  const compiledPreview = document.getElementById('compiledPreview');
+  const iframe = pdfPreviewArea?.querySelector('iframe');
+
+  console.log('[PdfPreview] Visibility check:', {
+    pdfPreviewArea: {
+      exists: !!pdfPreviewArea,
+      display: pdfPreviewArea?.style.display,
+      height: pdfPreviewArea?.clientHeight,
+      visibility: pdfPreviewArea?.style.visibility
+    },
+    compiledPreview: {
+      exists: !!compiledPreview,
+      display: compiledPreview?.style.display,
+      height: compiledPreview?.clientHeight,
+      visibility: compiledPreview?.style.visibility
+    },
+    iframe: {
+      exists: !!iframe,
+      src: iframe?.src,
+      display: iframe?.style.display,
+      height: iframe?.clientHeight
+    }
+  });
+}
+
+function monitorPdfVisibility() {
+  const checkVisibility = () => {
+    const pdfPreviewArea = document.getElementById('pdfPreviewArea');
+    const compiledPreview = document.getElementById('compiledPreview');
+    const iframe = pdfPreviewArea?.querySelector('iframe');
+    
+    console.log('[PdfPreview] Monitor check:', {
+      timestamp: new Date().toISOString(),
+      pdfPreviewArea: {
+        exists: !!pdfPreviewArea,
+        display: pdfPreviewArea?.style.display,
+        visibility: pdfPreviewArea?.style.visibility,
+        height: pdfPreviewArea?.clientHeight,
+        children: pdfPreviewArea?.childNodes.length
+      },
+      compiledPreview: {
+        exists: !!compiledPreview,
+        display: compiledPreview?.style.display,
+        visibility: compiledPreview?.style.visibility,
+        height: compiledPreview?.clientHeight
+      },
+      iframe: iframe ? {
+        display: iframe.style.display,
+        height: iframe.clientHeight,
+        src: iframe.src,
+        contentLoaded: !!iframe.contentWindow
+      } : null
+    });
+  };
+
+  // Check visibility immediately and after short delays
+  checkVisibility();
+  setTimeout(checkVisibility, 500);
+  setTimeout(checkVisibility, 1500);
+  setTimeout(checkVisibility, 3000);
+}
+
+// Update generateLatexPreview function
+async function generateLatexPreview(content) {
+  try {
+    console.log('[LatexPreview] Starting preview generation', {
+      hasContent: !!content,
+      contentLength: content?.length,
+      contentType: typeof content
+    });
+
+    if (!content || typeof content !== 'string') {
+      throw new Error('Invalid LaTeX content for preview');
+    }
+
+    const pdfPreviewArea = document.getElementById('pdfPreviewArea');
+    if (!pdfPreviewArea) {
+      throw new Error('PDF preview area not found');
+    }
+
+    // Show loading state
+    pdfPreviewArea.innerHTML = `
+      <div class="loading-preview">
+        <div class="loading-spinner"></div>
+        <span>Generating PDF preview...</span>
+      </div>
+    `;
+
+    // Clean and validate the LaTeX content
+    const cleanedContent = content.trim();
+    
+    console.log('[LatexPreview] Preparing content for compilation:', {
+      contentLength: cleanedContent.length,
+      hasDocumentClass: cleanedContent.includes('\\documentclass'),
+      hasBeginDocument: cleanedContent.includes('\\begin{document}'),
+      contentPreview: cleanedContent.substring(0, 100) + '...'
+    });
+
+    // Send to server for compilation
+    const response = await fetch(`${window.ServerManager.API_URL}/compile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ latex: cleanedContent })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[LatexPreview] Server error:', errorData);
+      throw new Error(errorData.error || 'PDF compilation failed');
+    }
+
+    // Get PDF blob
+    const pdfBlob = await response.blob();
+    if (!pdfBlob || pdfBlob.size === 0) {
+      throw new Error('Generated PDF is empty');
+    }
+
+    console.log('[LatexPreview] PDF generated successfully:', {
+      size: pdfBlob.size,
+      type: pdfBlob.type
+    });
+
+    // Create URL and iframe
+    if (window.lastPdfUrl) {
+      URL.revokeObjectURL(window.lastPdfUrl);
+    }
+    window.lastPdfUrl = URL.createObjectURL(pdfBlob);
+
+    const iframe = document.createElement('iframe');
+    iframe.src = `${window.lastPdfUrl}#zoom=FitH`;
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.border = 'none';
+
+    // Clear previous content and add iframe
+    pdfPreviewArea.innerHTML = '';
+    pdfPreviewArea.appendChild(iframe);
+
+    // Monitor iframe loading
+    iframe.onload = () => {
+      console.log('[LatexPreview] PDF iframe loaded successfully');
+      showStatus('PDF preview loaded successfully', 'success');
+    };
+
+    iframe.onerror = (error) => {
+      console.error('[LatexPreview] PDF iframe loading error:', error);
+      throw new Error('Failed to load PDF preview');
+    };
+
+    return true;
+  } catch (error) {
+    console.error('[LatexPreview] Error:', error);
+    showStatus(`Preview generation failed: ${error.message}`, 'error');
+    
+    // Show error in preview area
+    if (pdfPreviewArea) {
+      pdfPreviewArea.innerHTML = `
+        <div class="error-message">
+          <span class="material-icons">error_outline</span>
+          <p>Failed to generate PDF preview: ${error.message}</p>
+          <button onclick="window.retryPdfPreview()" class="retry-button">
+            <span class="material-icons">refresh</span>
+            Retry
+          </button>
+        </div>
+      `;
+    }
+    return false;
+  }
+}

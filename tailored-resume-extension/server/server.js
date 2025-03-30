@@ -3,9 +3,16 @@ const { exec } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const libre = require('libreoffice-convert');
+const util = require('util');
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 // Define allowed origins
 const allowedOrigins = [
@@ -17,6 +24,8 @@ const allowedOrigins = [
 const PDFLATEX_PATH = '/Library/TeX/texbin/pdflatex';
 const TMP_DIR = '/tmp';
 const PDF_DIR = '/tmp/pdf';
+
+const convertAsync = util.promisify(libre.convert);
 
 // CORS middleware
 const allowCors = fn => async (req, res) => {
@@ -55,18 +64,59 @@ const compileHandler = async (req, res) => {
       });
     }
 
+    // Validate LaTeX content
+    console.log('[Server] Validating LaTeX content:', {
+      contentLength: latex.length,
+      hasDocumentClass: latex.includes('\\documentclass'),
+      hasBeginDocument: latex.includes('\\begin{document}'),
+      hasEndDocument: latex.includes('\\end{document}')
+    });
+
+    // Ensure content is a complete LaTeX document
+    let processedLatex = latex;
+    if (!latex.includes('\\documentclass')) {
+      processedLatex = `\\documentclass{article}
+\\usepackage{latexsym}
+\\usepackage{fullpage}
+\\usepackage{titlesec}
+\\usepackage{marvosym}
+\\usepackage{verbatim}
+\\usepackage{enumitem}
+\\usepackage{hyperref}
+\\usepackage[empty]{fullpage}
+\\usepackage{color}
+\\definecolor{linkcolour}{rgb}{0,0.2,0.6}
+\\hypersetup{colorlinks,breaklinks,urlcolor=linkcolour,linkcolor=linkcolour}
+
+\\begin{document}
+${latex}
+\\end{document}`;
+    }
+
     const texPath = path.join(TMP_DIR, `${fileId}.tex`);
     const outputPath = path.join(PDF_DIR, `${fileId}.pdf`);
 
-    await fs.writeFile(texPath, latex, 'utf8');
-    console.log('[Server] LaTeX file written successfully');
+    await fs.writeFile(texPath, processedLatex, 'utf8');
+    console.log('[Server] LaTeX file written successfully:', {
+      path: texPath,
+      size: processedLatex.length,
+      documentStructure: {
+        hasDocumentClass: processedLatex.includes('\\documentclass'),
+        hasBeginDocument: processedLatex.includes('\\begin{document}'),
+        hasEndDocument: processedLatex.includes('\\end{document}')
+      }
+    });
 
     const cmd = `cd "${TMP_DIR}" && ${PDFLATEX_PATH} -interaction=nonstopmode -output-directory="${PDF_DIR}" "${texPath}"`;
     
     const { stdout, stderr } = await new Promise((resolve, reject) => {
       exec(cmd, (error, stdout, stderr) => {
         if (error) {
-          console.error('[Server] Compilation error:', error);
+          console.error('[Server] Compilation error:', {
+            error,
+            stdout,
+            stderr
+          });
           reject({ error, stdout, stderr });
         } else {
           resolve({ stdout, stderr });
@@ -80,6 +130,11 @@ const compileHandler = async (req, res) => {
     }
 
     const pdfContent = await fs.readFile(outputPath);
+    console.log('[Server] PDF generated successfully:', {
+      size: pdfContent.length,
+      path: outputPath
+    });
+
     res.contentType('application/pdf');
     res.send(pdfContent);
 
@@ -91,6 +146,7 @@ const compileHandler = async (req, res) => {
       details: error.stderr || error.stdout || ''
     });
   } finally {
+    // Cleanup
     try {
       const extensions = ['.tex', '.log', '.aux', '.out'];
       for (const ext of extensions) {
@@ -105,6 +161,123 @@ const compileHandler = async (req, res) => {
 };
 
 app.post('/compile', allowCors(compileHandler));
+
+app.post('/save-docx', upload.single('file'), async (req, res) => {
+  try {
+    console.log('[Server] Received DOCX upload request:', {
+      hasFile: !!req.file,
+      contentType: req.file?.mimetype,
+      originalName: req.file?.originalname,
+      size: req.file?.size
+    });
+
+    if (!req.file) {
+      throw new Error('No file uploaded');
+    }
+
+    if (req.file.size === 0) {
+      throw new Error('Uploaded file is empty');
+    }
+
+    const fileId = uuidv4();
+    const filePath = path.join(TMP_DIR, `${fileId}.docx`);
+    
+    await fs.writeFile(filePath, req.file.buffer);
+    const stats = await fs.stat(filePath);
+    
+    console.log('[Server] DOCX file saved:', {
+      id: fileId,
+      path: filePath,
+      size: stats.size,
+      created: stats.birthtime,
+      content: req.file.buffer.length > 0 ? 'Present' : 'Empty'
+    });
+    
+    res.json({ 
+      success: true, 
+      fileId,
+      message: 'File saved successfully',
+      details: {
+        size: stats.size,
+        path: filePath
+      }
+    });
+  } catch (error) {
+    console.error('[Server] Save DOCX error:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      details: {
+        code: error.code,
+        syscall: error.syscall
+      }
+    });
+  }
+});
+
+app.post('/compile-docx', async (req, res) => {
+  try {
+    const { fileId } = req.body;
+    if (!fileId) {
+      throw new Error('File ID is required');
+    }
+
+    const inputPath = path.join(TMP_DIR, `${fileId}.docx`);
+    const outputPath = path.join(PDF_DIR, `${fileId}.pdf`);
+
+    console.log('[Server] Starting DOCX to PDF conversion:', {
+      fileId,
+      inputPath,
+      outputPath
+    });
+
+    // Verify input file exists
+    const fileStats = await fs.stat(inputPath).catch(() => null);
+    if (!fileStats) {
+      throw new Error(`Input file not found: ${inputPath}`);
+    }
+
+    console.log('[Server] Input file stats:', {
+      size: fileStats.size,
+      created: fileStats.birthtime,
+      modified: fileStats.mtime
+    });
+
+    // Convert DOCX to PDF using LibreOffice
+    console.log('[Server] Starting LibreOffice conversion');
+    const docxBuffer = await fs.readFile(inputPath);
+    const pdfBuffer = await convertAsync(docxBuffer, '.pdf', undefined);
+
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      throw new Error('PDF conversion failed - empty output');
+    }
+
+    console.log('[Server] PDF conversion complete:', {
+      inputSize: docxBuffer.length,
+      outputSize: pdfBuffer.length
+    });
+
+    // Send the PDF
+    res.type('application/pdf').send(pdfBuffer);
+
+    // Cleanup
+    await Promise.all([
+      fs.unlink(inputPath).catch(() => {}),
+      fs.unlink(outputPath).catch(() => {})
+    ]);
+
+  } catch (error) {
+    console.error('[Server] DOCX compilation error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message
+    });
+  }
+});
 
 app.use((err, req, res, next) => {
   console.error('[Server] Error:', err);

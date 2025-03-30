@@ -221,7 +221,7 @@ app.post('/save-docx', upload.single('file'), async (req, res) => {
 
 app.post('/compile-docx', async (req, res) => {
   try {
-    const { fileId } = req.body;
+    const { fileId, options } = req.body;
     if (!fileId) {
       throw new Error('File ID is required');
     }
@@ -232,7 +232,8 @@ app.post('/compile-docx', async (req, res) => {
     console.log('[Server] Starting DOCX to PDF conversion:', {
       fileId,
       inputPath,
-      outputPath
+      outputPath,
+      options
     });
 
     // Verify input file exists
@@ -241,28 +242,32 @@ app.post('/compile-docx', async (req, res) => {
       throw new Error(`Input file not found: ${inputPath}`);
     }
 
-    console.log('[Server] Input file stats:', {
-      size: fileStats.size,
-      created: fileStats.birthtime,
-      modified: fileStats.mtime
-    });
+    // Convert DOCX to PDF using LibreOffice with formatting options
+    const conversionOptions = [
+      '--headless',
+      '--convert-to', 'pdf:writer_pdf_Export',
+      '--outdir', PDF_DIR
+    ];
 
-    // Convert DOCX to PDF using LibreOffice
-    console.log('[Server] Starting LibreOffice conversion');
-    const docxBuffer = await fs.readFile(inputPath);
-    const pdfBuffer = await convertAsync(docxBuffer, '.pdf', undefined);
-
-    if (!pdfBuffer || pdfBuffer.length === 0) {
-      throw new Error('PDF conversion failed - empty output');
+    if (options?.fitToPage) {
+      conversionOptions.push('--convert-to-pdf-options');
+      conversionOptions.push('ScaleTo=100');
     }
 
-    console.log('[Server] PDF conversion complete:', {
-      inputSize: docxBuffer.length,
-      outputSize: pdfBuffer.length
+    await new Promise((resolve, reject) => {
+      exec(`soffice ${conversionOptions.join(' ')} "${inputPath}"`, (error, stdout, stderr) => {
+        if (error) {
+          console.error('[Server] Conversion error:', error);
+          reject(new Error('PDF conversion failed'));
+        } else {
+          resolve();
+        }
+      });
     });
 
-    // Send the PDF
-    res.type('application/pdf').send(pdfBuffer);
+    // Read and send the PDF
+    const pdfContent = await fs.readFile(outputPath);
+    res.type('application/pdf').send(pdfContent);
 
     // Cleanup
     await Promise.all([

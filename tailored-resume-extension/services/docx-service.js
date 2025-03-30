@@ -287,50 +287,39 @@ class DocxService {
       this.log('Starting PDF generation from DOCX', {
         dataType: typeof docxData,
         isBlob: docxData instanceof Blob,
-        isArrayBuffer: docxData instanceof ArrayBuffer,
-        hasType: docxData?.type !== undefined,
-        hasData: !!docxData?.data,
-        contentSize: docxData?.data?.length,
-        contentType: docxData?.type
+        isArrayBuffer: docxData instanceof ArrayBuffer
       });
 
-      // Convert the input data to an ArrayBuffer
+      // Convert the input data to ArrayBuffer
       let arrayBuffer;
       if (docxData instanceof ArrayBuffer) {
         arrayBuffer = docxData;
-        this.log('Using direct ArrayBuffer');
       } else if (docxData?.type === 'ArrayBuffer' && docxData?.data) {
-        this.log('Converting base64 to ArrayBuffer', {
-          dataLength: docxData.data.length,
-          dataPreview: docxData.data.substring(0, 100) + '...'
-        });
         arrayBuffer = this.base64ToArrayBuffer(docxData.data);
       } else if (docxData instanceof Blob) {
         arrayBuffer = await docxData.arrayBuffer();
-        this.log('Converted Blob to ArrayBuffer');
       } else {
         throw new Error(`Invalid DOCX data format: ${typeof docxData}`);
       }
-
-      this.log('ArrayBuffer prepared:', {
-        size: arrayBuffer.byteLength,
-        firstBytes: Array.from(new Uint8Array(arrayBuffer.slice(0, 10))),
-      });
 
       // Create a new Blob with the correct MIME type
       const docxBlob = new Blob([arrayBuffer], {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
 
-      this.log('Created DOCX blob:', {
-        size: docxBlob.size,
-        type: docxBlob.type,
-        lastModified: docxBlob.lastModified
-      });
-
-      // Create FormData with detailed logging
+      // Create FormData with conversion options
       const formData = new FormData();
       formData.append('file', docxBlob, 'resume.docx');
+      formData.append('options', JSON.stringify({
+        marginTop: '1in',
+        marginBottom: '1in',
+        marginLeft: '1in',
+        marginRight: '1in',
+        pageSize: 'Letter',
+        preserveFormat: true,
+        fitToPage: true,
+        maintainAspectRatio: true
+      }));
 
       // Save DOCX first
       const saveResponse = await fetch(`${window.ServerManager.API_URL}/save-docx`, {
@@ -339,51 +328,40 @@ class DocxService {
       });
 
       if (!saveResponse.ok) {
-        const errorText = await saveResponse.text();
-        this.log('Save DOCX failed:', {
-          status: saveResponse.status,
-          statusText: saveResponse.statusText,
-          error: errorText
-        });
-        throw new Error(`Failed to save DOCX: ${saveResponse.status} - ${errorText}`);
+        throw new Error(`Failed to save DOCX: ${saveResponse.status}`);
       }
 
       const saveResult = await saveResponse.json();
-      this.log('DOCX saved successfully:', saveResult);
 
-      // Request PDF conversion with enhanced error handling
+      // Request PDF conversion with formatting options
       const pdfResponse = await fetch(`${window.ServerManager.API_URL}/compile-docx`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           fileId: saveResult.fileId,
-          originalName: docxData.originalName || 'resume.docx'
+          originalName: docxData.originalName || 'resume.docx',
+          options: {
+            marginTop: '1in',
+            marginBottom: '1in',
+            marginLeft: '1in',
+            marginRight: '1in',
+            pageSize: 'Letter',
+            fitToPage: true,
+            maintainAspectRatio: true,
+            autoFit: true
+          }
         })
       });
 
       if (!pdfResponse.ok) {
-        const errorText = await pdfResponse.text();
-        this.log('PDF conversion failed:', {
-          status: pdfResponse.status,
-          statusText: pdfResponse.statusText,
-          error: errorText
-        });
-        throw new Error(`PDF generation failed: ${pdfResponse.status} - ${errorText}`);
+        throw new Error(`PDF generation failed: ${pdfResponse.status}`);
       }
 
       const pdfBlob = await pdfResponse.blob();
-      this.log('PDF generated:', {
-        size: pdfBlob.size,
-        type: pdfBlob.type,
-        lastModified: pdfBlob.lastModified
-      });
-
       return pdfBlob;
+
     } catch (error) {
-      this.log('PDF generation error:', {
-        message: error.message,
-        stack: error.stack
-      });
+      this.log('PDF generation error:', error);
       throw error;
     }
   }
@@ -506,6 +484,54 @@ class DocxService {
 
     } catch (error) {
       this.log('Error updating DOCX content:', error);
+      throw error;
+    }
+  }
+
+  // Add method to ensure consistent page formatting
+  async updateDocxFormatting(docxBuffer) {
+    try {
+      const zip = new this.PizZip(docxBuffer);
+      const doc = new this.Docxtemplater();
+      doc.loadZip(zip);
+
+      // Get the document settings
+      const settingsXml = zip.files['word/settings.xml'];
+      if (settingsXml) {
+        const settings = settingsXml.asText();
+        // Add or update compatibility settings
+        if (!settings.includes('<w:compat>')) {
+          const compatSettings = `
+            <w:compat>
+              <w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>
+              <w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/>
+              <w:compatSetting w:name="enableOpenTypeFeatures" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/>
+              <w:compatSetting w:name="doNotFlipMirrorIndents" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/>
+            </w:compat>
+          `;
+          // Insert compatibility settings
+          const newSettings = settings.replace('</w:settings>', `${compatSettings}</w:settings>`);
+          zip.file('word/settings.xml', newSettings);
+        }
+      }
+
+      // Update section properties in the document
+      const documentXml = zip.files['word/document.xml'].asText();
+      const updatedDocumentXml = documentXml.replace(
+        /<w:sectPr[^>]*>.*?<\/w:sectPr>/s,
+        `<w:sectPr>
+          <w:pgSz w:w="12240" w:h="15840"/>
+          <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>
+          <w:cols w:space="720"/>
+          <w:docGrid w:linePitch="360"/>
+        </w:sectPr>`
+      );
+      zip.file('word/document.xml', updatedDocumentXml);
+
+      // Generate the updated DOCX
+      return zip.generate({ type: 'arraybuffer' });
+    } catch (error) {
+      this.log('Error updating DOCX formatting:', error);
       throw error;
     }
   }

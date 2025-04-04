@@ -236,11 +236,20 @@ app.post('/compile-docx', async (req, res) => {
       options
     });
 
-    // Verify input file exists
+    // Verify input file exists and has content
     const fileStats = await fs.stat(inputPath).catch(() => null);
     if (!fileStats) {
       throw new Error(`Input file not found: ${inputPath}`);
     }
+    if (fileStats.size === 0) {
+      throw new Error('Input file is empty');
+    }
+
+    console.log('[Server] Input file verification:', {
+      size: fileStats.size,
+      created: fileStats.birthtime,
+      path: inputPath
+    });
 
     // Convert DOCX to PDF using LibreOffice with formatting options
     const conversionOptions = [
@@ -249,20 +258,58 @@ app.post('/compile-docx', async (req, res) => {
       '--outdir', PDF_DIR
     ];
 
-    if (options?.fitToPage) {
-      conversionOptions.push('--convert-to-pdf-options');
-      conversionOptions.push('ScaleTo=100');
+    // Add formatting options if provided
+    if (options?.format) {
+      const { margins, pageSize, preserveFormatting } = options.format;
+      if (preserveFormatting) {
+        conversionOptions.push('--convert-to-pdf-options');
+        conversionOptions.push('PreserveFormFields=true');
+      }
+      if (margins) {
+        conversionOptions.push('--convert-to-pdf-options');
+        conversionOptions.push(`Margins=${Object.values(margins).join(',')}`);
+      }
+      if (pageSize) {
+        conversionOptions.push('--convert-to-pdf-options');
+        conversionOptions.push(`PageSize=${pageSize}`);
+      }
     }
 
+    console.log('[Server] Running conversion with options:', {
+      command: 'soffice',
+      options: conversionOptions,
+      inputFile: inputPath
+    });
+
+    // Execute conversion
     await new Promise((resolve, reject) => {
       exec(`soffice ${conversionOptions.join(' ')} "${inputPath}"`, (error, stdout, stderr) => {
         if (error) {
-          console.error('[Server] Conversion error:', error);
-          reject(new Error('PDF conversion failed'));
+          console.error('[Server] Conversion error:', {
+            error,
+            stdout,
+            stderr
+          });
+          reject(new Error('PDF conversion failed: ' + stderr));
         } else {
+          console.log('[Server] Conversion output:', {
+            stdout,
+            stderr: stderr || 'No errors'
+          });
           resolve();
         }
       });
+    });
+
+    // Verify PDF was created
+    const pdfStats = await fs.stat(outputPath).catch(() => null);
+    if (!pdfStats || pdfStats.size === 0) {
+      throw new Error('PDF generation failed or produced empty file');
+    }
+
+    console.log('[Server] PDF generation successful:', {
+      path: outputPath,
+      size: pdfStats.size
     });
 
     // Read and send the PDF
@@ -279,7 +326,8 @@ app.post('/compile-docx', async (req, res) => {
     console.error('[Server] DOCX compilation error:', error);
     res.status(500).json({ 
       success: false, 
-      error: error.message
+      error: error.message,
+      details: error.stack
     });
   }
 });

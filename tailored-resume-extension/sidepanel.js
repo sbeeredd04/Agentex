@@ -99,6 +99,9 @@ VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are
 !! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE!!
 `;
 
+// Add this with other global variables at the top
+let docxService = null;
+
 // Function to display status messages
 function showStatus(message, type = 'info') {
   console.log(`Status: ${message} (${type})`);
@@ -155,10 +158,8 @@ function setupUIElements() {
   const elements = {
     latexFileInput: document.getElementById('latexFile'),
     jobDescInput: document.getElementById('jobDesc'),
-    tailorBtn: document.getElementById('tailorBtn'),
     downloadBtn: document.getElementById('downloadBtn'),
     knowledgeBaseText: document.getElementById('knowledgeBaseText'),
-    previewArea: document.getElementById('previewArea'),
     pdfPreviewArea: document.getElementById('pdfPreviewArea')
   };
 
@@ -536,12 +537,22 @@ function saveState() {
 
 async function restoreState() {
   try {
-    const { sidebarState: savedState, tailoredLatex: savedTailoredLatex } = 
-      await chrome.storage.local.get(['sidebarState', 'tailoredLatex']);
+    const { 
+      sidebarState: savedState, 
+      tailoredLatex: savedTailoredLatex,
+      generatedDocx: savedGeneratedDocx,
+      generatedRawContent: savedGeneratedRawContent
+    } = await chrome.storage.local.get([
+      'sidebarState', 
+      'tailoredLatex',
+      'generatedDocx',
+      'generatedRawContent'
+    ]);
     
     console.log('[State] Restoring state:', {
       hasState: !!savedState,
       hasTailoredLatex: !!savedTailoredLatex,
+      hasGeneratedDocx: !!savedGeneratedDocx,
       contentType: savedState?.contentType
     });
     
@@ -552,12 +563,25 @@ async function restoreState() {
         ...savedState
       };
 
-      // Restore content variables
-      if (savedState.originalContent) {
-        originalLatex = savedState.originalContent;
-      }
-      if (savedTailoredLatex) {
-        tailoredLatex = savedTailoredLatex;
+      // Restore content variables based on file type
+      if (savedState.fileType === 'latex') {
+        if (savedState.originalContent) {
+          originalLatex = savedState.originalContent;
+        }
+        if (savedTailoredLatex) {
+          tailoredLatex = savedTailoredLatex;
+        }
+      } else if (savedState.fileType === 'docx') {
+        // Restore DOCX content
+        if (savedState.originalDocx) {
+          sidebarState.originalDocx = savedState.originalDocx;
+        }
+        if (savedGeneratedDocx) {
+          sidebarState.tailoredDocx = savedGeneratedDocx;
+        }
+        if (savedGeneratedRawContent) {
+          sidebarState.tailoredContent = savedGeneratedRawContent;
+        }
       }
 
       // Update UI elements
@@ -580,8 +604,20 @@ async function restoreState() {
         showSuccessfulUploadFeedback(sidebarState.uploadedFileName);
       }
 
-      // Update preview content
-      await updatePreviewContent();
+      // Update preview content based on file type and content type
+      if (sidebarState.fileType === 'latex') {
+        const contentToShow = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
+        if (contentToShow) {
+          await updatePreviewContent();
+        }
+      } else if (sidebarState.fileType === 'docx') {
+        const contentToShow = sidebarState.contentType === 'generated' ? 
+          sidebarState.tailoredDocx : 
+          sidebarState.originalDocx;
+        if (contentToShow) {
+          await generatePdfPreview(contentToShow, sidebarState.contentType);
+        }
+      }
     }
   } catch (error) {
     console.error('[State] Error restoring state:', error);
@@ -812,13 +848,17 @@ async function initializeSidepanel() {
     const serverManager = await waitForServerManager();
     console.log('[Sidepanel] ServerManager loaded:', serverManager);
     
-    // Check for AIService
+    // Check for required services
     if (!window.AIService) {
       throw new Error('AIService not found');
+    }
+    if (!window.DocxService) {
+      throw new Error('DocxService not found');
     }
     
     console.log('[Sidepanel] Initializing services...');
     aiService = new window.AIService();
+    docxService = new window.DocxService();
     
     // Set up UI and event listeners
     const elements = setupUIElements();
@@ -1088,16 +1128,17 @@ async function generateTailoredDocx() {
       throw new Error('Original DOCX content not found');
     }
 
+    // Ensure DocxService is initialized
+    if (!docxService) {
+      console.log('[DOCX] Initializing DocxService');
+      docxService = new window.DocxService();
+    }
+
     // Convert stored base64 back to ArrayBuffer
     let docxBuffer;
     try {
       if (originalDocx.type === 'ArrayBuffer' && originalDocx.data) {
-        const binaryString = window.atob(originalDocx.data);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        docxBuffer = bytes.buffer;
+        docxBuffer = docxService.base64ToArrayBuffer(originalDocx.data);
       } else {
         throw new Error('Invalid DOCX format in storage');
       }
@@ -1107,7 +1148,6 @@ async function generateTailoredDocx() {
     }
 
     showStatus('Processing DOCX file...', 'info');
-    const docxService = new DocxService();
     
     console.log('[DOCX] Calling DocxService.tailorDocx with model:', currentModelSelection);
     const result = await docxService.tailorDocx(
@@ -1120,41 +1160,26 @@ async function generateTailoredDocx() {
       throw new Error(result.error || 'DOCX generation failed');
     }
 
-    // Store the generated content immediately
-    console.log('[DOCX] Storing generation result:', {
-      hasRawContent: !!result.text,
-      hasDocx: !!result.docx,
-      hasHtml: !!result.html
-    });
+    // Update state with the tailored content
+    sidebarState.tailoredDocx = result.docx;
+    sidebarState.tailoredHtml = result.html;
+    sidebarState.tailoredContent = result.text;
+    sidebarState.contentType = 'generated';
 
-    // Save both raw content and DOCX data to Chrome storage
-    await chrome.storage.local.set({
-      generatedRawContent: result.text,
-      generatedDocx: {
-        type: 'ArrayBuffer',
-        data: result.docx,
-        originalName: sidebarState.uploadedFileName
-      }
-    });
+    // Save state to storage
+    await chrome.storage.local.set({ sidebarState });
 
-    return {
-      success: true,
-      docx: {
-        type: 'ArrayBuffer',
-        data: result.docx,
-        originalName: sidebarState.uploadedFileName
-      },
-      text: result.text,
-      html: result.html,
-      type: 'docx'
-    };
+    // Update preview
+    await updatePreview();
+
+    return result;
 
   } catch (error) {
-    console.error('[DOCX] Generation error:', error);
+    console.error('[DOCX] Tailoring error:', error);
+    showStatus(error.message, 'error');
     return {
       success: false,
-      error: error.message,
-      type: 'docx'
+      error: error.message
     };
   }
 }

@@ -243,33 +243,83 @@ class DocxService {
         preview: tailoredText?.substring(0, 100) + '...'
       });
 
-      // Create new document from template
+      // Create a copy of the original DOCX
       const zip = new this.PizZip(originalDocx);
       const doc = new this.Docxtemplater();
       doc.loadZip(zip);
 
-      // Set the content while preserving formatting
-      doc.setData({
-        content: tailoredText
+      // Get the document structure
+      const documentXml = zip.files['word/document.xml'].asText();
+      
+      this.log('Original document structure loaded:', {
+        hasDocumentXml: !!documentXml,
+        xmlLength: documentXml?.length
       });
 
+      // Process the content to maintain structure
+      const paragraphs = tailoredText.split('\n').filter(p => p.trim());
+      this.log('Content processing:', {
+        originalParagraphs: paragraphs.length,
+        content: paragraphs.slice(0, 2)
+      });
+
+      // Create structured content for docxtemplater
+      const structuredContent = {
+        content: paragraphs.join('\n'),
+        sections: paragraphs.map(p => ({ text: p.trim() }))
+      };
+
+      this.log('Prepared content for template:', {
+        contentLength: structuredContent.content.length,
+        sections: structuredContent.sections.length
+      });
+
+      // Set the content while preserving structure
+      doc.setData(structuredContent);
+
+      // Render the document
       doc.render();
 
-      // Generate output as base64
-      const output = doc.getZip().generate({
-        type: 'base64',
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      // Generate updated DOCX with compression
+      const updatedDocx = doc.getZip().generate({
+        type: 'arraybuffer',
+        compression: 'DEFLATE',
+        compressionOptions: {
+          level: 9
+        }
       });
 
-      // Convert to HTML for preview
-      const arrayBuffer = this.base64ToArrayBuffer(output);
-      const htmlResult = await this.mammoth.convertToHtml({ arrayBuffer });
+      // Verify the updated content
+      const verificationBuffer = Buffer.from(updatedDocx);
+      this.log('Generated DOCX verification:', {
+        size: verificationBuffer.length,
+        hasContent: verificationBuffer.length > 0
+      });
 
+      // Convert to base64 for storage
+      const base64Content = this.arrayBufferToBase64(updatedDocx);
+
+      // Convert to HTML for preview using mammoth
+      const htmlResult = await this.mammoth.convertToHtml({ arrayBuffer: updatedDocx });
+
+      this.log('DOCX update complete:', {
+        originalSize: originalDocx.byteLength,
+        updatedSize: updatedDocx.byteLength,
+        hasHtml: !!htmlResult.value,
+        previewLength: htmlResult.value?.length
+      });
+
+      // Return the complete result
       return {
         success: true,
-        docx: output, // base64 string
+        docx: {
+          type: 'ArrayBuffer',
+          data: base64Content,
+          originalName: 'tailored_resume.docx',
+          timestamp: Date.now()
+        },
         html: htmlResult.value,
-        text: tailoredText // raw content
+        text: tailoredText
       };
 
     } catch (error) {
@@ -287,7 +337,8 @@ class DocxService {
       this.log('Starting PDF generation from DOCX', {
         dataType: typeof docxData,
         isBlob: docxData instanceof Blob,
-        isArrayBuffer: docxData instanceof ArrayBuffer
+        isArrayBuffer: docxData instanceof ArrayBuffer,
+        hasData: !!docxData?.data
       });
 
       // Convert the input data to ArrayBuffer
@@ -309,7 +360,7 @@ class DocxService {
 
       // Create FormData with conversion options
       const formData = new FormData();
-      formData.append('file', docxBlob, 'resume.docx');
+      formData.append('file', docxBlob, docxData.originalName || 'resume.docx');
       formData.append('options', JSON.stringify({
         marginTop: '1in',
         marginBottom: '1in',
@@ -532,6 +583,31 @@ class DocxService {
       return zip.generate({ type: 'arraybuffer' });
     } catch (error) {
       this.log('Error updating DOCX formatting:', error);
+      throw error;
+    }
+  }
+
+  // Add helper method for content processing
+  _processDocxContent(content) {
+    try {
+      // Split content into sections
+      const sections = content.split('\n\n').filter(Boolean);
+      
+      // Process each section
+      const processedSections = sections.map(section => {
+        const lines = section.split('\n').filter(Boolean);
+        return {
+          heading: lines[0],
+          content: lines.slice(1).join('\n')
+        };
+      });
+
+      return {
+        sections: processedSections,
+        rawContent: content
+      };
+    } catch (error) {
+      console.error('[DocxService] Content processing error:', error);
       throw error;
     }
   }

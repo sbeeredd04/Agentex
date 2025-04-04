@@ -190,6 +190,13 @@ class ServerManager {
 
     async saveGeneratedDocx(docxBlob, filename, metadata = {}) {
       try {
+        console.log('[ServerManager] Saving DOCX:', {
+          filename,
+          blobSize: docxBlob.size,
+          blobType: docxBlob.type,
+          metadata
+        });
+
         const formData = new FormData();
         formData.append('file', docxBlob, filename);
         formData.append('metadata', JSON.stringify(metadata));
@@ -199,44 +206,90 @@ class ServerManager {
           body: formData
         });
 
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}: ${await response.text()}`);
+        }
+
         const result = await response.json();
+        console.log('[ServerManager] DOCX saved successfully:', {
+          fileId: result.fileId,
+          details: result
+        });
+
         return {
           success: true,
-          fileId: result.fileId
+          fileId: result.fileId,
+          details: result
         };
       } catch (error) {
         console.error('[ServerManager] Failed to save DOCX:', error);
         return {
           success: false,
-          error: error.message
+          error: error.message,
+          details: error
         };
       }
     }
 
     async compileDocxToPdf(options = {}) {
       try {
+        console.log('[ServerManager] Starting DOCX to PDF compilation:', {
+          options,
+          endpoint: `${this.API_URL}/compile-docx`
+        });
+
         const response = await fetch(`${this.API_URL}/compile-docx`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(options)
+          body: JSON.stringify({
+            ...options,
+            format: {
+              preserveFormatting: true,
+              margins: {
+                top: '1in',
+                bottom: '1in',
+                left: '1in',
+                right: '1in'
+              },
+              pageSize: 'Letter'
+            }
+          })
         });
 
         if (!response.ok) {
-          throw new Error(`Server returned ${response.status}`);
+          const errorText = await response.text();
+          console.error('[ServerManager] Compilation failed:', {
+            status: response.status,
+            error: errorText
+          });
+          throw new Error(`Server returned ${response.status}: ${errorText}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/pdf')) {
+          throw new Error(`Invalid response type: ${contentType}`);
         }
 
         const pdfBlob = await response.blob();
+        console.log('[ServerManager] PDF compilation successful:', {
+          size: pdfBlob.size,
+          type: pdfBlob.type
+        });
+
         return {
           success: true,
-          content: pdfBlob
+          content: pdfBlob,
+          contentType: pdfBlob.type,
+          size: pdfBlob.size
         };
       } catch (error) {
         console.error('[ServerManager] Failed to compile DOCX:', error);
         return {
           success: false,
-          error: error.message
+          error: error.message,
+          details: error
         };
       }
     }

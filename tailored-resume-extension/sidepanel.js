@@ -43,11 +43,27 @@ const DEFAULT_PROMPT = `You are an expert ATS resume tailor for software enginee
 
 ## Primary Objectives
 1. **Precision Alignment**: Rigorously match JD requirements using keywords/metrics from both resume and knowledge base
-2. **Strategic Replacement**: Replace ONLY the least relevant existing content with superior knowledge base items when they:
-  - Match ≥2 additional JD keywords 
-  - Demonstrate ≥25% stronger metrics
-  - Share direct technology stack alignment
+2. **Strategic Project Replacement**: CRITICAL - Replace existing projects with more relevant ones from the knowledge base when they:
+  - Use the same or similar technology stack as mentioned in the JD
+  - Demonstrate stronger metrics or achievements
+  - Better align with the job responsibilities
 3. **Content Preservation**: Maintain original resume structure/length while maximizing JD keyword density
+
+## Project Replacement Protocol
+1. First, analyze the job description to identify:
+   - Required technologies and frameworks
+   - Key responsibilities and achievements
+   - Industry-specific requirements
+
+2. Then, evaluate each project in the knowledge base:
+   - Calculate relevance score based on technology alignment
+   - Compare metrics and achievements with job requirements
+   - Assess how well it demonstrates required skills
+
+3. Replace existing projects when:
+   - Knowledge base project has ≥70% technology overlap with JD
+   - Knowledge base project demonstrates stronger metrics
+   - Knowledge base project better aligns with job responsibilities
 
 ## Execution Protocol
 ### Content Evaluation
@@ -87,10 +103,12 @@ const DEFAULT_PROMPT = `You are an expert ATS resume tailor for software enginee
 2. Modify ONLY text within \\resumeItem{} blocks
 3. Strict 1-page enforcement
 
-VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD
-VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section
+## CRITICAL PROJECT REPLACEMENT RULES
+‼️ ALWAYS REPLACE existing projects with knowledge base projects that:
+- Use the same or similar technology stack as mentioned in the JD
+- Demonstrate stronger metrics or achievements
+- Better align with the job responsibilities
 
-## Critical Requirements
 ‼️ NEVER:
 - Invent unverified experiences
 - Change section hierarchy
@@ -99,6 +117,80 @@ VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are
 
 !! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!
 `;
+
+// Add default prompts for multi-step structure
+const DEFAULT_ANALYSIS_PROMPT = `You are an expert resume analyzer. Your task is to analyze the job description and knowledge base to identify:
+1. Key technologies and skills required by the job
+2. Projects in the knowledge base that are most relevant to the job
+3. Specific metrics and achievements that align with the job requirements
+
+Job Description:
+{jobDesc}
+
+Knowledge Base / Additional Experience:
+{knowledgeBase}
+
+Provide a structured analysis in JSON format with the following fields:
+{
+  "requiredTechnologies": ["tech1", "tech2", ...],
+  "relevantProjects": [
+    {
+      "projectName": "Project Name",
+      "technologies": ["tech1", "tech2", ...],
+      "relevanceScore": 0-100,
+      "keyMetrics": ["metric1", "metric2", ...]
+    },
+    ...
+  ],
+  "keyMetrics": ["metric1", "metric2", ...]
+}
+
+Return ONLY the JSON object, no additional text.`;
+
+const DEFAULT_PROJECTS_PROMPT = `You are an expert resume project optimizer. Your task is to create an optimized projects section for a software engineering resume.
+
+Original Projects Section:
+{originalProjects}
+
+Job Requirements:
+{jobDesc}
+
+Analysis of Relevant Projects:
+{analysisProjects}
+
+Required Technologies:
+{requiredTechnologies}
+
+Key Metrics to Highlight:
+{keyMetrics}
+
+Instructions:
+1. Replace existing projects with more relevant ones from the analysis if they better match the job requirements
+2. Ensure each project highlights technologies and metrics that align with the job description
+3. Maintain the same LaTeX formatting and structure
+4. Use the XYZ format: \\resumeItem{\\textbf{<JD Keyword>} used to \\textbf{<Action Verb>} \\emph{<Tech>} achieving \\textbf{<Metric>} via <Method>}
+5. Return ONLY the optimized projects section in LaTeX format
+
+VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD.`;
+
+const DEFAULT_FINAL_PROMPT = `You are an expert ATS resume tailor for software engineering roles. Your task is to create a final resume by replacing the projects section with the optimized version.
+
+Original LaTeX Resume:
+{originalLatex}
+
+Optimized Projects Section:
+{optimizedProjects}
+
+Job Description:
+{jobDesc}
+
+Instructions:
+1. Replace the projects section in the original resume with the optimized version
+2. Ensure all LaTeX formatting is preserved
+3. Return the complete resume with the updated projects section
+4. Do not make any other changes to the resume
+
+!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!`;
 
 // Function to display status messages
 function showStatus(message, type = 'info') {
@@ -1083,6 +1175,21 @@ async function generateTailoredContent() {
   }
 }
 
+// Add this function to update the UI with multi-step process status
+function updateGenerationStatus(step, totalSteps, message) {
+  const generateBtn = document.getElementById('generateBtn');
+  if (!generateBtn) return;
+  
+  // Update button text with progress
+  generateBtn.innerHTML = `
+    <div class="loading-spinner"></div>
+    <span>Step ${step}/${totalSteps}: ${message}</span>
+  `;
+  
+  // Show toast with status
+  showToast(`Step ${step}/${totalSteps}: ${message}`, 'info');
+}
+
 // Update generateTailoredLatex with better debugging
 async function generateTailoredLatex() {
   try {
@@ -1108,45 +1215,49 @@ async function generateTailoredLatex() {
     const { customPrompt } = await chrome.storage.local.get('customPrompt');
     const prompt = customPrompt || DEFAULT_PROMPT;
 
-    // Prepare the prompt with content
-    const fullPrompt = `
-${prompt}
-
-Original LaTeX Resume:
-${originalLatex}
-
-Job Description:
-${jobDesc}
-
-Knowledge Base / Additional Experience:
-${knowledgeBase}
-
-Please provide the complete tailored LaTeX resume.`;
-
-    console.log('[LaTeX] Sending to AI service', {
-      promptLength: fullPrompt.length,
+    // Show status for multi-step process
+    updateGenerationStatus(1, 3, 'Analyzing job description and knowledge base');
+    
+    // Use the new multi-step generation process
+    console.log('[LaTeX] Using multi-step generation process', {
       modelType: currentModelSelection.type,
       model: currentModelSelection.model
     });
 
-    // Update the AI service call with explicit type
-    const tailoredContent = await aiService.generateContent(
-      fullPrompt,
-      'latex',
-      currentModelSelection.type,
-      currentModelSelection.model
-    );
-
-    console.log('[LaTeX] Generation completed:', {
-      success: true,
-      contentLength: tailoredContent?.length
-    });
-
-    return {
-      success: true,
-      content: tailoredContent,
-      type: 'latex'
+    // Create a custom event listener for the multi-step process
+    const statusListener = (event) => {
+      if (event.detail && event.detail.step) {
+        updateGenerationStatus(event.detail.step, event.detail.totalSteps, event.detail.message);
+      }
     };
+    
+    // Add the event listener
+    document.addEventListener('aiServiceStatus', statusListener);
+    
+    try {
+      // Use the new multi-step generation method
+      const tailoredContent = await aiService.generateTailoredResume(
+        originalLatex,
+        jobDesc,
+        knowledgeBase,
+        currentModelSelection.type,
+        currentModelSelection.model
+      );
+
+      console.log('[LaTeX] Generation completed:', {
+        success: true,
+        contentLength: tailoredContent?.length
+      });
+
+      return {
+        success: true,
+        content: tailoredContent,
+        type: 'latex'
+      };
+    } finally {
+      // Remove the event listener
+      document.removeEventListener('aiServiceStatus', statusListener);
+    }
 
   } catch (error) {
     console.error('[LaTeX] Generation error:', error);
@@ -1250,12 +1361,24 @@ function setupApiKeyManagement() {
   const groqInput = document.getElementById('groqApiKey');
   const promptInput = document.getElementById('customPrompt');
   const docxPromptInput = document.getElementById('docxCustomPrompt');
+  const analysisPromptInput = document.getElementById('analysisPrompt');
+  const projectsPromptInput = document.getElementById('projectsPrompt');
+  const finalPromptInput = document.getElementById('finalPrompt');
+  const resetMultiStepPromptsBtn = document.getElementById('resetMultiStepPrompts');
 
   // Get the default DOCX prompt
   const defaultDocxPrompt = window.DocxAIService?.DEFAULT_PROMPT || '';
 
   // Load saved settings
-  chrome.storage.local.get(['geminiApiKey', 'groqApiKey', 'customPrompt', 'docxCustomPrompt'], (result) => {
+  chrome.storage.local.get([
+    'geminiApiKey', 
+    'groqApiKey', 
+    'customPrompt', 
+    'docxCustomPrompt',
+    'analysisPrompt',
+    'projectsPrompt',
+    'finalPrompt'
+  ], (result) => {
     if (result.geminiApiKey) {
       geminiInput.value = result.geminiApiKey;
     }
@@ -1271,6 +1394,21 @@ function setupApiKeyManagement() {
       docxPromptInput.value = result.docxCustomPrompt;
     } else {
       docxPromptInput.value = defaultDocxPrompt;
+    }
+    if (result.analysisPrompt) {
+      analysisPromptInput.value = result.analysisPrompt;
+    } else {
+      analysisPromptInput.value = DEFAULT_ANALYSIS_PROMPT;
+    }
+    if (result.projectsPrompt) {
+      projectsPromptInput.value = result.projectsPrompt;
+    } else {
+      projectsPromptInput.value = DEFAULT_PROJECTS_PROMPT;
+    }
+    if (result.finalPrompt) {
+      finalPromptInput.value = result.finalPrompt;
+    } else {
+      finalPromptInput.value = DEFAULT_FINAL_PROMPT;
     }
   });
 
@@ -1291,6 +1429,25 @@ function setupApiKeyManagement() {
       docxPromptInput.style.opacity = '1';
     }, 200);
     showToast('DOCX prompt reset to default', 'info');
+  });
+
+  // Reset multi-step prompts
+  resetMultiStepPromptsBtn.addEventListener('click', () => {
+    const prompts = [
+      { input: analysisPromptInput, value: DEFAULT_ANALYSIS_PROMPT },
+      { input: projectsPromptInput, value: DEFAULT_PROJECTS_PROMPT },
+      { input: finalPromptInput, value: DEFAULT_FINAL_PROMPT }
+    ];
+    
+    prompts.forEach(prompt => {
+      prompt.input.style.opacity = '0';
+      setTimeout(() => {
+        prompt.input.value = prompt.value;
+        prompt.input.style.opacity = '1';
+      }, 200);
+    });
+    
+    showToast('Multi-step prompts reset to default', 'info');
   });
 
   // Toggle password visibility with icon update
@@ -1338,6 +1495,9 @@ function setupApiKeyManagement() {
     const groqKey = groqInput.value.trim();
     const customPrompt = promptInput.value.trim();
     const docxCustomPrompt = docxPromptInput.value.trim();
+    const analysisPrompt = analysisPromptInput.value.trim();
+    const projectsPrompt = projectsPromptInput.value.trim();
+    const finalPrompt = finalPromptInput.value.trim();
 
     try {
       // Validate inputs
@@ -1349,6 +1509,15 @@ function setupApiKeyManagement() {
       }
       if (!docxCustomPrompt) {
         throw new Error('DOCX prompt template cannot be empty');
+      }
+      if (!analysisPrompt) {
+        throw new Error('Analysis prompt template cannot be empty');
+      }
+      if (!projectsPrompt) {
+        throw new Error('Projects prompt template cannot be empty');
+      }
+      if (!finalPrompt) {
+        throw new Error('Final prompt template cannot be empty');
       }
 
       // Show saving state
@@ -1363,7 +1532,10 @@ function setupApiKeyManagement() {
         geminiApiKey: geminiKey,
         groqApiKey: groqKey,
         customPrompt: customPrompt,
-        docxCustomPrompt: docxCustomPrompt
+        docxCustomPrompt: docxCustomPrompt,
+        analysisPrompt: analysisPrompt,
+        projectsPrompt: projectsPrompt,
+        finalPrompt: finalPrompt
       });
 
       // Reinitialize AI service
@@ -1585,8 +1757,12 @@ async function generateLatexPreview(content) {
       showStatus('PDF compilation complete', 'success');
     };
 
-    return true;
+    iframe.onerror = (error) => {
+      console.error('[LatexPreview] PDF iframe loading error:', error);
+      throw new Error('Failed to load PDF preview');
+    };
 
+    return true;
   } catch (error) {
     console.error('[LatexPreview] Error:', error);
     showStatus(`LaTeX compilation failed: ${error.message}`, 'error');

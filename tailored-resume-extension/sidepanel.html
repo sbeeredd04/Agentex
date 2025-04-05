@@ -209,6 +209,47 @@
           </div>
         </div>
 
+        <div class="settings-section">
+          <div class="section-header">
+            <h3>Multi-Step Prompt Templates</h3>
+            <div class="header-actions">
+              <button id="resetMultiStepPrompts" class="icon-button" title="Reset to default">
+                <span class="material-icons">restart_alt</span>
+              </button>
+            </div>
+          </div>
+          <div class="section-description">Customize the prompt templates for multi-step resume generation</div>
+          
+          <div class="multi-step-prompt-container">
+            <div class="prompt-group">
+              <label for="analysisPrompt">Step 1: Analysis Prompt</label>
+              <textarea 
+                id="analysisPrompt" 
+                class="modern-input custom-scroll"
+                placeholder="Enter the analysis prompt template..."
+              ></textarea>
+            </div>
+            
+            <div class="prompt-group">
+              <label for="projectsPrompt">Step 2: Projects Optimization Prompt</label>
+              <textarea 
+                id="projectsPrompt" 
+                class="modern-input custom-scroll"
+                placeholder="Enter the projects optimization prompt template..."
+              ></textarea>
+            </div>
+            
+            <div class="prompt-group">
+              <label for="finalPrompt">Step 3: Final Generation Prompt</label>
+              <textarea 
+                id="finalPrompt" 
+                class="modern-input custom-scroll"
+                placeholder="Enter the final generation prompt template..."
+              ></textarea>
+            </div>
+          </div>
+        </div>
+
         <div class="modal-footer">
           <button id="saveApiKeys" class="action-button primary">
             <span class="material-icons">save</span>

@@ -25,6 +25,80 @@ class AIService {
     this.loadApiKeys();
   }
 
+  // Default prompts for multi-step structure
+  static DEFAULT_ANALYSIS_PROMPT = `You are an expert resume analyzer. Your task is to analyze the job description and knowledge base to identify:
+1. Key technologies and skills required by the job
+2. Projects in the knowledge base that are most relevant to the job
+3. Specific metrics and achievements that align with the job requirements
+
+Job Description:
+{jobDesc}
+
+Knowledge Base / Additional Experience:
+{knowledgeBase}
+
+Provide a structured analysis in JSON format with the following fields:
+{
+  "requiredTechnologies": ["tech1", "tech2", ...],
+  "relevantProjects": [
+    {
+      "projectName": "Project Name",
+      "technologies": ["tech1", "tech2", ...],
+      "relevanceScore": 0-100,
+      "keyMetrics": ["metric1", "metric2", ...]
+    },
+    ...
+  ],
+  "keyMetrics": ["metric1", "metric2", ...]
+}
+
+Return ONLY the JSON object, no additional text.`;
+
+  static DEFAULT_PROJECTS_PROMPT = `You are an expert resume project optimizer. Your task is to create an optimized projects section for a software engineering resume.
+
+Original Projects Section:
+{originalProjects}
+
+Job Requirements:
+{jobDesc}
+
+Analysis of Relevant Projects:
+{analysisProjects}
+
+Required Technologies:
+{requiredTechnologies}
+
+Key Metrics to Highlight:
+{keyMetrics}
+
+Instructions:
+1. Replace existing projects with more relevant ones from the analysis if they better match the job requirements
+2. Ensure each project highlights technologies and metrics that align with the job description
+3. Maintain the same LaTeX formatting and structure
+4. Use the XYZ format: \\resumeItem{\\textbf{<JD Keyword>} used to \\textbf{<Action Verb>} \\emph{<Tech>} achieving \\textbf{<Metric>} via <Method>}
+5. Return ONLY the optimized projects section in LaTeX format
+
+VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD.`;
+
+  static DEFAULT_FINAL_PROMPT = `You are an expert ATS resume tailor for software engineering roles. Your task is to create a final resume by replacing the projects section with the optimized version.
+
+Original LaTeX Resume:
+{originalLatex}
+
+Optimized Projects Section:
+{optimizedProjects}
+
+Job Description:
+{jobDesc}
+
+Instructions:
+1. Replace the projects section in the original resume with the optimized version
+2. Ensure all LaTeX formatting is preserved
+3. Return the complete resume with the updated projects section
+4. Do not make any other changes to the resume
+
+!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!`;
+
   async loadApiKeys() {
     const keys = await chrome.storage.local.get(['geminiApiKey', 'groqApiKey']);
     this.models.gemini.apiKey = keys.geminiApiKey;
@@ -248,6 +322,216 @@ class AIService {
 
   cleanLatexResponse(response) {
     return this._cleanResponse(response);
+  }
+
+  // New method for multi-step resume generation
+  async generateTailoredResume(originalLatex, jobDesc, knowledgeBase, modelType = 'gemini', model = null) {
+    try {
+      console.log('[AIService] Starting multi-step resume generation');
+      
+      this.currentModelSelection = { type: modelType, model };
+      
+      // Helper function to dispatch status events
+      const dispatchStatus = (step, message) => {
+        const event = new CustomEvent('aiServiceStatus', {
+          detail: {
+            step,
+            totalSteps: 3,
+            message
+          }
+        });
+        document.dispatchEvent(event);
+      };
+      
+      // Check if knowledge base has content
+      const hasKnowledgeBaseContent = knowledgeBase && knowledgeBase.trim().length > 0;
+      console.log('[AIService] Knowledge base check:', { hasContent: hasKnowledgeBaseContent });
+      
+      // If knowledge base is empty, fall back to single-step generation
+      if (!hasKnowledgeBaseContent) {
+        console.log('[AIService] Knowledge base is empty, falling back to single-step generation');
+        return this.generateContent(
+          `You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews.
+
+Original LaTeX Resume:
+${originalLatex}
+
+Job Description:
+${jobDesc}
+
+VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section.
+
+!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!`,
+          'latex',
+          modelType,
+          model
+        );
+      }
+      
+      // Get custom prompts from storage
+      const prompts = await chrome.storage.local.get(['analysisPrompt', 'projectsPrompt', 'finalPrompt']);
+      const analysisPromptTemplate = prompts.analysisPrompt || AIService.DEFAULT_ANALYSIS_PROMPT;
+      const projectsPromptTemplate = prompts.projectsPrompt || AIService.DEFAULT_PROJECTS_PROMPT;
+      const finalPromptTemplate = prompts.finalPrompt || AIService.DEFAULT_FINAL_PROMPT;
+      
+      // Step 1: Analyze job description and knowledge base
+      dispatchStatus(1, 'Analyzing job description and knowledge base');
+      console.log('[AIService] Step 1: Analyzing job and knowledge base');
+      
+      const analysisPrompt = analysisPromptTemplate
+        .replace('{jobDesc}', jobDesc)
+        .replace('{knowledgeBase}', knowledgeBase);
+      
+      const analysisResponse = await this.generateWithCurrentModel(analysisPrompt);
+      
+      // Parse the analysis JSON
+      let analysis;
+      try {
+        // Extract JSON from the response (in case there's extra text)
+        const jsonMatch = analysisResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          analysis = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('Could not extract JSON from analysis response');
+        }
+      } catch (error) {
+        console.error('[AIService] Failed to parse analysis JSON:', error);
+        // Fall back to single-step generation
+        return this.generateContent(
+          `You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews.
+
+Original LaTeX Resume:
+${originalLatex}
+
+Job Description:
+${jobDesc}
+
+Knowledge Base / Additional Experience:
+${knowledgeBase}
+
+VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD.
+VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section.
+
+!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!`,
+          'latex',
+          modelType,
+          model
+        );
+      }
+      
+      // Check if there are relevant projects in the analysis
+      const hasRelevantProjects = analysis.relevantProjects && analysis.relevantProjects.length > 0;
+      console.log('[AIService] Relevant projects check:', { hasRelevantProjects });
+      
+      // If no relevant projects, fall back to single-step generation
+      if (!hasRelevantProjects) {
+        console.log('[AIService] No relevant projects found, falling back to single-step generation');
+        return this.generateContent(
+          `You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews.
+
+Original LaTeX Resume:
+${originalLatex}
+
+Job Description:
+${jobDesc}
+
+Knowledge Base / Additional Experience:
+${knowledgeBase}
+
+VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD.
+VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section.
+
+!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!`,
+          'latex',
+          modelType,
+          model
+        );
+      }
+      
+      // Step 2: Generate optimized projects section
+      const originalProjects = this._extractProjectsSection(originalLatex);
+      
+      const projectsPrompt = projectsPromptTemplate
+        .replace('{originalProjects}', originalProjects)
+        .replace('{jobDesc}', jobDesc)
+        .replace('{analysisProjects}', JSON.stringify(analysis.relevantProjects, null, 2))
+        .replace('{requiredTechnologies}', analysis.requiredTechnologies.join(', '))
+        .replace('{keyMetrics}', analysis.keyMetrics.join(', '));
+      
+      dispatchStatus(2, 'Optimizing projects section');
+      console.log('[AIService] Step 2: Generating optimized projects section');
+      const optimizedProjects = await this.generateWithCurrentModel(projectsPrompt);
+      
+      // Step 3: Generate final resume with optimized projects
+      const finalPrompt = finalPromptTemplate
+        .replace('{originalLatex}', originalLatex)
+        .replace('{optimizedProjects}', optimizedProjects)
+        .replace('{jobDesc}', jobDesc);
+      
+      dispatchStatus(3, 'Generating final resume');
+      console.log('[AIService] Step 3: Generating final resume');
+      const finalResponse = await this.generateWithCurrentModel(finalPrompt);
+      
+      return this.cleanLatexResponse(finalResponse);
+    } catch (error) {
+      console.error('[AIService] Multi-step generation error:', error);
+      // Fall back to single-step generation
+      return this.generateContent(
+        `You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews.
+
+Original LaTeX Resume:
+${originalLatex}
+
+Job Description:
+${jobDesc}
+
+Knowledge Base / Additional Experience:
+${knowledgeBase}
+
+VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD.
+VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section.
+
+!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!`,
+        'latex',
+        modelType,
+        model
+      );
+    }
+  }
+  
+  // Helper method to extract the projects section from LaTeX
+  _extractProjectsSection(latex) {
+    try {
+      // Look for the projects section using common LaTeX section markers
+      const projectSectionRegex = /\\section\{Projects\}([\s\S]*?)(?=\\section\{|$)/i;
+      const match = latex.match(projectSectionRegex);
+      
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+      
+      // Fallback: look for any section that might contain projects
+      const sectionRegex = /\\section\{([^}]*)\}([\s\S]*?)(?=\\section\{|$)/g;
+      let sections = [];
+      let sectionMatch;
+      
+      while ((sectionMatch = sectionRegex.exec(latex)) !== null) {
+        const sectionTitle = sectionMatch[1].toLowerCase();
+        if (sectionTitle.includes('project') || sectionTitle.includes('experience')) {
+          sections.push(sectionMatch[0]);
+        }
+      }
+      
+      if (sections.length > 0) {
+        return sections.join('\n\n');
+      }
+      
+      // If we still can't find a projects section, return a placeholder
+      return "\\section{Projects}\n\\resumeSubHeadingListStart\n\\resumeProjectHeading\n{\\textbf{Project Name} $|$ \\emph{Technologies}}{}\n\\resumeItemListStart\n\\resumeItem{\\textbf{Description} of the project.}\n\\resumeItemListEnd\n\\resumeSubHeadingListEnd";
+    } catch (error) {
+      console.error('[AIService] Error extracting projects section:', error);
+      return "\\section{Projects}\n\\resumeSubHeadingListStart\n\\resumeProjectHeading\n{\\textbf{Project Name} $|$ \\emph{Technologies}}{}\n\\resumeItemListStart\n\\resumeItem{\\textbf{Description} of the project.}\n\\resumeItemListEnd\n\\resumeSubHeadingListEnd";
+    }
   }
 }
 

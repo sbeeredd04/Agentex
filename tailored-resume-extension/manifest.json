@@ -12,9 +12,7 @@
       "unlimitedStorage"
     ],
     "host_permissions": [
-      "https://agentex.onrender.com/*",
-      "https://agentex.vercel.app/*",
-      "http://localhost:3000/*"
+      "https://agentex.onrender.com/*"
     ],
     "action": {
       "default_title": "Agentex",

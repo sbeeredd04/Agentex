@@ -1,6 +1,7 @@
 class ServerManager {
     constructor() {
-      this.API_URL = 'https://agentex-2bf8d640a131.herokuapp.com/';
+      // Use environment variable for API URL if available, otherwise use default
+      this.API_URL = process.env.API_URL || 'https://agentex.onrender.com';
       this.fileCache = new Map();
       this.currentRequest = null;
       console.log('[ServerManager] Initializing with API URL:', this.API_URL);

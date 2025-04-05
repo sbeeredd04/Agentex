@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: latex-compiler-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerCommand: npm start
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+    healthCheckPath: /health
+    autoDeploy: true 

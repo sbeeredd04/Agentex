@@ -13,10 +13,12 @@ RUN apt-get update && \
 # Install TeX Live and required packages
 RUN apt-get update && \
     apt-get install -y \
+    texlive-base \
     texlive-latex-base \
     texlive-fonts-recommended \
     texlive-fonts-extra \
     texlive-latex-extra \
+    texlive-latex-recommended \
     && rm -rf /var/lib/apt/lists/*
 
 # Verify installations

@@ -1,6 +1,6 @@
 class ServerManager {
     constructor() {
-      this.API_URL = 'http://localhost:3000';
+      this.API_URL = 'https://agentex.onrender.com';
       this.fileCache = new Map();
       this.currentRequest = null;
       console.log('[ServerManager] Initializing with API URL:', this.API_URL);

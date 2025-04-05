@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const libre = require('libreoffice-convert');
 const util = require('util');
 const multer = require('multer');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,7 +19,8 @@ const upload = multer({ storage: storage });
 const allowedOrigins = [
   'chrome-extension://jdinfdcbfmnnoanojkbokdhjpjognpmk',
   'https://agentex.vercel.app',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  'https://agentex.onrender.com'
 ];
 
 const PDFLATEX_PATH = '/Library/TeX/texbin/pdflatex';
@@ -64,21 +66,21 @@ async function cleanupFiles(fileId) {
   console.log('[Server] Cleanup completed');
 }
 
-// CORS middleware
-const allowCors = fn => async (req, res) => {
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(req.headers.origin) ? req.headers.origin : allowedOrigins[0]);
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-  return await fn(req, res);
-};
+// CORS configuration
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      return callback(new Error('CORS policy violation'), false);
+    }
+    return callback(null, true);
+  },
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -169,7 +171,7 @@ const compileHandler = async (req, res) => {
   }
 };
 
-app.post('/compile', allowCors(compileHandler));
+app.post('/compile', compileHandler);
 
 app.post('/save-docx', upload.single('file'), async (req, res) => {
   try {

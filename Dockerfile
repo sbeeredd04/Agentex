@@ -30,14 +30,14 @@ RUN pdflatex --version
 # Create app directory
 WORKDIR /app
 
-# Copy package files from server directory
-COPY tailored-resume-extension/server/package*.json ./
+# Copy package files
+COPY package*.json ./
 
 # Install dependencies
 RUN npm install
 
 # Copy server source
-COPY tailored-resume-extension/server/ .
+COPY . .
 
 # Create required directories
 RUN mkdir -p /tmp/pdf

@@ -4,8 +4,8 @@ services:
     runtime: docker
     region: oregon
     plan: free
-    rootDir: .
-    dockerfilePath: Dockerfile
+    rootDir: tailored-resume-extension/server
+    dockerfilePath: ../../Dockerfile
     envVars:
       - key: PORT
         value: 10000

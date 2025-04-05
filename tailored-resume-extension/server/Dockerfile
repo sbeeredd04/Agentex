@@ -1,30 +1,28 @@
 # Use Ubuntu as base image for better TeX Live support
 FROM ubuntu:22.04
 
-# Prevent tzdata questions during install
+# Prevent interactive prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install Node.js and npm
-RUN apt-get update && \
-    apt-get install -y curl && \
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y nodejs
+RUN apt-get update && apt-get install -y curl
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+RUN apt-get install -y nodejs
 
 # Install TeX Live and required packages
-RUN apt-get update && \
-    apt-get install -y \
-    texlive-base \
-    texlive-latex-base \
+RUN apt-get update && apt-get install -y \
+    texlive-full \
+    texlive-latex-recommended \
+    texlive-latex-extra \
     texlive-fonts-recommended \
     texlive-fonts-extra \
-    texlive-latex-extra \
-    texlive-latex-recommended \
     && rm -rf /var/lib/apt/lists/*
 
 # Verify installations
-RUN node --version && \
-    npm --version && \
-    pdflatex --version
+RUN node --version
+RUN npm --version
+RUN which pdflatex
+RUN pdflatex --version
 
 # Create app directory
 WORKDIR /app
@@ -46,4 +44,4 @@ ENV PORT=10000
 EXPOSE 10000
 
 # Start the server
-CMD ["npm", "start"] 
+CMD ["node", "server.js"] 

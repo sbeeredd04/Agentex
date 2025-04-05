@@ -28,6 +28,9 @@ const PDFLATEX_PATH = process.platform === 'darwin'
   ? '/Library/TeX/texbin/pdflatex'
   : '/usr/bin/pdflatex';
 
+// Log the pdflatex path for debugging
+console.log('[Server] Using pdflatex path:', PDFLATEX_PATH);
+
 const TMP_DIR = '/tmp';
 const PDF_DIR = '/tmp/pdf';
 
@@ -36,12 +39,23 @@ const convertAsync = util.promisify(libre.convert);
 // Function to check if pdflatex is installed
 async function checkPdfLatex() {
   return new Promise((resolve) => {
+    // First try to find pdflatex in PATH
     exec('which pdflatex', (error, stdout, stderr) => {
       if (error) {
-        console.error('[Server] pdflatex not found:', error);
-        resolve(false);
+        console.error('[Server] pdflatex not found in PATH:', error);
+        
+        // Try to check if pdflatex exists at the expected path
+        fs.access(PDFLATEX_PATH)
+          .then(() => {
+            console.log('[Server] pdflatex found at expected path:', PDFLATEX_PATH);
+            resolve(true);
+          })
+          .catch(() => {
+            console.error('[Server] pdflatex not found at expected path:', PDFLATEX_PATH);
+            resolve(false);
+          });
       } else {
-        console.log('[Server] pdflatex found at:', stdout.trim());
+        console.log('[Server] pdflatex found in PATH at:', stdout.trim());
         resolve(true);
       }
     });

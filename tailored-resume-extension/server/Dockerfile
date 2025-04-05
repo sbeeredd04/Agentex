@@ -36,7 +36,7 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install
 
-# Copy app source
+# Copy server source
 COPY . .
 
 # Create required directories

@@ -12,7 +12,7 @@
       "unlimitedStorage"
     ],
     "host_permissions": [
-      "https://agentex.onrender.com/*",
+      "https://agentex-2bf8d640a131.herokuapp.com//*",
       "https://agentex.vercel.app/*",
       "http://localhost:3000/*"
     ],

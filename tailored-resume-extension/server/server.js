@@ -20,7 +20,7 @@ const allowedOrigins = [
   'chrome-extension://jdinfdcbfmnnoanojkbokdhjpjognpmk',
   'https://agentex.vercel.app',
   'http://localhost:3000',
-  'https://agentex.onrender.com'
+  'https://agentex-2bf8d640a131.herokuapp.com/'
 ];
 
 // Platform-independent pdflatex path

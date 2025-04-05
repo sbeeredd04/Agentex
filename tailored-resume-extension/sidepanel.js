@@ -945,6 +945,26 @@ function setupModelSelector() {
     return;
   }
 
+  // Clear existing options
+  modelSelect.innerHTML = '';
+
+  // Add Gemini option
+  const geminiOption = document.createElement('option');
+  geminiOption.value = 'gemini';
+  geminiOption.textContent = 'Gemini 2.0 Flash';
+  modelSelect.appendChild(geminiOption);
+
+  // Add Groq options with BETA tags and disabled state
+  const groqModels = aiService.models.groq.models;
+  Object.keys(groqModels).forEach(modelName => {
+    const groqOption = document.createElement('option');
+    groqOption.value = `groq:${modelName}`;
+    groqOption.textContent = `${modelName} (BETA - Coming Soon)`;
+    groqOption.disabled = true; // Disable the option so it can't be selected
+    modelSelect.appendChild(groqOption);
+  });
+
+  // Add event listener for model selection
   modelSelect.addEventListener('change', (e) => {
     const [type, model] = e.target.value.split(':');
     currentModelSelection = {
@@ -991,6 +1011,32 @@ function setupModelSelector() {
       description: 'Gemini 2.0 Flash'
     };
     modelSelect.value = 'gemini';
+  }
+
+  // Add a note about Groq models being upcoming
+  const modelSelectContainer = modelSelect.parentElement;
+  if (modelSelectContainer) {
+    const betaNote = document.createElement('div');
+    betaNote.className = 'beta-note';
+    betaNote.innerHTML = '<span class="beta-tag">BETA</span> Groq models are coming soon!';
+    betaNote.style.fontSize = '12px';
+    betaNote.style.color = '#888';
+    betaNote.style.marginTop = '5px';
+    betaNote.style.display = 'flex';
+    betaNote.style.alignItems = 'center';
+    betaNote.style.gap = '5px';
+    
+    const betaTag = betaNote.querySelector('.beta-tag');
+    if (betaTag) {
+      betaTag.style.backgroundColor = '#ff9800';
+      betaTag.style.color = 'white';
+      betaTag.style.padding = '2px 5px';
+      betaTag.style.borderRadius = '3px';
+      betaTag.style.fontSize = '10px';
+      betaTag.style.fontWeight = 'bold';
+    }
+    
+    modelSelectContainer.appendChild(betaNote);
   }
 
   // Log available models on initialization

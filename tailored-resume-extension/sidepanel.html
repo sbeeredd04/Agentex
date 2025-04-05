@@ -42,14 +42,6 @@
       <div class="section upload-section glass-morphism">
         <div class="section-header">
           <h3>Resume Template</h3>
-          <div class="action-buttons">
-            <button class="icon-button" title="Load existing">
-              <span class="material-icons">folder_open</span>
-            </button>
-            <button class="icon-button" title="Create new">
-              <span class="material-icons">add</span>
-            </button>
-          </div>
         </div>
         
         <div class="upload-area">
@@ -68,14 +60,6 @@
       <div class="section job-section glass-morphism">
         <div class="section-header">
           <h3>Job Description</h3>
-          <div class="action-buttons">
-            <button class="icon-button" title="Save">
-              <span class="material-icons">bookmark</span>
-            </button>
-            <button class="icon-button" title="Clear">
-              <span class="material-icons">clear</span>
-            </button>
-          </div>
         </div>
         <textarea id="jobDesc" class="modern-input" placeholder="Paste the job description here..."></textarea>
       </div>
@@ -83,9 +67,6 @@
       <div class="section knowledge-section glass-morphism">
         <div class="section-header">
           <h3>Knowledge Base</h3>
-          <button class="icon-button" title="Add entry">
-            <span class="material-icons">add</span>
-          </button>
         </div>
         <textarea id="knowledgeBaseText" class="modern-input" placeholder="Add your skills, experiences, and achievements..."></textarea>
       </div>
@@ -105,10 +86,6 @@
         <button id="generateBtn" class="action-button primary">
           <span class="material-icons">auto_fix_high</span>
           <span>Generate Resume</span>
-        </button>
-        <button id="downloadBtn" class="action-button secondary" disabled>
-          <span class="material-icons">download</span>
-          <span>Download PDF</span>
         </button>
       </div>
 
@@ -146,18 +123,23 @@
   </div>
 
   <!-- Settings Modal -->
-  <div id="settingsModal" class="modal glass-morphism">
-    <div class="modal-content glass-morphism">
+  <div id="settingsModal" class="modal">
+    <div class="modal-content">
       <div class="modal-header">
-        <h2>Settings</h2>
-        <button class="icon-button close-modal" title="Close">
-          <span class="material-icons">close</span>
-        </button>
+        <div class="header-content">
+          <h2>Settings</h2>
+          <button class="icon-button close-modal" title="Close">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
       </div>
       <div class="modal-body">
         <div class="settings-section">
-          <h3>API Keys</h3>
-          <div class="api-key-input glass-morphism">
+          <div class="section-header">
+            <h3>API Keys</h3>
+            <span class="section-description">Configure your API keys for AI services</span>
+          </div>
+          <div class="api-key-input">
             <div class="api-key-header">
               <label for="geminiApiKey">Gemini API Key</label>
               <a href="https://aistudio.google.com/app/apikey" target="_blank" class="api-link" title="Get Gemini API Key">
@@ -172,7 +154,7 @@
               </button>
             </div>
           </div>
-          <div class="api-key-input glass-morphism">
+          <div class="api-key-input">
             <div class="api-key-header">
               <label for="groqApiKey">Groq API Key</label>
               <a href="https://console.groq.com/keys" target="_blank" class="api-link" title="Get Groq API Key">
@@ -192,15 +174,37 @@
         <div class="settings-section">
           <div class="section-header">
             <h3>Custom Prompt Template</h3>
-            <button id="resetPrompt" class="icon-button" title="Reset to default">
-              <span class="material-icons">restart_alt</span>
-            </button>
+            <div class="header-actions">
+              <button id="resetPrompt" class="icon-button" title="Reset to default">
+                <span class="material-icons">restart_alt</span>
+              </button>
+            </div>
           </div>
-          <div class="prompt-container glass-morphism">
+          <div class="section-description">Customize the prompt template for text generation</div>
+          <div class="prompt-container">
             <textarea 
               id="customPrompt" 
               class="modern-input custom-scroll"
               placeholder="Enter your custom prompt template..."
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-header">
+            <h3>DOCX Prompt Template</h3>
+            <div class="header-actions">
+              <button id="resetDocxPrompt" class="icon-button" title="Reset to default">
+                <span class="material-icons">restart_alt</span>
+              </button>
+            </div>
+          </div>
+          <div class="section-description">Customize the prompt template for DOCX processing</div>
+          <div class="prompt-container">
+            <textarea 
+              id="docxCustomPrompt" 
+              class="modern-input custom-scroll"
+              placeholder="Enter your custom DOCX prompt template..."
             ></textarea>
           </div>
         </div>

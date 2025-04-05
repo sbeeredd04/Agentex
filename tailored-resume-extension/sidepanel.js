@@ -3,6 +3,7 @@ console.log('Initializing popup.js');
 
 // Global variables and state
 let aiService;
+let docxService = null;
 let originalLatex = null;
 let tailoredLatex = null;
 let originalCoverLetter = null;
@@ -96,11 +97,8 @@ VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are
 - Exceed original item length by >20%
 - Remove JD-matched content
 
-!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE!!
+!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!
 `;
-
-// Add this with other global variables at the top
-let docxService = null;
 
 // Function to display status messages
 function showStatus(message, type = 'info') {
@@ -158,7 +156,6 @@ function setupUIElements() {
   const elements = {
     latexFileInput: document.getElementById('latexFile'),
     jobDescInput: document.getElementById('jobDesc'),
-    downloadBtn: document.getElementById('downloadBtn'),
     knowledgeBaseText: document.getElementById('knowledgeBaseText'),
     pdfPreviewArea: document.getElementById('pdfPreviewArea')
   };
@@ -383,12 +380,6 @@ async function generatePdfPreview(content, type = 'original') {
           type: content?.type,
           hasData: !!content?.data,
           dataType: typeof content?.data
-        },
-        sidebarState: {
-          fileType: sidebarState.fileType,
-          contentType: sidebarState.contentType,
-          hasOriginalDocx: !!sidebarState.originalDocx,
-          hasTailoredDocx: !!sidebarState.tailoredDocx
         }
       });
 
@@ -407,21 +398,10 @@ async function generatePdfPreview(content, type = 'original') {
 
       showStatus('Generating PDF preview...', 'info');
 
-      // Get the appropriate DOCX content with enhanced debugging
+      // Get the appropriate DOCX content
       const docxContent = type === 'generated' ? 
         sidebarState.tailoredDocx : 
         sidebarState.originalDocx;
-
-      console.log('[PdfPreview] Selected DOCX content:', {
-        type: type,
-        docxContent: {
-          exists: !!docxContent,
-          type: docxContent?.type,
-          hasData: !!docxContent?.data,
-          dataLength: docxContent?.data?.length,
-          originalName: docxContent?.originalName
-        }
-      });
 
       if (!docxContent || !docxContent.data) {
         throw new Error('DOCX content not found');
@@ -467,18 +447,69 @@ async function generatePdfPreview(content, type = 'original') {
       // Create URL for the PDF
       const pdfUrl = URL.createObjectURL(pdfResult.content);
 
-      // Create iframe for PDF preview
-      const iframe = document.createElement('iframe');
-      iframe.src = `${pdfUrl}#zoom=FitH`;
-      iframe.style.width = '100%';
-      iframe.style.height = '500px';
-      iframe.style.border = 'none';
+      // Create PDF viewer with toolbar
+      pdfPreviewArea.innerHTML = `
+        <div class="pdf-container">
+          <div class="pdf-toolbar">
+            <button onclick="window.zoomIn()">
+              <span class="material-icons">zoom_in</span>
+              Zoom In
+            </button>
+            <button onclick="window.zoomOut()">
+              <span class="material-icons">zoom_out</span>
+              Zoom Out
+            </button>
+            <div class="separator"></div>
+            <button onclick="window.downloadPdf()">
+              <span class="material-icons">download</span>
+              Download
+            </button>
+            <button onclick="window.printPdf()">
+              <span class="material-icons">print</span>
+              Print
+            </button>
+          </div>
+          <div class="pdf-viewer">
+            <iframe src="${pdfUrl}#toolbar=1&navpanes=1&scrollbar=1&zoom=100" frameborder="0"></iframe>
+          </div>
+        </div>
+      `;
 
-      // Clear previous content and add iframe
-      pdfPreviewArea.innerHTML = '';
-      pdfPreviewArea.appendChild(iframe);
+      // Add window functions for toolbar actions
+      window.zoomIn = () => {
+        const iframe = pdfPreviewArea.querySelector('iframe');
+        if (iframe) {
+          const currentZoom = parseInt(iframe.src.match(/zoom=(\d+)/)?.[1] || '100');
+          const newZoom = Math.min(currentZoom + 25, 200);
+          iframe.src = iframe.src.replace(/zoom=\d+/, `zoom=${newZoom}`);
+        }
+      };
+
+      window.zoomOut = () => {
+        const iframe = pdfPreviewArea.querySelector('iframe');
+        if (iframe) {
+          const currentZoom = parseInt(iframe.src.match(/zoom=(\d+)/)?.[1] || '100');
+          const newZoom = Math.max(currentZoom - 25, 50);
+          iframe.src = iframe.src.replace(/zoom=\d+/, `zoom=${newZoom}`);
+        }
+      };
+
+      window.downloadPdf = () => {
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = docxContent.originalName?.replace('.docx', '.pdf') || 'resume.pdf';
+        link.click();
+      };
+
+      window.printPdf = () => {
+        const iframe = pdfPreviewArea.querySelector('iframe');
+        if (iframe) {
+          iframe.contentWindow.print();
+        }
+      };
 
       // Monitor iframe loading
+      const iframe = pdfPreviewArea.querySelector('iframe');
       iframe.onload = () => {
         console.log('[PdfPreview] PDF iframe loaded successfully');
         showStatus('PDF preview loaded successfully!', 'success');
@@ -487,20 +518,22 @@ async function generatePdfPreview(content, type = 'original') {
       return true;
 
     } catch (error) {
-      console.error('[PdfPreview] Error:', {
-        error,
-        message: error.message,
-        stack: error.stack,
-        state: {
-          type: type,
-          hasContent: !!content,
-          sidebarState: {
-            contentType: sidebarState.contentType,
-            fileType: sidebarState.fileType
-          }
-        }
-      });
+      console.error('[PdfPreview] Error:', error);
       showStatus(`Preview generation failed: ${error.message}`, 'error');
+      
+      // Show error in preview area
+      if (pdfPreviewArea) {
+        pdfPreviewArea.innerHTML = `
+          <div class="error-message">
+            <span class="material-icons">error_outline</span>
+            <p>Failed to generate PDF preview: ${error.message}</p>
+            <button onclick="window.retryPdfPreview()" class="retry-button">
+              <span class="material-icons">refresh</span>
+              Retry
+            </button>
+          </div>
+        `;
+      }
       return false;
     }
   });
@@ -557,38 +590,31 @@ async function restoreState() {
     });
     
     if (savedState) {
-      // Merge saved state with default state
+      // Merge saved state with default state, but don't restore content
       sidebarState = {
         ...sidebarState,
-        ...savedState
+        activeTab: savedState.activeTab || 'resume',
+        previewMode: savedState.previewMode || 'text',
+        contentType: 'original', // Always start with original content
+        selectedModel: savedState.selectedModel || {
+          type: 'gemini',
+          model: null,
+          lastUsed: null
+        },
+        lastJobDescription: savedState.lastJobDescription || '',
+        lastKnowledgeBaseText: savedState.lastKnowledgeBaseText || '',
+        uploadedFileName: savedState.uploadedFileName || '',
+        isPreviewExpanded: savedState.isPreviewExpanded || false,
+        fileType: savedState.fileType || null
       };
-
-      // Restore content variables based on file type
-      if (savedState.fileType === 'latex') {
-        if (savedState.originalContent) {
-          originalLatex = savedState.originalContent;
-        }
-        if (savedTailoredLatex) {
-          tailoredLatex = savedTailoredLatex;
-        }
-      } else if (savedState.fileType === 'docx') {
-        // Restore DOCX content
-        if (savedState.originalDocx) {
-          sidebarState.originalDocx = savedState.originalDocx;
-        }
-        if (savedGeneratedDocx) {
-          sidebarState.tailoredDocx = savedGeneratedDocx;
-        }
-        if (savedGeneratedRawContent) {
-          sidebarState.tailoredContent = savedGeneratedRawContent;
-        }
-      }
 
       // Update UI elements
       const elements = {
         jobDescInput: document.getElementById('jobDesc'),
         knowledgeBaseText: document.getElementById('knowledgeBaseText'),
-        fileNameDisplay: document.getElementById('fileNameDisplay')
+        fileNameDisplay: document.getElementById('fileNameDisplay'),
+        rawPreview: document.getElementById('rawPreview'),
+        compiledPreview: document.getElementById('compiledPreview')
       };
 
       // Restore input values
@@ -604,18 +630,53 @@ async function restoreState() {
         showSuccessfulUploadFeedback(sidebarState.uploadedFileName);
       }
 
-      // Update preview content based on file type and content type
-      if (sidebarState.fileType === 'latex') {
-        const contentToShow = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
-        if (contentToShow) {
-          await updatePreviewContent();
-        }
-      } else if (sidebarState.fileType === 'docx') {
-        const contentToShow = sidebarState.contentType === 'generated' ? 
-          sidebarState.tailoredDocx : 
-          sidebarState.originalDocx;
-        if (contentToShow) {
-          await generatePdfPreview(contentToShow, sidebarState.contentType);
+      // Show raw preview by default
+      if (elements.rawPreview && elements.compiledPreview) {
+        elements.rawPreview.style.display = 'block';
+        elements.compiledPreview.style.display = 'none';
+      }
+
+      // If we have a file type and name, try to load the file
+      if (sidebarState.fileType && sidebarState.uploadedFileName) {
+        try {
+          // Show loading state
+          const rawPreview = document.querySelector('.preview-text-content');
+          if (rawPreview) {
+            rawPreview.innerHTML = '<div class="loading-preview"><div class="loading-spinner"></div><span>Loading file...</span></div>';
+          }
+
+          // Create a File object from the saved content
+          let file;
+          if (sidebarState.fileType === 'latex') {
+            // For LaTeX files, create a text file
+            const blob = new Blob([savedState.originalContent || ''], { type: 'text/plain' });
+            file = new File([blob], sidebarState.uploadedFileName, { type: 'text/plain' });
+          } else if (sidebarState.fileType === 'docx') {
+            // For DOCX files, create a binary file
+            const arrayBuffer = docxService.base64ToArrayBuffer(savedState.originalDocx?.data || '');
+            const blob = new Blob([arrayBuffer], { 
+              type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+            });
+            file = new File([blob], sidebarState.uploadedFileName, { 
+              type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+            });
+          }
+
+          if (file) {
+            // Use the file upload handler to process the file
+            await handleFileUpload(file);
+            
+            // After successful upload, restore any generated content if it exists
+            if (sidebarState.fileType === 'latex' && savedTailoredLatex) {
+              tailoredLatex = savedTailoredLatex;
+            } else if (sidebarState.fileType === 'docx' && savedGeneratedDocx) {
+              sidebarState.tailoredDocx = savedGeneratedDocx;
+              sidebarState.tailoredContent = savedGeneratedRawContent;
+            }
+          }
+        } catch (error) {
+          console.error('[State] Error loading file:', error);
+          showToast('Error loading file. Please re-upload manually.', 'error');
         }
       }
     }
@@ -675,6 +736,9 @@ async function handleFileUpload(file) {
     const fileHandler = new FileHandler();
     const result = await fileHandler.handleFile(file);
 
+    // Set file type attribute on document root
+    document.documentElement.setAttribute('data-file-type', result.type);
+
     console.log('[FileUpload] File processing result:', {
       type: result.type,
       hasContent: !!result.content,
@@ -725,59 +789,98 @@ async function handleFileUpload(file) {
 }
 
 // UI feedback functions
+function showToast(message, type = 'info', duration = 5000) {
+  const toastContainer = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  const toastId = `toast-${Date.now()}`;
+  
+  const visualType = type === 'info' ? 'success' : type;
+  
+  toast.id = toastId;
+  toast.className = `toast ${visualType}`;
+  toast.innerHTML = `
+    <div class="toast-content">
+      <span class="material-icons toast-icon">
+        ${visualType === 'success' ? 'check_circle' : visualType === 'error' ? 'error' : 'info'}
+      </span>
+      <span class="toast-message">${message}</span>
+    </div>
+    <button class="toast-close">
+      <span class="material-icons">close</span>
+    </button>
+  `;
+
+  toastContainer.appendChild(toast);
+
+  const closeBtn = toast.querySelector('.toast-close');
+  closeBtn.addEventListener('click', () => {
+    toast.style.animation = 'slideOut 0.3s ease forwards';
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  });
+
+  if (duration > 0) {
+    setTimeout(() => {
+      if (document.getElementById(toastId)) {
+        toast.style.animation = 'slideOut 0.3s ease forwards';
+        setTimeout(() => {
+          toast.remove();
+        }, 300);
+      }
+    }, duration);
+  }
+}
+
 function showUploadingFeedback(fileName) {
   const display = document.getElementById('fileNameDisplay');
-if (display) {
-  display.innerHTML = `
-    <div class="file-upload-feedback uploading">
-      <div class="loading-spinner"></div>
-      <span class="material-icons">sync</span>
-      <span>${fileName}</span>
-    </div>
-  `;
-}
+  if (display) {
+    display.innerHTML = `
+      <div class="file-upload-feedback uploading">
+        <div class="loading-spinner"></div>
+        <span class="material-icons">sync</span>
+        <span>${fileName}</span>
+      </div>
+    `;
+  }
 }
 
 function showSuccessfulUploadFeedback(fileName) {
   const display = document.getElementById('fileNameDisplay');
-if (display) {
-  display.innerHTML = `
-    <div class="file-upload-feedback success">
-      <span class="material-icons">check_circle</span>
-      <span>${fileName}</span>
-    </div>
-  `;
-}
+  if (display) {
+    display.innerHTML = `
+      <div class="file-upload-feedback success">
+        <span class="material-icons">check_circle</span>
+        <span>${fileName}</span>
+      </div>
+    `;
+  }
 }
 
 function showFailedUploadFeedback() {
   const display = document.getElementById('fileNameDisplay');
-if (display) {
-  display.innerHTML = `
-    <div class="file-upload-feedback error">
-      <span class="material-icons">error</span>
-      <span>Upload failed</span>
-    </div>
-  `;
-}
+  if (display) {
+    display.innerHTML = `
+      <div class="file-upload-feedback error">
+        <span class="material-icons">error</span>
+        <span>Upload failed</span>
+      </div>
+    `;
+  }
 }
 
-// Update the waitForServerManager function
+// Server management
 function waitForServerManager() {
   return new Promise((resolve, reject) => {
     let attempts = 0;
     const maxAttempts = 50;
-    const interval = 100; // 100ms between attempts
+    const interval = 100;
     
     const check = () => {
       attempts++;
-      console.log('[Sidepanel] Checking for ServerManager, attempt:', attempts);
-      
       if (window.ServerManager) {
-        console.log('[Sidepanel] ServerManager found');
         resolve(window.ServerManager);
       } else if (attempts > maxAttempts) {
-        console.error('[Sidepanel] ServerManager not found after', maxAttempts, 'attempts');
         reject(new Error(`ServerManager not found after ${maxAttempts} attempts`));
       } else {
         setTimeout(check, interval);
@@ -788,67 +891,11 @@ function waitForServerManager() {
   });
 }
 
-// Update the preview toggle handling
-function setupPreviewToggle() {
-  const toggleButtons = document.querySelectorAll('.preview-toggle-btn');
-  const rawPreview = document.getElementById('rawPreview');
-  const compiledPreview = document.getElementById('compiledPreview');
-
-  toggleButtons.forEach(button => {
-    button.addEventListener('click', async () => {
-      if (requestTracker.isProcessing) {
-        console.log('[Preview] Update in progress, ignoring click');
-        return;
-      }
-
-      console.log('[Preview] Switching view to:', button.dataset.view);
-
-      // Update button states
-      toggleButtons.forEach(btn => btn.classList.remove('active'));
-      button.classList.add('active');
-
-      const view = button.dataset.view;
-      
-      if (view === 'raw') {
-        rawPreview.style.display = 'block';
-        compiledPreview.style.display = 'none';
-      } else {
-        rawPreview.style.display = 'none';
-        compiledPreview.style.display = 'block';
-        
-        // Get the appropriate content for PDF preview
-        let content;
-        if (sidebarState.fileType === 'latex') {
-          content = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
-          
-          console.log('[Preview] Preparing LaTeX content for PDF:', {
-            hasContent: !!content,
-            contentType: sidebarState.contentType,
-            contentLength: content?.length
-          });
-
-          if (content) {
-            await generateLatexPreview(content);
-          } else {
-            console.error('[Preview] No content available for PDF preview');
-            showStatus('No content available for preview', 'error');
-          }
-        }
-      }
-    });
-  });
-}
-
-// Update the initialization function
+// Initialization
 async function initializeSidepanel() {
-  console.log('[Sidepanel] Initializing...');
   try {
-    injectPreviewStyles();
-    // Wait for ServerManager to be available
     const serverManager = await waitForServerManager();
-    console.log('[Sidepanel] ServerManager loaded:', serverManager);
     
-    // Check for required services
     if (!window.AIService) {
       throw new Error('AIService not found');
     }
@@ -856,11 +903,9 @@ async function initializeSidepanel() {
       throw new Error('DocxService not found');
     }
     
-    console.log('[Sidepanel] Initializing services...');
     aiService = new window.AIService();
     docxService = new window.DocxService();
     
-    // Set up UI and event listeners
     const elements = setupUIElements();
     setupEventListeners(elements);
     setupPreviewUI();
@@ -869,21 +914,32 @@ async function initializeSidepanel() {
     setupPreviewToggle();
     
     await restoreState();
-    
     setupGenerateButton();
-    
-    console.log('[Sidepanel] UI initialized successfully');
   } catch (error) {
     console.error('[Sidepanel] Initialization failed:', error);
     showToast('Failed to initialize sidepanel: ' + error.message, 'error');
   }
 }
 
-// Make sure DOM is loaded before initializing
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initializeSidepanel);
 } else {
   initializeSidepanel();
+}
+
+// Cleanup
+function cleanupBlobUrls() {
+  if (window.lastPdfUrl) {
+    URL.revokeObjectURL(window.lastPdfUrl);
+    window.lastPdfUrl = null;
+  }
+  if (window.lastTailoredPdfUrl) {
+    URL.revokeObjectURL(window.lastTailoredPdfUrl);
+    window.lastTailoredPdfUrl = null;
+  }
+  if (window.isPreviewUpdating) {
+    window.isPreviewUpdating = false;
+  }
 }
 
 // Add this function to setup model selection
@@ -1184,53 +1240,6 @@ async function generateTailoredDocx() {
   }
 }
 
-// Update the showToast function to handle more types
-function showToast(message, type = 'info', duration = 5000) {
-  const toastContainer = document.getElementById('toastContainer');
-  const toast = document.createElement('div');
-  const toastId = `toast-${Date.now()}`;
-  
-  // Map info type to success for visual purposes
-  const visualType = type === 'info' ? 'success' : type;
-  
-  toast.id = toastId;
-  toast.className = `toast ${visualType}`;
-  toast.innerHTML = `
-    <div class="toast-content">
-      <span class="material-icons toast-icon">
-        ${visualType === 'success' ? 'check_circle' : visualType === 'error' ? 'error' : 'info'}
-      </span>
-      <span class="toast-message">${message}</span>
-    </div>
-    <button class="toast-close">
-      <span class="material-icons">close</span>
-    </button>
-  `;
-
-  toastContainer.appendChild(toast);
-
-  // Add click handler for close button
-  const closeBtn = toast.querySelector('.toast-close');
-  closeBtn.addEventListener('click', () => {
-    toast.style.animation = 'slideOut 0.3s ease forwards';
-    setTimeout(() => {
-      toast.remove();
-    }, 300);
-  });
-
-  // Auto remove after duration (if specified)
-  if (duration > 0) {
-    setTimeout(() => {
-      if (document.getElementById(toastId)) {
-        toast.style.animation = 'slideOut 0.3s ease forwards';
-        setTimeout(() => {
-          toast.remove();
-        }, 300);
-      }
-    }, duration);
-  }
-}
-
 // Update the setupApiKeyManagement function
 function setupApiKeyManagement() {
   const modal = document.getElementById('settingsModal');
@@ -1240,9 +1249,13 @@ function setupApiKeyManagement() {
   const geminiInput = document.getElementById('geminiApiKey');
   const groqInput = document.getElementById('groqApiKey');
   const promptInput = document.getElementById('customPrompt');
+  const docxPromptInput = document.getElementById('docxCustomPrompt');
+
+  // Get the default DOCX prompt
+  const defaultDocxPrompt = window.DocxAIService?.DEFAULT_PROMPT || '';
 
   // Load saved settings
-  chrome.storage.local.get(['geminiApiKey', 'groqApiKey', 'customPrompt'], (result) => {
+  chrome.storage.local.get(['geminiApiKey', 'groqApiKey', 'customPrompt', 'docxCustomPrompt'], (result) => {
     if (result.geminiApiKey) {
       geminiInput.value = result.geminiApiKey;
     }
@@ -1254,16 +1267,30 @@ function setupApiKeyManagement() {
     } else {
       promptInput.value = DEFAULT_PROMPT;
     }
+    if (result.docxCustomPrompt) {
+      docxPromptInput.value = result.docxCustomPrompt;
+    } else {
+      docxPromptInput.value = defaultDocxPrompt;
+    }
   });
 
-  // Reset prompt with animation
+  // Reset prompts with animation
   document.getElementById('resetPrompt').addEventListener('click', () => {
     promptInput.style.opacity = '0';
     setTimeout(() => {
       promptInput.value = DEFAULT_PROMPT;
       promptInput.style.opacity = '1';
     }, 200);
-    showToast('Prompt reset to default', 'info');
+    showToast('LaTeX prompt reset to default', 'info');
+  });
+
+  document.getElementById('resetDocxPrompt').addEventListener('click', () => {
+    docxPromptInput.style.opacity = '0';
+    setTimeout(() => {
+      docxPromptInput.value = defaultDocxPrompt;
+      docxPromptInput.style.opacity = '1';
+    }, 200);
+    showToast('DOCX prompt reset to default', 'info');
   });
 
   // Toggle password visibility with icon update
@@ -1310,6 +1337,7 @@ function setupApiKeyManagement() {
     const geminiKey = geminiInput.value.trim();
     const groqKey = groqInput.value.trim();
     const customPrompt = promptInput.value.trim();
+    const docxCustomPrompt = docxPromptInput.value.trim();
 
     try {
       // Validate inputs
@@ -1317,7 +1345,10 @@ function setupApiKeyManagement() {
         throw new Error('Please enter at least one API key');
       }
       if (!customPrompt) {
-        throw new Error('Prompt template cannot be empty');
+        throw new Error('LaTeX prompt template cannot be empty');
+      }
+      if (!docxCustomPrompt) {
+        throw new Error('DOCX prompt template cannot be empty');
       }
 
       // Show saving state
@@ -1331,7 +1362,8 @@ function setupApiKeyManagement() {
       await chrome.storage.local.set({
         geminiApiKey: geminiKey,
         groqApiKey: groqKey,
-        customPrompt: customPrompt
+        customPrompt: customPrompt,
+        docxCustomPrompt: docxCustomPrompt
       });
 
       // Reinitialize AI service
@@ -1365,162 +1397,226 @@ function setupApiKeyManagement() {
   });
 }
 
-// Add this function to clean up blob URLs when the panel closes or reloads
-function cleanupBlobUrls() {
-  if (window.lastPdfUrl) {
-    URL.revokeObjectURL(window.lastPdfUrl);
-    window.lastPdfUrl = null;
-  }
-  if (window.lastTailoredPdfUrl) {
-    URL.revokeObjectURL(window.lastTailoredPdfUrl);
-    window.lastTailoredPdfUrl = null;
-  }
-  if (window.isPreviewUpdating) {
-    window.isPreviewUpdating = false;
-  }
-}
+// Update the preview toggle handling
+function setupPreviewToggle() {
+  const toggleButtons = document.querySelectorAll('.preview-toggle-btn');
+  const rawPreview = document.getElementById('rawPreview');
+  const compiledPreview = document.getElementById('compiledPreview');
 
-// Add cleanup on tab visibility change
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    cleanupBlobUrls();
-  }
-});
-
-// Update handleGenerateClick function to properly handle file types
-async function handleGenerateClick() {
-  const generateBtn = document.getElementById('generateBtn');
-  const originalBtnContent = generateBtn.innerHTML;
-
-  try {
-    console.log('[Generate] Starting generation process:', {
-      fileType: sidebarState.fileType,
-      contentType: sidebarState.contentType,
-      hasOriginalLatex: !!originalLatex,
-      hasOriginalDocx: !!sidebarState.originalDocx,
-      currentState: {
-        ...sidebarState,
-        originalDocxPreview: sidebarState.originalDocx ? 'Present' : 'Missing'
-      }
-    });
-
-    // Show loading state
-    generateBtn.disabled = true;
-    generateBtn.innerHTML = `
-      <div class="loading-spinner"></div>
-      <span>Generating ${sidebarState.fileType?.toUpperCase() || 'Resume'}...</span>
-    `;
-
-    showToast(`Starting ${sidebarState.fileType?.toUpperCase() || 'resume'} generation...`, 'info');
-
-    // Validate file type and content
-    if (!sidebarState.fileType) {
-      throw new Error('No file type detected. Please upload a file first.');
+  // Add check for file type to disable compile button for DOCX
+  const updateCompileButtonState = () => {
+    const compileButton = document.querySelector('.preview-toggle-btn[data-view="compiled"]');
+    if (compileButton) {
+      const isDocx = sidebarState.fileType === 'docx';
+      compileButton.disabled = isDocx;
+      compileButton.title = isDocx ? 'Compilation not needed for DOCX files' : 'View compiled PDF';
+      compileButton.style.opacity = isDocx ? '0.5' : '1';
+      compileButton.style.cursor = isDocx ? 'not-allowed' : 'pointer';
     }
-
-    console.log('[Generate] Checking file type pipeline:', {
-      detectedType: sidebarState.fileType,
-      hasContent: sidebarState.fileType === 'docx' ? 
-        !!sidebarState.originalDocx : 
-        !!originalLatex
-    });
-
-    // Generate content based on file type
-    let result;
-    if (sidebarState.fileType === 'docx') {
-      console.log('[Generate] Using DOCX pipeline');
-      if (!sidebarState.originalDocx) {
-        throw new Error('DOCX content not found. Please upload your DOCX file again.');
-      }
-      result = await generateTailoredDocx();
-    } else if (sidebarState.fileType === 'latex') {
-      console.log('[Generate] Using LaTeX pipeline');
-      if (!originalLatex) {
-        throw new Error('LaTeX content not found. Please upload your LaTeX file again.');
-      }
-      result = await generateTailoredLatex();
-    } else {
-      throw new Error(`Unsupported file type: ${sidebarState.fileType}`);
-    }
-
-    console.log('[Generate] Generation result:', {
-      success: result.success,
-      type: result.type,
-      hasContent: result.type === 'docx' ? 
-        !!result.docx : 
-        !!result.content,
-      error: result.error
-    });
-
-    if (!result.success) {
-      throw new Error(result.error || 'Generation failed');
-    }
-
-    // Update state based on file type
-    if (result.type === 'docx') {
-      sidebarState.tailoredDocx = result.docx;
-      sidebarState.tailoredHtml = result.html;
-      sidebarState.tailoredContent = result.text;
-      console.log('[Generate] Updated DOCX state:', {
-        hasDocx: !!sidebarState.tailoredDocx,
-        hasHtml: !!sidebarState.tailoredHtml,
-        contentLength: sidebarState.tailoredContent?.length
-      });
-    } else {
-      tailoredLatex = result.content;
-      sidebarState.tailoredContent = result.content;
-      console.log('[Generate] Updated LaTeX state:', {
-        hasLatex: !!tailoredLatex,
-        contentLength: result.content?.length
-      });
-    }
-
-    sidebarState.contentType = 'generated';
-    await chrome.storage.local.set({ 
-      sidebarState,
-      tailoredLatex: result.type === 'latex' ? result.content : null
-    });
-
-    console.log('[Generate] State saved:', {
-      contentType: sidebarState.contentType,
-      fileType: sidebarState.fileType,
-      stateUpdated: true
-    });
-
-    // Update preview
-    await updatePreview();
-    
-    showToast(`${sidebarState.fileType.toUpperCase()} generated successfully!`, 'success');
-
-  } catch (error) {
-    console.error('[Generate] Error:', {
-      message: error.message,
-      fileType: sidebarState.fileType,
-      stack: error.stack
-    });
-    showToast(error.message, 'error');
-  } finally {
-    // Restore button state
-    generateBtn.disabled = false;
-    generateBtn.innerHTML = originalBtnContent;
-  }
-}
-
-// Add this function to validate current state
-function validateCurrentState() {
-  const state = {
-    fileType: sidebarState.fileType,
-    hasOriginalLatex: !!originalLatex,
-    hasOriginalDocx: !!sidebarState.originalDocx,
-    contentType: sidebarState.contentType,
-    hasTailoredContent: sidebarState.fileType === 'docx' ? 
-      !!sidebarState.tailoredDocx : 
-      !!tailoredLatex
   };
 
-  console.log('[State] Current state validation:', state);
-  return state;
+  toggleButtons.forEach(button => {
+    button.addEventListener('click', async () => {
+      if (requestTracker.isProcessing) {
+        console.log('[Preview] Update in progress, ignoring click');
+        return;
+      }
+
+      // Don't process click if button is disabled
+      if (button.disabled) {
+        return;
+      }
+
+      console.log('[Preview] Switching view to:', button.dataset.view);
+
+      // Update button states
+      toggleButtons.forEach(btn => btn.classList.remove('active'));
+      button.classList.add('active');
+
+      const view = button.dataset.view;
+      
+      if (view === 'raw') {
+        rawPreview.style.display = 'block';
+        compiledPreview.style.display = 'none';
+      } else {
+        // Only handle compilation view for LaTeX files
+        if (sidebarState.fileType === 'latex') {
+          rawPreview.style.display = 'none';
+          compiledPreview.style.display = 'block';
+          
+          // Get the appropriate LaTeX content
+          const content = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
+          
+          console.log('[Preview] Preparing LaTeX content for compilation:', {
+            hasContent: !!content,
+            contentType: sidebarState.contentType,
+            contentLength: content?.length,
+            isGenerated: sidebarState.contentType === 'generated'
+          });
+
+          if (content) {
+            showStatus('Compiling LaTeX...', 'info');
+            await generateLatexPreview(content);
+          } else {
+            console.error('[Preview] No LaTeX content available for compilation');
+            showStatus('No content available for compilation', 'error');
+          }
+        } else {
+          // For DOCX files, show message that compilation is not needed
+          compiledPreview.innerHTML = `
+            <div class="info-message">
+              <span class="material-icons">info</span>
+              <p>DOCX files don't require compilation. Use the raw view to see the content.</p>
+            </div>
+          `;
+        }
+      }
+    });
+  });
+
+  // Call initially and whenever file type changes
+  updateCompileButtonState();
+  
+  // Update button state when file type changes
+  const observer = new MutationObserver(() => {
+    updateCompileButtonState();
+  });
+  
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-file-type']
+  });
 }
+
+// Update the generateLatexPreview function to handle compilation properly
+async function generateLatexPreview(content) {
+  try {
+    console.log('[LatexPreview] Starting LaTeX compilation:', {
+      hasContent: !!content,
+      contentLength: content?.length,
+      contentType: sidebarState.contentType
+    });
+
+    const pdfPreviewArea = document.getElementById('pdfPreviewArea');
+    if (!pdfPreviewArea) {
+      throw new Error('PDF preview area not found');
+    }
+
+    // Show loading state
+    pdfPreviewArea.innerHTML = `
+      <div class="loading-preview">
+        <div class="loading-spinner"></div>
+        <span>Compiling LaTeX to PDF...</span>
+      </div>
+    `;
+
+    // Clean and validate the LaTeX content
+    const cleanedContent = content.trim();
+    
+    console.log('[LatexPreview] Validating LaTeX content:', {
+      contentLength: cleanedContent.length,
+      hasDocumentClass: cleanedContent.includes('\\documentclass'),
+      hasBeginDocument: cleanedContent.includes('\\begin{document}'),
+      contentPreview: cleanedContent.substring(0, 100) + '...'
+    });
+
+    // Send to server for compilation
+    const response = await fetch(`${window.ServerManager.API_URL}/compile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ latex: cleanedContent })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[LatexPreview] Compilation error:', errorData);
+      throw new Error(errorData.error || 'LaTeX compilation failed');
+    }
+
+    // Get PDF blob
+    const pdfBlob = await response.blob();
+    if (!pdfBlob || pdfBlob.size === 0) {
+      throw new Error('Generated PDF is empty');
+    }
+
+    console.log('[LatexPreview] PDF generated successfully:', {
+      size: pdfBlob.size,
+      type: pdfBlob.type
+    });
+
+    // Create URL and setup viewer
+    if (window.lastPdfUrl) {
+      URL.revokeObjectURL(window.lastPdfUrl);
+    }
+    window.lastPdfUrl = URL.createObjectURL(pdfBlob);
+
+    // Create PDF viewer with toolbar
+    pdfPreviewArea.innerHTML = `
+      <div class="pdf-container">
+        <div class="pdf-toolbar">
+          <button onclick="window.zoomIn()">
+            <span class="material-icons">zoom_in</span>
+            Zoom In
+          </button>
+          <button onclick="window.zoomOut()">
+            <span class="material-icons">zoom_out</span>
+            Zoom Out
+          </button>
+          <div class="separator"></div>
+          <button onclick="window.downloadPdf()">
+            <span class="material-icons">download</span>
+            Download
+          </button>
+          <button onclick="window.printPdf()">
+            <span class="material-icons">print</span>
+            Print
+          </button>
+        </div>
+        <div class="pdf-viewer">
+          <iframe src="${window.lastPdfUrl}#toolbar=1&navpanes=1&scrollbar=1&zoom=100" frameborder="0"></iframe>
+        </div>
+      </div>
+    `;
+
+    // Monitor iframe loading
+    const iframe = pdfPreviewArea.querySelector('iframe');
+    iframe.onload = () => {
+      console.log('[LatexPreview] PDF viewer loaded successfully');
+      showStatus('PDF compilation complete', 'success');
+    };
+
+    return true;
+
+  } catch (error) {
+    console.error('[LatexPreview] Error:', error);
+    showStatus(`LaTeX compilation failed: ${error.message}`, 'error');
+    
+    // Show error in preview area
+    if (pdfPreviewArea) {
+      pdfPreviewArea.innerHTML = `
+        <div class="error-message">
+          <span class="material-icons">error_outline</span>
+          <p>Failed to compile LaTeX: ${error.message}</p>
+          <button onclick="window.retryLatexCompilation()" class="retry-button">
+            <span class="material-icons">refresh</span>
+            Retry Compilation
+          </button>
+        </div>
+      `;
+    }
+    return false;
+  }
+}
+
+// Add retry function for LaTeX compilation
+window.retryLatexCompilation = async () => {
+  const content = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
+  if (content) {
+    await generateLatexPreview(content);
+  } else {
+    showStatus('No content available for compilation', 'error');
+  }
+};
 
 // Update the setupGenerateButton function
 function setupGenerateButton() {
@@ -1557,6 +1653,9 @@ function injectPreviewStyles() {
       height: 100%;
       min-height: 600px;
       transition: all 0.3s ease;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color);
     }
 
     .preview-section.fullscreen {
@@ -1569,7 +1668,8 @@ function injectPreviewStyles() {
       height: 100vh;
       width: 100vw;
       border-radius: 0;
-      background: #ffffff;
+      background: var(--bg-primary);
+      border: none;
     }
 
     .preview-content {
@@ -1578,6 +1678,9 @@ function injectPreviewStyles() {
       height: 100%;
       min-height: 500px;
       overflow: hidden;
+      background: var(--surface-dark);
+      border-radius: var(--radius-md);
+      margin: var(--spacing-md);
     }
 
     .preview-view {
@@ -1587,24 +1690,25 @@ function injectPreviewStyles() {
       width: 100%;
       height: 100%;
       overflow: auto;
+      border-radius: var(--radius-md);
     }
 
     #rawPreview {
-      background-color: #1e1e2e;
-      color: #ffffff;
-      padding: 20px;
+      background-color: var(--surface-dark);
+      color: var(--text-primary);
+      padding: var(--spacing-lg);
     }
 
     .preview-text-content {
-      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-family: 'Ubuntu Mono', monospace;
       font-size: 14px;
-      line-height: 1.5;
+      line-height: 1.6;
       white-space: pre-wrap;
-      color: #ffffff;
+      color: var(--text-primary);
     }
 
     #compiledPreview {
-      background: #ffffff;
+      background: var(--bg-primary);
     }
 
     .pdf-container {
@@ -1612,15 +1716,42 @@ function injectPreviewStyles() {
       height: 100%;
       min-height: inherit;
       display: flex;
+      flex-direction: column;
+      background: var(--bg-primary);
+    }
+
+    .pdf-toolbar {
+      display: flex;
       align-items: center;
-      justify-content: center;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-md);
+      background: var(--surface-dark);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .pdf-toolbar button {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-sm) var(--spacing-md);
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition-speed) ease;
+    }
+
+    .pdf-toolbar button:hover {
+      background: var(--accent-primary);
+      color: var(--text-primary);
     }
 
     .pdf-container iframe {
       width: 100%;
       height: 100%;
       border: none;
-      background: white;
+      background: var(--bg-primary);
     }
 
     /* Loading and error states */
@@ -1631,47 +1762,54 @@ function injectPreviewStyles() {
       align-items: center;
       justify-content: center;
       height: 100%;
-      padding: 20px;
+      padding: var(--spacing-lg);
       text-align: center;
-      gap: 12px;
+      gap: var(--spacing-md);
+      background: var(--surface-dark);
+      border-radius: var(--radius-md);
     }
 
     .loading-spinner {
       width: 40px;
       height: 40px;
-      border: 3px solid #f3f3f3;
-      border-top: 3px solid #3498db;
+      border: 3px solid var(--border-color);
+      border-top: 3px solid var(--accent-primary);
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
 
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+    .error-message {
+      color: var(--error-color);
     }
 
-    /* Loading button styles */
-    #generateBtn {
-      position: relative;
-      transition: all 0.3s ease;
+    .error-message .material-icons {
+      font-size: 48px;
+      color: var(--error-color);
     }
 
-    #generateBtn:disabled {
-      background-color: #e0e0e0;
-      cursor: not-allowed;
+    .retry-button {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-sm) var(--spacing-md);
+      background: var(--accent-primary);
+      color: var(--text-primary);
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition-speed) ease;
     }
 
-    #generateBtn .loading-spinner {
-      width: 20px;
-      height: 20px;
-      margin-right: 8px;
+    .retry-button:hover {
+      background: var(--accent-tertiary);
+      transform: translateY(-2px);
     }
 
     /* Preview transitions */
     .preview-text-content,
     #rawPreview,
     #compiledPreview {
-      transition: opacity 0.3s ease;
+      transition: opacity var(--transition-speed) ease;
     }
 
     /* Loading preview styles */
@@ -1681,18 +1819,24 @@ function injectPreviewStyles() {
       align-items: center;
       justify-content: center;
       min-height: 200px;
-      padding: 20px;
+      padding: var(--spacing-lg);
       text-align: center;
-      background: rgba(255, 255, 255, 0.9);
+      background: var(--surface-dark);
+      border-radius: var(--radius-md);
     }
 
     .loading-preview .loading-spinner {
       width: 40px;
       height: 40px;
-      margin-bottom: 16px;
+      margin-bottom: var(--spacing-md);
     }
 
     /* Animation keyframes */
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
     @keyframes fadeIn {
       from { opacity: 0; }
       to { opacity: 1; }
@@ -1877,5 +2021,140 @@ async function generateLatexPreview(content) {
       `;
     }
     return false;
+  }
+}
+
+// Add this function to validate current state
+function validateCurrentState() {
+  const state = {
+    fileType: sidebarState.fileType,
+    hasOriginalLatex: !!originalLatex,
+    hasOriginalDocx: !!sidebarState.originalDocx,
+    contentType: sidebarState.contentType,
+    hasTailoredContent: sidebarState.fileType === 'docx' ? 
+      !!sidebarState.tailoredDocx : 
+      !!tailoredLatex
+  };
+
+  console.log('[State] Current state validation:', state);
+  return state;
+}
+
+// Update handleGenerateClick function to properly handle file types
+async function handleGenerateClick() {
+  const generateBtn = document.getElementById('generateBtn');
+  const originalBtnContent = generateBtn.innerHTML;
+
+  try {
+    console.log('[Generate] Starting generation process:', {
+      fileType: sidebarState.fileType,
+      contentType: sidebarState.contentType,
+      hasOriginalLatex: !!originalLatex,
+      hasOriginalDocx: !!sidebarState.originalDocx,
+      currentState: {
+        ...sidebarState,
+        originalDocxPreview: sidebarState.originalDocx ? 'Present' : 'Missing'
+      }
+    });
+
+    // Show loading state
+    generateBtn.disabled = true;
+    generateBtn.innerHTML = `
+      <div class="loading-spinner"></div>
+      <span>Generating ${sidebarState.fileType?.toUpperCase() || 'Resume'}...</span>
+    `;
+
+    showToast(`Starting ${sidebarState.fileType?.toUpperCase() || 'resume'} generation...`, 'info');
+
+    // Validate file type and content
+    if (!sidebarState.fileType) {
+      throw new Error('No file type detected. Please upload a file first.');
+    }
+
+    console.log('[Generate] Checking file type pipeline:', {
+      detectedType: sidebarState.fileType,
+      hasContent: sidebarState.fileType === 'docx' ? 
+        !!sidebarState.originalDocx : 
+        !!originalLatex
+    });
+
+    // Generate content based on file type
+    let result;
+    if (sidebarState.fileType === 'docx') {
+      console.log('[Generate] Using DOCX pipeline');
+      if (!sidebarState.originalDocx) {
+        throw new Error('DOCX content not found. Please upload your DOCX file again.');
+      }
+      result = await generateTailoredDocx();
+    } else if (sidebarState.fileType === 'latex') {
+      console.log('[Generate] Using LaTeX pipeline');
+      if (!originalLatex) {
+        throw new Error('LaTeX content not found. Please upload your LaTeX file again.');
+      }
+      result = await generateTailoredLatex();
+    } else {
+      throw new Error(`Unsupported file type: ${sidebarState.fileType}`);
+    }
+
+    console.log('[Generate] Generation result:', {
+      success: result.success,
+      type: result.type,
+      hasContent: result.type === 'docx' ? 
+        !!result.docx : 
+        !!result.content,
+      error: result.error
+    });
+
+    if (!result.success) {
+      throw new Error(result.error || 'Generation failed');
+    }
+
+    // Update state based on file type
+    if (result.type === 'docx') {
+      sidebarState.tailoredDocx = result.docx;
+      sidebarState.tailoredHtml = result.html;
+      sidebarState.tailoredContent = result.text;
+      console.log('[Generate] Updated DOCX state:', {
+        hasDocx: !!sidebarState.tailoredDocx,
+        hasHtml: !!sidebarState.tailoredHtml,
+        contentLength: sidebarState.tailoredContent?.length
+      });
+    } else {
+      tailoredLatex = result.content;
+      sidebarState.tailoredContent = result.content;
+      console.log('[Generate] Updated LaTeX state:', {
+        hasLatex: !!tailoredLatex,
+        contentLength: result.content?.length
+      });
+    }
+
+    sidebarState.contentType = 'generated';
+    await chrome.storage.local.set({ 
+      sidebarState,
+      tailoredLatex: result.type === 'latex' ? result.content : null
+    });
+
+    console.log('[Generate] State saved:', {
+      contentType: sidebarState.contentType,
+      fileType: sidebarState.fileType,
+      stateUpdated: true
+    });
+
+    // Update preview
+    await updatePreview();
+    
+    showToast(`${sidebarState.fileType.toUpperCase()} generated successfully!`, 'success');
+
+  } catch (error) {
+    console.error('[Generate] Error:', {
+      message: error.message,
+      fileType: sidebarState.fileType,
+      stack: error.stack
+    });
+    showToast(error.message, 'error');
+  } finally {
+    // Restore button state
+    generateBtn.disabled = false;
+    generateBtn.innerHTML = originalBtnContent;
   }
 }

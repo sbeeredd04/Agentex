@@ -222,6 +222,12 @@ app.post('/save-docx', upload.single('file'), async (req, res) => {
 app.post('/compile-docx', async (req, res) => {
   try {
     const { fileId, options } = req.body;
+    console.log('[Server][CompileDocx] Starting compilation:', {
+      fileId,
+      options,
+      timestamp: new Date().toISOString()
+    });
+
     if (!fileId) {
       throw new Error('File ID is required');
     }
@@ -229,15 +235,15 @@ app.post('/compile-docx', async (req, res) => {
     const inputPath = path.join(TMP_DIR, `${fileId}.docx`);
     const outputPath = path.join(PDF_DIR, `${fileId}.pdf`);
 
-    console.log('[Server] Starting DOCX to PDF conversion:', {
-      fileId,
-      inputPath,
-      outputPath,
-      options
-    });
-
     // Verify input file exists and has content
     const fileStats = await fs.stat(inputPath).catch(() => null);
+    console.log('[Server][CompileDocx] Input file check:', {
+      exists: !!fileStats,
+      size: fileStats?.size,
+      path: inputPath,
+      timestamp: new Date().toISOString()
+    });
+
     if (!fileStats) {
       throw new Error(`Input file not found: ${inputPath}`);
     }
@@ -245,13 +251,15 @@ app.post('/compile-docx', async (req, res) => {
       throw new Error('Input file is empty');
     }
 
-    console.log('[Server] Input file verification:', {
-      size: fileStats.size,
-      created: fileStats.birthtime,
-      path: inputPath
+    // Verify input file content
+    const docxContent = await fs.readFile(inputPath);
+    console.log('[Server][CompileDocx] DOCX content check:', {
+      contentSize: docxContent.length,
+      hasContent: docxContent.length > 0,
+      timestamp: new Date().toISOString()
     });
 
-    // Convert DOCX to PDF using LibreOffice with formatting options
+    // Set up conversion options
     const conversionOptions = [
       '--headless',
       '--convert-to', 'pdf:writer_pdf_Export',
@@ -275,55 +283,71 @@ app.post('/compile-docx', async (req, res) => {
       }
     }
 
-    console.log('[Server] Running conversion with options:', {
+    console.log('[Server][CompileDocx] Conversion setup:', {
       command: 'soffice',
       options: conversionOptions,
-      inputFile: inputPath
+      inputFile: inputPath,
+      timestamp: new Date().toISOString()
     });
 
-    // Execute conversion
-    await new Promise((resolve, reject) => {
+    // Execute conversion with detailed logging
+    const conversionResult = await new Promise((resolve, reject) => {
       exec(`soffice ${conversionOptions.join(' ')} "${inputPath}"`, (error, stdout, stderr) => {
+        console.log('[Server][CompileDocx] Conversion process:', {
+          hasError: !!error,
+          stdout: stdout || 'No output',
+          stderr: stderr || 'No errors',
+          timestamp: new Date().toISOString()
+        });
+
         if (error) {
-          console.error('[Server] Conversion error:', {
-            error,
-            stdout,
-            stderr
-          });
-          reject(new Error('PDF conversion failed: ' + stderr));
+          reject(new Error(`PDF conversion failed: ${stderr || error.message}`));
         } else {
-          console.log('[Server] Conversion output:', {
-            stdout,
-            stderr: stderr || 'No errors'
-          });
-          resolve();
+          resolve({ stdout, stderr });
         }
       });
     });
 
     // Verify PDF was created
     const pdfStats = await fs.stat(outputPath).catch(() => null);
+    console.log('[Server][CompileDocx] PDF verification:', {
+      exists: !!pdfStats,
+      size: pdfStats?.size,
+      path: outputPath,
+      timestamp: new Date().toISOString()
+    });
+
     if (!pdfStats || pdfStats.size === 0) {
       throw new Error('PDF generation failed or produced empty file');
     }
 
-    console.log('[Server] PDF generation successful:', {
-      path: outputPath,
-      size: pdfStats.size
-    });
-
     // Read and send the PDF
     const pdfContent = await fs.readFile(outputPath);
+    console.log('[Server][CompileDocx] Sending PDF:', {
+      contentSize: pdfContent.length,
+      timestamp: new Date().toISOString()
+    });
+
     res.type('application/pdf').send(pdfContent);
 
-    // Cleanup
+    // Cleanup files
     await Promise.all([
-      fs.unlink(inputPath).catch(() => {}),
-      fs.unlink(outputPath).catch(() => {})
+      fs.unlink(inputPath).catch(err => {
+        console.error('[Server][CompileDocx] Cleanup error (input):', err);
+      }),
+      fs.unlink(outputPath).catch(err => {
+        console.error('[Server][CompileDocx] Cleanup error (output):', err);
+      })
     ]);
 
+    console.log('[Server][CompileDocx] Process complete');
+
   } catch (error) {
-    console.error('[Server] DOCX compilation error:', error);
+    console.error('[Server][CompileDocx] Error:', {
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
     res.status(500).json({ 
       success: false, 
       error: error.message,

@@ -4,27 +4,17 @@ class DocxAIService extends AIService {
     console.log('[DocxAIService] Initializing DOCX-specific AI Service');
   }
 
-  async generateContent(originalText, jobDescription, knowledgeBase, modelType = 'gemini', model = null) {
-    try {
-      console.log('[DocxAIService] Generating content:', {
-        textLength: originalText?.length,
-        jobDescLength: jobDescription?.length,
-        hasKnowledgeBase: !!knowledgeBase,
-        modelType,
-        model
-      });
-
-      const prompt = `
-        You are an expert ATS resume optimizer. Your task is to enhance this resume for the provided job description.
+  // Define the default prompt as a static property
+  static DEFAULT_PROMPT = `You are an expert ATS resume optimizer. Your task is to enhance this resume for the provided job description.
         
         Original Resume:
-        ${originalText}
+        {originalText}
 
         Job Description:
-        ${jobDescription}
+        {jobDescription}
 
         Additional Experience:
-        ${knowledgeBase || 'None provided'}
+        {knowledgeBase}
 
         Instructions:
         1. Analyze the job description for key requirements and skills
@@ -36,8 +26,27 @@ class DocxAIService extends AIService {
         7. Do not add any formatting markers or LaTeX commands
         8. Keep the same number of bullet points per section
 
-        IMPORTANT: Return ONLY the plain text content that should replace the original.
-      `;
+        IMPORTANT: Return ONLY the plain text content that should replace the original.`;
+
+  async generateContent(originalText, jobDescription, knowledgeBase, modelType = 'gemini', model = null) {
+    try {
+      console.log('[DocxAIService] Generating content:', {
+        textLength: originalText?.length,
+        jobDescLength: jobDescription?.length,
+        hasKnowledgeBase: !!knowledgeBase,
+        modelType,
+        model
+      });
+
+      // Get custom prompt from storage or use default
+      const { docxCustomPrompt } = await chrome.storage.local.get('docxCustomPrompt');
+      const promptTemplate = docxCustomPrompt || DocxAIService.DEFAULT_PROMPT;
+
+      // Replace placeholders in the prompt template
+      const prompt = promptTemplate
+        .replace('{originalText}', originalText || '')
+        .replace('{jobDescription}', jobDescription || '')
+        .replace('{knowledgeBase}', knowledgeBase || 'None provided');
 
       // Use parent class's generateContent method with 'docx' content type
       const response = await super.generateContent(prompt, 'docx', modelType, model);

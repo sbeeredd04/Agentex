@@ -23,11 +23,30 @@ const allowedOrigins = [
   'https://agentex.onrender.com'
 ];
 
-const PDFLATEX_PATH = '/Library/TeX/texbin/pdflatex';
+// Platform-independent pdflatex path
+const PDFLATEX_PATH = process.platform === 'darwin' 
+  ? '/Library/TeX/texbin/pdflatex'
+  : '/usr/bin/pdflatex';
+
 const TMP_DIR = '/tmp';
 const PDF_DIR = '/tmp/pdf';
 
 const convertAsync = util.promisify(libre.convert);
+
+// Function to check if pdflatex is installed
+async function checkPdfLatex() {
+  return new Promise((resolve) => {
+    exec('which pdflatex', (error, stdout, stderr) => {
+      if (error) {
+        console.error('[Server] pdflatex not found:', error);
+        resolve(false);
+      } else {
+        console.log('[Server] pdflatex found at:', stdout.trim());
+        resolve(true);
+      }
+    });
+  });
+}
 
 // Function to escape LaTeX special characters
 function escapeLatexSpecialChars(text) {
@@ -96,6 +115,12 @@ const compileHandler = async (req, res) => {
   const fileId = uuidv4();
   
   try {
+    // Check if pdflatex is installed
+    const pdflatexInstalled = await checkPdfLatex();
+    if (!pdflatexInstalled) {
+      throw new Error('LaTeX compilation is not available - pdflatex not installed');
+    }
+
     const { latex } = req.body;
     if (!latex) {
       return res.status(400).json({ 
@@ -117,7 +142,8 @@ const compileHandler = async (req, res) => {
     // Create output directory if it doesn't exist
     await fs.mkdir(PDF_DIR, { recursive: true });
 
-    const cmd = `cd "${TMP_DIR}" && ${PDFLATEX_PATH} -interaction=nonstopmode -output-directory="${PDF_DIR}" "${texPath}"`;
+    // Use 'pdflatex' command directly (found in PATH) instead of absolute path
+    const cmd = `cd "${TMP_DIR}" && pdflatex -interaction=nonstopmode -output-directory="${PDF_DIR}" "${texPath}"`;
     
     const { stdout, stderr } = await new Promise((resolve, reject) => {
       exec(cmd, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
@@ -153,7 +179,6 @@ const compileHandler = async (req, res) => {
     let errorMessage = error.message || 'Server error';
     let errorDetails = error.stderr || error.stdout || '';
     
-    // Check for specific LaTeX errors
     if (errorDetails.includes('! LaTeX Error:')) {
       const match = errorDetails.match(/! LaTeX Error: (.*?)\./);
       if (match) {
@@ -167,7 +192,6 @@ const compileHandler = async (req, res) => {
       details: errorDetails
     });
   } finally {
-    // Cleanup temporary files
     await cleanupFiles(fileId);
   }
 };
@@ -377,8 +401,29 @@ app.use((err, req, res, next) => {
   });
 });
 
-initializeDirectories().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-});
+// Initialize server
+async function initializeServer() {
+  try {
+    // Create required directories
+    await fs.mkdir(TMP_DIR, { recursive: true });
+    await fs.mkdir(PDF_DIR, { recursive: true });
+    console.log('[Server] Directories initialized');
+
+    // Check for pdflatex
+    const pdflatexInstalled = await checkPdfLatex();
+    if (!pdflatexInstalled) {
+      console.error('[Server] WARNING: pdflatex is not installed. PDF compilation will not work!');
+    }
+
+    // Start the server
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log('[Server] Initialization complete');
+    });
+  } catch (error) {
+    console.error('[Server] Initialization error:', error);
+    process.exit(1);
+  }
+}
+
+initializeServer();

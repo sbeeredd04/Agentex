@@ -1,6 +1,6 @@
 class AIService {
   constructor() {
-    console.log('[AIService] Initializing Multi-Model AI Service');
+    console.log('[AIService] Initializing Multi-Agent AI Service');
     
     // Initialize endpoints
     this.endpoints = {
@@ -11,7 +11,7 @@ class AIService {
     // Initialize models without API keys
     this.models = {
       gemini: {
-        model: 'gemini-2.0-flash-thinking-exp-01-21'
+        model: 'gemini-2.0-flash'
       },
       groq: {
         models: {
@@ -25,11 +25,12 @@ class AIService {
     this.loadApiKeys();
   }
 
-  // Default prompts for multi-step structure
-  static DEFAULT_ANALYSIS_PROMPT = `You are an expert resume analyzer. Your task is to analyze the job description and knowledge base to identify:
+  // Default prompts for multi-agent structure
+  static DEFAULT_JOB_ANALYSIS_PROMPT = `You are an expert resume analyzer. Your task is to analyze the job description and knowledge base to identify:
 1. Key technologies and skills required by the job
 2. Projects in the knowledge base that are most relevant to the job
 3. Specific metrics and achievements that align with the job requirements
+4. Experience requirements and responsibilities
 
 Job Description:
 {jobDesc}
@@ -49,20 +50,36 @@ Provide a structured analysis in JSON format with the following fields:
     },
     ...
   ],
-  "keyMetrics": ["metric1", "metric2", ...]
-}
+  "keyMetrics": ["metric1", "metric2", ...],
+  "experienceRequirements": ["requirement1", "requirement2", ...],
+  "optimizationTasks": [
+    {
+      "section": "projects",
+      "task": "Replace projects with more relevant ones from knowledge base",
+      "priority": 1-5
+    },
+    {
+      "section": "skills",
+      "task": "Add missing skills from job requirements",
+      "priority": 1-5
+    },
+    {
+      "section": "experience",
+      "task": "Refine experience descriptions to match job requirements",
+      "priority": 1-5
+    }
+  ]
+}`;
 
-Return ONLY the JSON object, no additional text.`;
-
-  static DEFAULT_PROJECTS_PROMPT = `You are an expert resume project optimizer. Your task is to create an optimized projects section for a software engineering resume.
+  static DEFAULT_PROJECTS_OPTIMIZATION_PROMPT = `You are an expert resume projects optimizer. Your task is to optimize the projects section of the resume by replacing existing projects with more relevant ones from the knowledge base.
 
 Original Projects Section:
 {originalProjects}
 
-Job Requirements:
+Job Description:
 {jobDesc}
 
-Analysis of Relevant Projects:
+Relevant Projects from Analysis:
 {analysisProjects}
 
 Required Technologies:
@@ -71,33 +88,82 @@ Required Technologies:
 Key Metrics to Highlight:
 {keyMetrics}
 
-Instructions:
-1. Replace existing projects with more relevant ones from the analysis if they better match the job requirements
-2. Ensure each project highlights technologies and metrics that align with the job description
-3. Maintain the same LaTeX formatting and structure
-4. Use the XYZ format: \\resumeItem{\\textbf{<JD Keyword>} used to \\textbf{<Action Verb>} \\emph{<Tech>} achieving \\textbf{<Metric>} via <Method>}
-5. Return ONLY the optimized projects section in LaTeX format
+Your task is to:
+1. Replace existing projects with more relevant ones from the knowledge base
+2. Ensure the new projects use technologies mentioned in the job description
+3. Include specific metrics and achievements that align with the job requirements
+4. Maintain the same LaTeX formatting as the original projects section
 
-VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD.`;
+Return ONLY the optimized projects section in LaTeX format, maintaining the same structure and formatting as the original.`;
 
-  static DEFAULT_FINAL_PROMPT = `You are an expert ATS resume tailor for software engineering roles. Your task is to create a final resume by replacing the projects section with the optimized version.
+  static DEFAULT_SKILLS_ENHANCEMENT_PROMPT = `You are an expert resume skills optimizer. Your task is to enhance the skills section of the resume by adding relevant skills from the job description.
 
-Original LaTeX Resume:
+Original Skills Section:
+{originalSkills}
+
+Job Description:
+{jobDesc}
+
+Required Technologies:
+{requiredTechnologies}
+
+Your task is to:
+1. Add any missing skills from the job requirements
+2. Organize skills by category (e.g., Programming Languages, Frameworks, Tools)
+3. Prioritize skills mentioned in the job description
+4. Maintain the same LaTeX formatting as the original skills section
+
+Return ONLY the enhanced skills section in LaTeX format, maintaining the same structure and formatting as the original.`;
+
+  static DEFAULT_EXPERIENCE_REFINEMENT_PROMPT = `You are an expert resume experience optimizer. Your task is to refine the experience section of the resume to better align with the job requirements.
+
+Original Experience Section:
+{originalExperience}
+
+Job Description:
+{jobDesc}
+
+Experience Requirements:
+{experienceRequirements}
+
+Required Technologies:
+{requiredTechnologies}
+
+Key Metrics to Highlight:
+{keyMetrics}
+
+Your task is to:
+1. Refine experience descriptions to highlight relevant responsibilities and achievements
+2. Use action verbs and specific metrics to quantify achievements
+3. Emphasize experience with technologies mentioned in the job description
+4. Maintain the same LaTeX formatting as the original experience section
+
+Return ONLY the refined experience section in LaTeX format, maintaining the same structure and formatting as the original.`;
+
+  static DEFAULT_FINAL_POLISH_PROMPT = `You are an expert resume finalizer. Your task is to polish the entire resume to ensure it is optimized for the job description and ATS systems.
+
+Original Resume:
 {originalLatex}
 
 Optimized Projects Section:
 {optimizedProjects}
 
+Enhanced Skills Section:
+{enhancedSkills}
+
+Refined Experience Section:
+{refinedExperience}
+
 Job Description:
 {jobDesc}
 
-Instructions:
-1. Replace the projects section in the original resume with the optimized version
-2. Ensure all LaTeX formatting is preserved
-3. Return the complete resume with the updated projects section
-4. Do not make any other changes to the resume
+Your task is to:
+1. Combine all optimized sections into a cohesive resume
+2. Ensure consistent formatting and style throughout
+3. Verify that all sections are properly aligned with the job requirements
+4. Make final adjustments to improve ATS compatibility
 
-!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!`;
+Return ONLY the complete LaTeX resume code, maintaining the same structure and formatting as the original.`;
 
   async loadApiKeys() {
     const keys = await chrome.storage.local.get(['geminiApiKey', 'groqApiKey']);
@@ -324,10 +390,10 @@ Instructions:
     return this._cleanResponse(response);
   }
 
-  // New method for multi-step resume generation
+  // New method for multi-agent resume generation
   async generateTailoredResume(originalLatex, jobDesc, knowledgeBase, modelType = 'gemini', model = null) {
     try {
-      console.log('[AIService] Starting multi-step resume generation');
+      console.log('[AIService] Starting multi-agent resume generation');
       
       this.currentModelSelection = { type: modelType, model };
       
@@ -336,7 +402,7 @@ Instructions:
         const event = new CustomEvent('aiServiceStatus', {
           detail: {
             step,
-            totalSteps: 3,
+            totalSteps: 5,
             message
           }
         });
@@ -369,20 +435,29 @@ VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are
       }
       
       // Get custom prompts from storage
-      const prompts = await chrome.storage.local.get(['analysisPrompt', 'projectsPrompt', 'finalPrompt']);
-      const analysisPromptTemplate = prompts.analysisPrompt || AIService.DEFAULT_ANALYSIS_PROMPT;
-      const projectsPromptTemplate = prompts.projectsPrompt || AIService.DEFAULT_PROJECTS_PROMPT;
-      const finalPromptTemplate = prompts.finalPrompt || AIService.DEFAULT_FINAL_PROMPT;
+      const prompts = await chrome.storage.local.get([
+        'jobAnalysisPrompt', 
+        'projectsOptimizationPrompt', 
+        'skillsEnhancementPrompt',
+        'experienceRefinementPrompt',
+        'finalPolishPrompt'
+      ]);
       
-      // Step 1: Analyze job description and knowledge base
+      const jobAnalysisPromptTemplate = prompts.jobAnalysisPrompt || AIService.DEFAULT_JOB_ANALYSIS_PROMPT;
+      const projectsOptimizationPromptTemplate = prompts.projectsOptimizationPrompt || AIService.DEFAULT_PROJECTS_OPTIMIZATION_PROMPT;
+      const skillsEnhancementPromptTemplate = prompts.skillsEnhancementPrompt || AIService.DEFAULT_SKILLS_ENHANCEMENT_PROMPT;
+      const experienceRefinementPromptTemplate = prompts.experienceRefinementPrompt || AIService.DEFAULT_EXPERIENCE_REFINEMENT_PROMPT;
+      const finalPolishPromptTemplate = prompts.finalPolishPrompt || AIService.DEFAULT_FINAL_POLISH_PROMPT;
+      
+      // Step 1: Job Analysis Agent - Analyze job description and knowledge base
       dispatchStatus(1, 'Analyzing job description and knowledge base');
-      console.log('[AIService] Step 1: Analyzing job and knowledge base');
+      console.log('[AIService] Step 1: Job Analysis Agent');
       
-      const analysisPrompt = analysisPromptTemplate
+      const jobAnalysisPrompt = jobAnalysisPromptTemplate
         .replace('{jobDesc}', jobDesc)
         .replace('{knowledgeBase}', knowledgeBase);
       
-      const analysisResponse = await this.generateWithCurrentModel(analysisPrompt);
+      const analysisResponse = await this.generateWithCurrentModel(jobAnalysisPrompt);
       
       // Parse the analysis JSON
       let analysis;
@@ -419,62 +494,64 @@ VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are
         );
       }
       
-      // Check if there are relevant projects in the analysis
-      const hasRelevantProjects = analysis.relevantProjects && analysis.relevantProjects.length > 0;
-      console.log('[AIService] Relevant projects check:', { hasRelevantProjects });
-      
-      // If no relevant projects, fall back to single-step generation
-      if (!hasRelevantProjects) {
-        console.log('[AIService] No relevant projects found, falling back to single-step generation');
-        return this.generateContent(
-          `You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews.
-
-Original LaTeX Resume:
-${originalLatex}
-
-Job Description:
-${jobDesc}
-
-Knowledge Base / Additional Experience:
-${knowledgeBase}
-
-VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD.
-VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section.
-
-!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!`,
-          'latex',
-          modelType,
-          model
-        );
-      }
-      
-      // Step 2: Generate optimized projects section
+      // Extract sections from original LaTeX
       const originalProjects = this._extractProjectsSection(originalLatex);
+      const originalSkills = this._extractSkillsSection(originalLatex);
+      const originalExperience = this._extractExperienceSection(originalLatex);
       
-      const projectsPrompt = projectsPromptTemplate
+      // Step 2: Projects Optimization Agent - Optimize projects section
+      dispatchStatus(2, 'Optimizing projects section');
+      console.log('[AIService] Step 2: Projects Optimization Agent');
+      
+      const projectsPrompt = projectsOptimizationPromptTemplate
         .replace('{originalProjects}', originalProjects)
         .replace('{jobDesc}', jobDesc)
         .replace('{analysisProjects}', JSON.stringify(analysis.relevantProjects, null, 2))
         .replace('{requiredTechnologies}', analysis.requiredTechnologies.join(', '))
         .replace('{keyMetrics}', analysis.keyMetrics.join(', '));
       
-      dispatchStatus(2, 'Optimizing projects section');
-      console.log('[AIService] Step 2: Generating optimized projects section');
       const optimizedProjects = await this.generateWithCurrentModel(projectsPrompt);
       
-      // Step 3: Generate final resume with optimized projects
-      const finalPrompt = finalPromptTemplate
+      // Step 3: Skills Enhancement Agent - Enhance skills section
+      dispatchStatus(3, 'Enhancing skills section');
+      console.log('[AIService] Step 3: Skills Enhancement Agent');
+      
+      const skillsPrompt = skillsEnhancementPromptTemplate
+        .replace('{originalSkills}', originalSkills)
+        .replace('{jobDesc}', jobDesc)
+        .replace('{requiredTechnologies}', analysis.requiredTechnologies.join(', '));
+      
+      const enhancedSkills = await this.generateWithCurrentModel(skillsPrompt);
+      
+      // Step 4: Experience Refinement Agent - Refine experience section
+      dispatchStatus(4, 'Refining experience section');
+      console.log('[AIService] Step 4: Experience Refinement Agent');
+      
+      const experiencePrompt = experienceRefinementPromptTemplate
+        .replace('{originalExperience}', originalExperience)
+        .replace('{jobDesc}', jobDesc)
+        .replace('{experienceRequirements}', analysis.experienceRequirements.join(', '))
+        .replace('{requiredTechnologies}', analysis.requiredTechnologies.join(', '))
+        .replace('{keyMetrics}', analysis.keyMetrics.join(', '));
+      
+      const refinedExperience = await this.generateWithCurrentModel(experiencePrompt);
+      
+      // Step 5: Final Polish Agent - Polish the entire resume
+      dispatchStatus(5, 'Polishing final resume');
+      console.log('[AIService] Step 5: Final Polish Agent');
+      
+      const finalPrompt = finalPolishPromptTemplate
         .replace('{originalLatex}', originalLatex)
         .replace('{optimizedProjects}', optimizedProjects)
+        .replace('{enhancedSkills}', enhancedSkills)
+        .replace('{refinedExperience}', refinedExperience)
         .replace('{jobDesc}', jobDesc);
       
-      dispatchStatus(3, 'Generating final resume');
-      console.log('[AIService] Step 3: Generating final resume');
       const finalResponse = await this.generateWithCurrentModel(finalPrompt);
       
       return this.cleanLatexResponse(finalResponse);
     } catch (error) {
-      console.error('[AIService] Multi-step generation error:', error);
+      console.error('[AIService] Multi-agent generation error:', error);
       // Fall back to single-step generation
       return this.generateContent(
         `You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews.
@@ -531,6 +608,76 @@ VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are
     } catch (error) {
       console.error('[AIService] Error extracting projects section:', error);
       return "\\section{Projects}\n\\resumeSubHeadingListStart\n\\resumeProjectHeading\n{\\textbf{Project Name} $|$ \\emph{Technologies}}{}\n\\resumeItemListStart\n\\resumeItem{\\textbf{Description} of the project.}\n\\resumeItemListEnd\n\\resumeSubHeadingListEnd";
+    }
+  }
+  
+  // Helper method to extract the skills section from LaTeX
+  _extractSkillsSection(latex) {
+    try {
+      // Look for the skills section using common LaTeX section markers
+      const skillsSectionRegex = /\\section\{Skills\}([\s\S]*?)(?=\\section\{|$)/i;
+      const match = latex.match(skillsSectionRegex);
+      
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+      
+      // Fallback: look for any section that might contain skills
+      const sectionRegex = /\\section\{([^}]*)\}([\s\S]*?)(?=\\section\{|$)/g;
+      let sections = [];
+      let sectionMatch;
+      
+      while ((sectionMatch = sectionRegex.exec(latex)) !== null) {
+        const sectionTitle = sectionMatch[1].toLowerCase();
+        if (sectionTitle.includes('skill') || sectionTitle.includes('technical')) {
+          sections.push(sectionMatch[0]);
+        }
+      }
+      
+      if (sections.length > 0) {
+        return sections.join('\n\n');
+      }
+      
+      // If we still can't find a skills section, return a placeholder
+      return "\\section{Skills}\n\\resumeItemListStart\n\\resumeItem{\\textbf{Programming Languages:} Language1, Language2}\n\\resumeItem{\\textbf{Frameworks:} Framework1, Framework2}\n\\resumeItem{\\textbf{Tools:} Tool1, Tool2}\n\\resumeItemListEnd";
+    } catch (error) {
+      console.error('[AIService] Error extracting skills section:', error);
+      return "\\section{Skills}\n\\resumeItemListStart\n\\resumeItem{\\textbf{Programming Languages:} Language1, Language2}\n\\resumeItem{\\textbf{Frameworks:} Framework1, Framework2}\n\\resumeItem{\\textbf{Tools:} Tool1, Tool2}\n\\resumeItemListEnd";
+    }
+  }
+  
+  // Helper method to extract the experience section from LaTeX
+  _extractExperienceSection(latex) {
+    try {
+      // Look for the experience section using common LaTeX section markers
+      const experienceSectionRegex = /\\section\{Experience\}([\s\S]*?)(?=\\section\{|$)/i;
+      const match = latex.match(experienceSectionRegex);
+      
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+      
+      // Fallback: look for any section that might contain experience
+      const sectionRegex = /\\section\{([^}]*)\}([\s\S]*?)(?=\\section\{|$)/g;
+      let sections = [];
+      let sectionMatch;
+      
+      while ((sectionMatch = sectionRegex.exec(latex)) !== null) {
+        const sectionTitle = sectionMatch[1].toLowerCase();
+        if (sectionTitle.includes('experience') || sectionTitle.includes('work') || sectionTitle.includes('employment')) {
+          sections.push(sectionMatch[0]);
+        }
+      }
+      
+      if (sections.length > 0) {
+        return sections.join('\n\n');
+      }
+      
+      // If we still can't find an experience section, return a placeholder
+      return "\\section{Experience}\n\\resumeSubHeadingListStart\n\\resumeSubheadingListEnd";
+    } catch (error) {
+      console.error('[AIService] Error extracting experience section:', error);
+      return "\\section{Experience}\n\\resumeSubHeadingListStart\n\\resumeSubheadingListEnd";
     }
   }
 }

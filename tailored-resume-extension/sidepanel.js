@@ -1361,10 +1361,12 @@ function setupApiKeyManagement() {
   const groqInput = document.getElementById('groqApiKey');
   const promptInput = document.getElementById('customPrompt');
   const docxPromptInput = document.getElementById('docxCustomPrompt');
-  const analysisPromptInput = document.getElementById('analysisPrompt');
-  const projectsPromptInput = document.getElementById('projectsPrompt');
-  const finalPromptInput = document.getElementById('finalPrompt');
-  const resetMultiStepPromptsBtn = document.getElementById('resetMultiStepPrompts');
+  const jobAnalysisPromptInput = document.getElementById('jobAnalysisPrompt');
+  const projectsOptimizationPromptInput = document.getElementById('projectsOptimizationPrompt');
+  const skillsEnhancementPromptInput = document.getElementById('skillsEnhancementPrompt');
+  const experienceRefinementPromptInput = document.getElementById('experienceRefinementPrompt');
+  const finalPolishPromptInput = document.getElementById('finalPolishPrompt');
+  const resetMultiAgentPromptsBtn = document.getElementById('resetMultiAgentPrompts');
 
   // Get the default DOCX prompt
   const defaultDocxPrompt = window.DocxAIService?.DEFAULT_PROMPT || '';
@@ -1375,9 +1377,11 @@ function setupApiKeyManagement() {
     'groqApiKey', 
     'customPrompt', 
     'docxCustomPrompt',
-    'analysisPrompt',
-    'projectsPrompt',
-    'finalPrompt'
+    'jobAnalysisPrompt',
+    'projectsOptimizationPrompt',
+    'skillsEnhancementPrompt',
+    'experienceRefinementPrompt',
+    'finalPolishPrompt'
   ], (result) => {
     if (result.geminiApiKey) {
       geminiInput.value = result.geminiApiKey;
@@ -1395,20 +1399,30 @@ function setupApiKeyManagement() {
     } else {
       docxPromptInput.value = defaultDocxPrompt;
     }
-    if (result.analysisPrompt) {
-      analysisPromptInput.value = result.analysisPrompt;
+    if (result.jobAnalysisPrompt) {
+      jobAnalysisPromptInput.value = result.jobAnalysisPrompt;
     } else {
-      analysisPromptInput.value = DEFAULT_ANALYSIS_PROMPT;
+      jobAnalysisPromptInput.value = window.AIService.DEFAULT_JOB_ANALYSIS_PROMPT;
     }
-    if (result.projectsPrompt) {
-      projectsPromptInput.value = result.projectsPrompt;
+    if (result.projectsOptimizationPrompt) {
+      projectsOptimizationPromptInput.value = result.projectsOptimizationPrompt;
     } else {
-      projectsPromptInput.value = DEFAULT_PROJECTS_PROMPT;
+      projectsOptimizationPromptInput.value = window.AIService.DEFAULT_PROJECTS_OPTIMIZATION_PROMPT;
     }
-    if (result.finalPrompt) {
-      finalPromptInput.value = result.finalPrompt;
+    if (result.skillsEnhancementPrompt) {
+      skillsEnhancementPromptInput.value = result.skillsEnhancementPrompt;
     } else {
-      finalPromptInput.value = DEFAULT_FINAL_PROMPT;
+      skillsEnhancementPromptInput.value = window.AIService.DEFAULT_SKILLS_ENHANCEMENT_PROMPT;
+    }
+    if (result.experienceRefinementPrompt) {
+      experienceRefinementPromptInput.value = result.experienceRefinementPrompt;
+    } else {
+      experienceRefinementPromptInput.value = window.AIService.DEFAULT_EXPERIENCE_REFINEMENT_PROMPT;
+    }
+    if (result.finalPolishPrompt) {
+      finalPolishPromptInput.value = result.finalPolishPrompt;
+    } else {
+      finalPolishPromptInput.value = window.AIService.DEFAULT_FINAL_POLISH_PROMPT;
     }
   });
 
@@ -1431,12 +1445,14 @@ function setupApiKeyManagement() {
     showToast('DOCX prompt reset to default', 'info');
   });
 
-  // Reset multi-step prompts
-  resetMultiStepPromptsBtn.addEventListener('click', () => {
+  // Reset multi-agent prompts
+  resetMultiAgentPromptsBtn.addEventListener('click', () => {
     const prompts = [
-      { input: analysisPromptInput, value: DEFAULT_ANALYSIS_PROMPT },
-      { input: projectsPromptInput, value: DEFAULT_PROJECTS_PROMPT },
-      { input: finalPromptInput, value: DEFAULT_FINAL_PROMPT }
+      { input: jobAnalysisPromptInput, value: window.AIService.DEFAULT_JOB_ANALYSIS_PROMPT },
+      { input: projectsOptimizationPromptInput, value: window.AIService.DEFAULT_PROJECTS_OPTIMIZATION_PROMPT },
+      { input: skillsEnhancementPromptInput, value: window.AIService.DEFAULT_SKILLS_ENHANCEMENT_PROMPT },
+      { input: experienceRefinementPromptInput, value: window.AIService.DEFAULT_EXPERIENCE_REFINEMENT_PROMPT },
+      { input: finalPolishPromptInput, value: window.AIService.DEFAULT_FINAL_POLISH_PROMPT }
     ];
     
     prompts.forEach(prompt => {
@@ -1447,7 +1463,7 @@ function setupApiKeyManagement() {
       }, 200);
     });
     
-    showToast('Multi-step prompts reset to default', 'info');
+    showToast('Multi-agent prompts reset to default', 'info');
   });
 
   // Toggle password visibility with icon update
@@ -1495,9 +1511,11 @@ function setupApiKeyManagement() {
     const groqKey = groqInput.value.trim();
     const customPrompt = promptInput.value.trim();
     const docxCustomPrompt = docxPromptInput.value.trim();
-    const analysisPrompt = analysisPromptInput.value.trim();
-    const projectsPrompt = projectsPromptInput.value.trim();
-    const finalPrompt = finalPromptInput.value.trim();
+    const jobAnalysisPrompt = jobAnalysisPromptInput.value.trim();
+    const projectsOptimizationPrompt = projectsOptimizationPromptInput.value.trim();
+    const skillsEnhancementPrompt = skillsEnhancementPromptInput.value.trim();
+    const experienceRefinementPrompt = experienceRefinementPromptInput.value.trim();
+    const finalPolishPrompt = finalPolishPromptInput.value.trim();
 
     try {
       // Validate inputs
@@ -1510,14 +1528,20 @@ function setupApiKeyManagement() {
       if (!docxCustomPrompt) {
         throw new Error('DOCX prompt template cannot be empty');
       }
-      if (!analysisPrompt) {
-        throw new Error('Analysis prompt template cannot be empty');
+      if (!jobAnalysisPrompt) {
+        throw new Error('Job analysis prompt template cannot be empty');
       }
-      if (!projectsPrompt) {
-        throw new Error('Projects prompt template cannot be empty');
+      if (!projectsOptimizationPrompt) {
+        throw new Error('Projects optimization prompt template cannot be empty');
       }
-      if (!finalPrompt) {
-        throw new Error('Final prompt template cannot be empty');
+      if (!skillsEnhancementPrompt) {
+        throw new Error('Skills enhancement prompt template cannot be empty');
+      }
+      if (!experienceRefinementPrompt) {
+        throw new Error('Experience refinement prompt template cannot be empty');
+      }
+      if (!finalPolishPrompt) {
+        throw new Error('Final polish prompt template cannot be empty');
       }
 
       // Show saving state
@@ -1533,9 +1557,11 @@ function setupApiKeyManagement() {
         groqApiKey: groqKey,
         customPrompt: customPrompt,
         docxCustomPrompt: docxCustomPrompt,
-        analysisPrompt: analysisPrompt,
-        projectsPrompt: projectsPrompt,
-        finalPrompt: finalPrompt
+        jobAnalysisPrompt: jobAnalysisPrompt,
+        projectsOptimizationPrompt: projectsOptimizationPrompt,
+        skillsEnhancementPrompt: skillsEnhancementPrompt,
+        experienceRefinementPrompt: experienceRefinementPrompt,
+        finalPolishPrompt: finalPolishPrompt
       });
 
       // Reinitialize AI service
@@ -1550,22 +1576,8 @@ function setupApiKeyManagement() {
     } finally {
       // Reset button state
       saveBtn.disabled = false;
-      saveBtn.innerHTML = `
-        <span class="material-icons">save</span>
-        Save Changes
-      `;
+      saveBtn.innerHTML = 'Save Settings';
     }
-  });
-
-  // Add click tracking for API key links
-  document.querySelectorAll('.api-link').forEach(link => {
-    link.addEventListener('click', (e) => {
-      const service = link.closest('.api-key-input').querySelector('label').textContent;
-      console.log(`[Settings] Opening ${service} API key page`);
-      
-      // Show helper toast
-      showToast(`Opening ${service} page in new tab`, 'info');
-    });
   });
 }
 

@@ -18,6 +18,9 @@ RUN apt-get update && apt-get install -y \
     texlive-fonts-extra \
     && rm -rf /var/lib/apt/lists/*
 
+# Add TeX Live binaries to PATH
+ENV PATH="/usr/local/texlive/2023/bin/x86_64-linux:$PATH"
+
 # Verify installations
 RUN node --version
 RUN npm --version

@@ -1,13 +1,12 @@
 services:
   - type: web
-    name: latex-compiler-api
+    name: tailored-resume-server
     runtime: docker
-    dockerfilePath: ./Dockerfile
-    dockerCommand: npm start
+    region: oregon
+    plan: free
+    healthCheckPath: /
     envVars:
       - key: PORT
         value: 10000
-      - key: NODE_ENV
-        value: production
-    healthCheckPath: /health
-    autoDeploy: true 
+    buildCommand: docker build -t tailored-resume-server .
+    startCommand: docker run -p 10000:10000 tailored-resume-server 

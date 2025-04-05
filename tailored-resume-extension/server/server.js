@@ -28,8 +28,19 @@ const PDFLATEX_PATH = process.platform === 'darwin'
   ? '/Library/TeX/texbin/pdflatex'
   : '/usr/bin/pdflatex';
 
+// Additional possible paths for pdflatex in Docker container
+const POSSIBLE_PDFLATEX_PATHS = [
+  PDFLATEX_PATH,
+  '/usr/local/texlive/2023/bin/x86_64-linux/pdflatex',
+  '/usr/local/texlive/2022/bin/x86_64-linux/pdflatex',
+  '/usr/local/texlive/2021/bin/x86_64-linux/pdflatex',
+  '/usr/local/bin/pdflatex',
+  '/usr/bin/pdflatex'
+];
+
 // Log the pdflatex path for debugging
 console.log('[Server] Using pdflatex path:', PDFLATEX_PATH);
+console.log('[Server] Checking possible pdflatex paths:', POSSIBLE_PDFLATEX_PATHS);
 
 const TMP_DIR = '/tmp';
 const PDF_DIR = '/tmp/pdf';
@@ -44,16 +55,28 @@ async function checkPdfLatex() {
       if (error) {
         console.error('[Server] pdflatex not found in PATH:', error);
         
-        // Try to check if pdflatex exists at the expected path
-        fs.access(PDFLATEX_PATH)
-          .then(() => {
-            console.log('[Server] pdflatex found at expected path:', PDFLATEX_PATH);
+        // Try to check if pdflatex exists at any of the possible paths
+        let found = false;
+        
+        // Check each possible path
+        Promise.all(POSSIBLE_PDFLATEX_PATHS.map(path => 
+          fs.access(path)
+            .then(() => {
+              console.log('[Server] pdflatex found at path:', path);
+              found = true;
+              return path;
+            })
+            .catch(() => null)
+        )).then(results => {
+          const foundPath = results.find(r => r !== null);
+          if (foundPath) {
+            console.log('[Server] Using pdflatex at:', foundPath);
             resolve(true);
-          })
-          .catch(() => {
-            console.error('[Server] pdflatex not found at expected path:', PDFLATEX_PATH);
+          } else {
+            console.error('[Server] pdflatex not found at any expected path');
             resolve(false);
-          });
+          }
+        });
       } else {
         console.log('[Server] pdflatex found in PATH at:', stdout.trim());
         resolve(true);

@@ -27,6 +27,43 @@ const PDF_DIR = '/tmp/pdf';
 
 const convertAsync = util.promisify(libre.convert);
 
+// Function to escape LaTeX special characters
+function escapeLatexSpecialChars(text) {
+  // Don't escape backslashes in LaTeX commands
+  return text.replace(/([#$%&_{}~^])/g, '\\$1');
+}
+
+// Function to validate LaTeX content
+function validateLatexContent(latex) {
+  // Basic validation - just check if it's a non-empty string
+  if (!latex || typeof latex !== 'string') {
+    return {
+      isValid: false,
+      errors: ['LaTeX content is required']
+    };
+  }
+  return {
+    isValid: true,
+    errors: []
+  };
+}
+
+// Function to clean up temporary files
+async function cleanupFiles(fileId) {
+  const extensions = ['.tex', '.log', '.aux', '.out', '.pdf'];
+  for (const ext of extensions) {
+    try {
+      const filePath = path.join(TMP_DIR, `${fileId}${ext}`);
+      await fs.unlink(filePath).catch(() => {});
+      const pdfPath = path.join(PDF_DIR, `${fileId}${ext}`);
+      await fs.unlink(pdfPath).catch(() => {});
+    } catch (err) {
+      console.error(`[Server] Cleanup error for ${fileId}${ext}:`, err);
+    }
+  }
+  console.log('[Server] Cleanup completed');
+}
+
 // CORS middleware
 const allowCors = fn => async (req, res) => {
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -64,54 +101,24 @@ const compileHandler = async (req, res) => {
       });
     }
 
-    // Validate LaTeX content
-    console.log('[Server] Validating LaTeX content:', {
-      contentLength: latex.length,
-      hasDocumentClass: latex.includes('\\documentclass'),
-      hasBeginDocument: latex.includes('\\begin{document}'),
-      hasEndDocument: latex.includes('\\end{document}')
-    });
-
-    // Ensure content is a complete LaTeX document
-    let processedLatex = latex;
-    if (!latex.includes('\\documentclass')) {
-      processedLatex = `\\documentclass{article}
-\\usepackage{latexsym}
-\\usepackage{fullpage}
-\\usepackage{titlesec}
-\\usepackage{marvosym}
-\\usepackage{verbatim}
-\\usepackage{enumitem}
-\\usepackage{hyperref}
-\\usepackage[empty]{fullpage}
-\\usepackage{color}
-\\definecolor{linkcolour}{rgb}{0,0.2,0.6}
-\\hypersetup{colorlinks,breaklinks,urlcolor=linkcolour,linkcolor=linkcolour}
-
-\\begin{document}
-${latex}
-\\end{document}`;
-    }
-
+    // Write the LaTeX content directly without modification
     const texPath = path.join(TMP_DIR, `${fileId}.tex`);
     const outputPath = path.join(PDF_DIR, `${fileId}.pdf`);
-
-    await fs.writeFile(texPath, processedLatex, 'utf8');
+    
+    await fs.writeFile(texPath, latex, 'utf8');
     console.log('[Server] LaTeX file written successfully:', {
       path: texPath,
-      size: processedLatex.length,
-      documentStructure: {
-        hasDocumentClass: processedLatex.includes('\\documentclass'),
-        hasBeginDocument: processedLatex.includes('\\begin{document}'),
-        hasEndDocument: processedLatex.includes('\\end{document}')
-      }
+      size: latex.length
     });
+
+    // Create output directory if it doesn't exist
+    await fs.mkdir(PDF_DIR, { recursive: true });
 
     const cmd = `cd "${TMP_DIR}" && ${PDFLATEX_PATH} -interaction=nonstopmode -output-directory="${PDF_DIR}" "${texPath}"`;
     
     const { stdout, stderr } = await new Promise((resolve, reject) => {
-      exec(cmd, (error, stdout, stderr) => {
-        if (error) {
+      exec(cmd, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+        if (error && !stdout.includes('Output written on')) {
           console.error('[Server] Compilation error:', {
             error,
             stdout,
@@ -140,23 +147,25 @@ ${latex}
 
   } catch (error) {
     console.error('[Server] Error:', error);
+    let errorMessage = error.message || 'Server error';
+    let errorDetails = error.stderr || error.stdout || '';
+    
+    // Check for specific LaTeX errors
+    if (errorDetails.includes('! LaTeX Error:')) {
+      const match = errorDetails.match(/! LaTeX Error: (.*?)\./);
+      if (match) {
+        errorMessage = match[1];
+      }
+    }
+    
     res.status(500).json({
       success: false,
-      error: error.message || 'Server error',
-      details: error.stderr || error.stdout || ''
+      error: errorMessage,
+      details: errorDetails
     });
   } finally {
-    // Cleanup
-    try {
-      const extensions = ['.tex', '.log', '.aux', '.out'];
-      for (const ext of extensions) {
-        const filePath = path.join(TMP_DIR, `${fileId}${ext}`);
-        await fs.unlink(filePath).catch(() => {});
-      }
-      console.log('[Server] Cleanup completed');
-    } catch (err) {
-      console.error('[Server] Cleanup error:', err);
-    }
+    // Cleanup temporary files
+    await cleanupFiles(fileId);
   }
 };
 

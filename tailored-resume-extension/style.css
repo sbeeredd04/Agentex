@@ -970,7 +970,7 @@ main {
   background-color: white;
 }
 
-/* Modal Styles */
+/* Settings Modal Styles */
 .modal {
   display: none;
   position: fixed;
@@ -1145,6 +1145,95 @@ main {
   border-color: var(--accent-primary);
   outline: none;
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* Multi-Agent Prompt Styles */
+.multi-agent-prompt-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--surface-dark);
+  border-radius: var(--radius-md);
+}
+
+.prompt-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-normal);
+}
+
+.prompt-group:hover {
+  border-color: var(--accent-secondary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.prompt-group label {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--accent-primary);
+  margin-bottom: 0.5rem;
+  display: block;
+  letter-spacing: 0.5px;
+}
+
+.prompt-description {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--accent-secondary);
+}
+
+.prompt-group textarea {
+  width: 100%;
+  min-height: 150px;
+  padding: 1rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: 'Ubuntu Mono', monospace;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  resize: vertical;
+  transition: all var(--transition-normal);
+}
+
+.prompt-group textarea:focus {
+  border-color: var(--accent-primary);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  background: var(--surface-dark);
+}
+
+.prompt-group textarea::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+/* Add visual separator between groups */
+.prompt-group:not(:last-child) {
+  position: relative;
+}
+
+.prompt-group:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  bottom: -1rem;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--border-color), transparent);
 }
 
 /* Modal Animation */

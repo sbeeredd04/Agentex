@@ -63,7 +63,7 @@ const DEFAULT_PROMPT = `You are an expert ATS resume tailor for software enginee
 3. Replace existing projects when:
    - Knowledge base project has ≥70% technology overlap with JD
    - Knowledge base project demonstrates stronger metrics
-   - Knowledge base project better aligns with job responsibilities
+   - Knowledge base project better aligns with the job responsibilities
 
 ## Execution Protocol
 ### Content Evaluation
@@ -1399,30 +1399,26 @@ function setupApiKeyManagement() {
     } else {
       docxPromptInput.value = defaultDocxPrompt;
     }
+    
+    // Only set values if they exist in storage, otherwise leave empty
     if (result.jobAnalysisPrompt) {
       jobAnalysisPromptInput.value = result.jobAnalysisPrompt;
-    } else {
-      jobAnalysisPromptInput.value = window.AIService.DEFAULT_JOB_ANALYSIS_PROMPT;
     }
+    
     if (result.projectsOptimizationPrompt) {
       projectsOptimizationPromptInput.value = result.projectsOptimizationPrompt;
-    } else {
-      projectsOptimizationPromptInput.value = window.AIService.DEFAULT_PROJECTS_OPTIMIZATION_PROMPT;
     }
+    
     if (result.skillsEnhancementPrompt) {
       skillsEnhancementPromptInput.value = result.skillsEnhancementPrompt;
-    } else {
-      skillsEnhancementPromptInput.value = window.AIService.DEFAULT_SKILLS_ENHANCEMENT_PROMPT;
     }
+    
     if (result.experienceRefinementPrompt) {
       experienceRefinementPromptInput.value = result.experienceRefinementPrompt;
-    } else {
-      experienceRefinementPromptInput.value = window.AIService.DEFAULT_EXPERIENCE_REFINEMENT_PROMPT;
     }
+    
     if (result.finalPolishPrompt) {
       finalPolishPromptInput.value = result.finalPolishPrompt;
-    } else {
-      finalPolishPromptInput.value = window.AIService.DEFAULT_FINAL_POLISH_PROMPT;
     }
   });
 
@@ -1529,7 +1525,7 @@ function setupApiKeyManagement() {
         throw new Error('DOCX prompt template cannot be empty');
       }
       if (!jobAnalysisPrompt) {
-        throw new Error('Job analysis prompt template cannot be empty');
+        throw new Error('Analysis prompt template cannot be empty');
       }
       if (!projectsOptimizationPrompt) {
         throw new Error('Projects optimization prompt template cannot be empty');

@@ -21,8 +21,8 @@ class AIService {
       }
     };
 
-    // Load API keys
-    this.loadApiKeys();
+    // Load API keys and prompts
+    this.loadSettings();
   }
 
   // Default prompts for multi-agent structure
@@ -165,15 +165,31 @@ Your task is to:
 
 Return ONLY the complete LaTeX resume code, maintaining the same structure and formatting as the original.`;
 
-  async loadApiKeys() {
-    const keys = await chrome.storage.local.get(['geminiApiKey', 'groqApiKey']);
-    this.models.gemini.apiKey = keys.geminiApiKey;
-    this.models.groq.apiKey = keys.groqApiKey;
+  async loadSettings() {
+    const settings = await chrome.storage.local.get([
+      'geminiApiKey', 
+      'groqApiKey',
+      'customPrompt',
+      'jobAnalysisPrompt',
+      'projectsOptimizationPrompt',
+      'skillsEnhancementPrompt',
+      'experienceRefinementPrompt',
+      'finalPolishPrompt'
+    ]);
 
-    console.log('[AIService] API keys loaded:', {
-      gemini: Boolean(this.models.gemini.apiKey),
-      groq: Boolean(this.models.groq.apiKey)
-    });
+    // Set API keys
+    this.models.gemini.apiKey = settings.geminiApiKey;
+    this.models.groq.apiKey = settings.groqApiKey;
+
+    // Set custom prompts or use defaults
+    this.prompts = {
+      custom: settings.customPrompt || AIService.DEFAULT_PROMPT,
+      jobAnalysis: settings.jobAnalysisPrompt || AIService.DEFAULT_JOB_ANALYSIS_PROMPT,
+      projectsOptimization: settings.projectsOptimizationPrompt || AIService.DEFAULT_PROJECTS_OPTIMIZATION_PROMPT,
+      skillsEnhancement: settings.skillsEnhancementPrompt || AIService.DEFAULT_SKILLS_ENHANCEMENT_PROMPT,
+      experienceRefinement: settings.experienceRefinementPrompt || AIService.DEFAULT_EXPERIENCE_REFINEMENT_PROMPT,
+      finalPolish: settings.finalPolishPrompt || AIService.DEFAULT_FINAL_POLISH_PROMPT
+    };
   }
 
   async generateWithCurrentModel(prompt) {
@@ -211,13 +227,9 @@ Return ONLY the complete LaTeX resume code, maintaining the same structure and f
 
       const response = await this.generateWithCurrentModel(finalPrompt);
       
-      // Clean response based on content type
-      if (contentType === 'docx') {
-        console.log('[AIService] Cleaning DOCX response');
-        return this.cleanDocxResponse(response);
-      }
-      console.log('[AIService] Cleaning LaTeX response');
-      return this.cleanLatexResponse(response);
+      return contentType === 'docx' ? 
+        this.cleanDocxResponse(response) : 
+        this.cleanLatexResponse(response);
 
     } catch (error) {
       console.error(`[AIService] ${contentType.toUpperCase()} Generation error:`, error);
@@ -417,43 +429,20 @@ Return ONLY the complete LaTeX resume code, maintaining the same structure and f
       if (!hasKnowledgeBaseContent) {
         console.log('[AIService] Knowledge base is empty, falling back to single-step generation');
         return this.generateContent(
-          `You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews.
-
-Original LaTeX Resume:
-${originalLatex}
-
-Job Description:
-${jobDesc}
-
-VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section.
-
-!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!`,
+          this.prompts.custom
+            .replace('{originalLatex}', originalLatex)
+            .replace('{jobDesc}', jobDesc)
+            .replace('{knowledgeBase}', knowledgeBase),
           'latex',
           modelType,
           model
         );
       }
       
-      // Get custom prompts from storage
-      const prompts = await chrome.storage.local.get([
-        'jobAnalysisPrompt', 
-        'projectsOptimizationPrompt', 
-        'skillsEnhancementPrompt',
-        'experienceRefinementPrompt',
-        'finalPolishPrompt'
-      ]);
-      
-      const jobAnalysisPromptTemplate = prompts.jobAnalysisPrompt || AIService.DEFAULT_JOB_ANALYSIS_PROMPT;
-      const projectsOptimizationPromptTemplate = prompts.projectsOptimizationPrompt || AIService.DEFAULT_PROJECTS_OPTIMIZATION_PROMPT;
-      const skillsEnhancementPromptTemplate = prompts.skillsEnhancementPrompt || AIService.DEFAULT_SKILLS_ENHANCEMENT_PROMPT;
-      const experienceRefinementPromptTemplate = prompts.experienceRefinementPrompt || AIService.DEFAULT_EXPERIENCE_REFINEMENT_PROMPT;
-      const finalPolishPromptTemplate = prompts.finalPolishPrompt || AIService.DEFAULT_FINAL_POLISH_PROMPT;
-      
-      // Step 1: Job Analysis Agent - Analyze job description and knowledge base
+      // Step 1: Job Analysis
       dispatchStatus(1, 'Analyzing job description and knowledge base');
-      console.log('[AIService] Step 1: Job Analysis Agent');
       
-      const jobAnalysisPrompt = jobAnalysisPromptTemplate
+      const jobAnalysisPrompt = this.prompts.jobAnalysis
         .replace('{jobDesc}', jobDesc)
         .replace('{knowledgeBase}', knowledgeBase);
       
@@ -462,48 +451,30 @@ VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are
       // Parse the analysis JSON
       let analysis;
       try {
-        // Extract JSON from the response (in case there's extra text)
         const jsonMatch = analysisResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          analysis = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error('Could not extract JSON from analysis response');
-        }
+        analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
       } catch (error) {
-        console.error('[AIService] Failed to parse analysis JSON:', error);
-        // Fall back to single-step generation
+        // Fall back to single-step generation on parsing error
         return this.generateContent(
-          `You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews.
-
-Original LaTeX Resume:
-${originalLatex}
-
-Job Description:
-${jobDesc}
-
-Knowledge Base / Additional Experience:
-${knowledgeBase}
-
-VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD.
-VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section.
-
-!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!`,
+          this.prompts.custom
+            .replace('{originalLatex}', originalLatex)
+            .replace('{jobDesc}', jobDesc)
+            .replace('{knowledgeBase}', knowledgeBase),
           'latex',
           modelType,
           model
         );
       }
       
-      // Extract sections from original LaTeX
+      // Extract sections
       const originalProjects = this._extractProjectsSection(originalLatex);
       const originalSkills = this._extractSkillsSection(originalLatex);
       const originalExperience = this._extractExperienceSection(originalLatex);
       
-      // Step 2: Projects Optimization Agent - Optimize projects section
+      // Step 2: Projects Optimization
       dispatchStatus(2, 'Optimizing projects section');
-      console.log('[AIService] Step 2: Projects Optimization Agent');
       
-      const projectsPrompt = projectsOptimizationPromptTemplate
+      const projectsPrompt = this.prompts.projectsOptimization
         .replace('{originalProjects}', originalProjects)
         .replace('{jobDesc}', jobDesc)
         .replace('{analysisProjects}', JSON.stringify(analysis.relevantProjects, null, 2))
@@ -512,22 +483,20 @@ VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are
       
       const optimizedProjects = await this.generateWithCurrentModel(projectsPrompt);
       
-      // Step 3: Skills Enhancement Agent - Enhance skills section
+      // Step 3: Skills Enhancement
       dispatchStatus(3, 'Enhancing skills section');
-      console.log('[AIService] Step 3: Skills Enhancement Agent');
       
-      const skillsPrompt = skillsEnhancementPromptTemplate
+      const skillsPrompt = this.prompts.skillsEnhancement
         .replace('{originalSkills}', originalSkills)
         .replace('{jobDesc}', jobDesc)
         .replace('{requiredTechnologies}', analysis.requiredTechnologies.join(', '));
       
       const enhancedSkills = await this.generateWithCurrentModel(skillsPrompt);
       
-      // Step 4: Experience Refinement Agent - Refine experience section
+      // Step 4: Experience Refinement
       dispatchStatus(4, 'Refining experience section');
-      console.log('[AIService] Step 4: Experience Refinement Agent');
       
-      const experiencePrompt = experienceRefinementPromptTemplate
+      const experiencePrompt = this.prompts.experienceRefinement
         .replace('{originalExperience}', originalExperience)
         .replace('{jobDesc}', jobDesc)
         .replace('{experienceRequirements}', analysis.experienceRequirements.join(', '))
@@ -536,11 +505,10 @@ VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are
       
       const refinedExperience = await this.generateWithCurrentModel(experiencePrompt);
       
-      // Step 5: Final Polish Agent - Polish the entire resume
+      // Step 5: Final Polish
       dispatchStatus(5, 'Polishing final resume');
-      console.log('[AIService] Step 5: Final Polish Agent');
       
-      const finalPrompt = finalPolishPromptTemplate
+      const finalPrompt = this.prompts.finalPolish
         .replace('{originalLatex}', originalLatex)
         .replace('{optimizedProjects}', optimizedProjects)
         .replace('{enhancedSkills}', enhancedSkills)
@@ -554,21 +522,10 @@ VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are
       console.error('[AIService] Multi-agent generation error:', error);
       // Fall back to single-step generation
       return this.generateContent(
-        `You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews.
-
-Original LaTeX Resume:
-${originalLatex}
-
-Job Description:
-${jobDesc}
-
-Knowledge Base / Additional Experience:
-${knowledgeBase}
-
-VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD.
-VERY IMPORTANT: ALWAYS ADD any skills that are not already in the resume but are relevant to the JD to the skills section.
-
-!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!`,
+        this.prompts.custom
+          .replace('{originalLatex}', originalLatex)
+          .replace('{jobDesc}', jobDesc)
+          .replace('{knowledgeBase}', knowledgeBase),
         'latex',
         modelType,
         model

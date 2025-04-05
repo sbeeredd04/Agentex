@@ -1,5 +1,4 @@
-// Debug: Initialize popup.js
-console.log('Initializing popup.js');
+// Initialize popup.js
 
 // Global variables and state
 let aiService;
@@ -32,7 +31,7 @@ let sidebarState = {
   uploadedFileContent: '',
   isPreviewExpanded: false,
   generatedContent: null,
-  fileType: null, // 'latex' or 'docx'
+  fileType: null,
   originalContent: null,
   originalDocx: null,
   tailoredContent: null
@@ -194,7 +193,6 @@ Instructions:
 
 // Function to display status messages
 function showStatus(message, type = 'info') {
-  console.log(`Status: ${message} (${type})`);
   showToast(message, type);
 }
 
@@ -219,17 +217,11 @@ const requestTracker = {
   currentRequest: null,
   isProcessing: false,
   lastRequestTime: 0,
-  DEBOUNCE_TIME: 1000, // 1 second
+  DEBOUNCE_TIME: 1000,
 
   async process(requestFn) {
     const now = Date.now();
-    if (this.isProcessing) {
-      console.log('[RequestTracker] Request already in progress, skipping');
-      return null;
-    }
-    
-    if (now - this.lastRequestTime < this.DEBOUNCE_TIME) {
-      console.log('[RequestTracker] Request too soon, skipping');
+    if (this.isProcessing || now - this.lastRequestTime < this.DEBOUNCE_TIME) {
       return null;
     }
 
@@ -251,15 +243,6 @@ function setupUIElements() {
     knowledgeBaseText: document.getElementById('knowledgeBaseText'),
     pdfPreviewArea: document.getElementById('pdfPreviewArea')
   };
-
-  // Debugging: Log each element to ensure it's not null
-  for (const [key, element] of Object.entries(elements)) {
-    if (!element) {
-      console.error(`[SetupUIElements] Element not found: ${key}`);
-    } else {
-      console.log(`[SetupUIElements] Element found: ${key}`);
-    }
-  }
 
   return elements;
 }
@@ -293,7 +276,6 @@ function setupEventListeners(elements) {
   // File upload listener
   if (elements.latexFileInput) {
     elements.latexFileInput.addEventListener('change', async (event) => {
-      console.log('File input change detected');
       const file = event.target.files[0];
       await handleFileUpload(file);
     });
@@ -309,16 +291,7 @@ function setupEventListeners(elements) {
   // Add this to setupEventListeners()
   document.querySelectorAll('input[name="resumeVersion"]').forEach(radio => {
     radio.addEventListener('change', (e) => {
-      console.log('[RadioButton] Changed to:', e.target.value);
-      console.log('[RadioButton] Previous state:', sidebarState.contentType);
-      
       sidebarState.contentType = e.target.value;
-      console.log('[RadioButton] Updated state:', sidebarState.contentType);
-      console.log('[RadioButton] Available content:', {
-        originalLatex: originalLatex?.length || 0,
-        tailoredLatex: tailoredLatex?.length || 0
-      });
-      
       saveState();
       updatePreview(sidebarState.previewMode);
     });
@@ -365,7 +338,6 @@ function setupPreviewUI() {
   toggleButtons.forEach(button => {
     button.addEventListener('click', async () => {
       if (requestTracker.isProcessing) {
-        console.log('[Preview] Update in progress, ignoring click');
         return;
       }
 
@@ -393,19 +365,11 @@ function setupPreviewUI() {
       }
     });
   });
-
-  console.log('[Preview] UI setup complete');
 }
 
 // Update the updatePreview function
 async function updatePreview() {
-  console.log('[Preview] Starting preview update:', {
-    contentType: sidebarState.contentType,
-    fileType: sidebarState.fileType
-  });
-
   if (window.isPreviewUpdating) {
-    console.log('[Preview] Update already in progress, skipping');
     return;
   }
   window.isPreviewUpdating = true;
@@ -422,13 +386,6 @@ async function updatePreview() {
         generatedRawContent : 
         sidebarState.originalContent;
     }
-
-    console.log('[Preview] Content validation:', {
-      hasContent: !!contentToShow,
-      contentLength: contentToShow?.length,
-      fileType: sidebarState.fileType,
-      contentType: sidebarState.contentType
-    });
 
     if (!contentToShow) {
       throw new Error('No content available for preview');
@@ -454,7 +411,6 @@ async function updatePreview() {
     }
 
   } catch (error) {
-    console.error('[Preview] Error:', error);
     showStatus(error.message, 'error');
   } finally {
     window.isPreviewUpdating = false;
@@ -465,16 +421,6 @@ async function updatePreview() {
 async function generatePdfPreview(content, type = 'original') {
   return requestTracker.process(async () => {
     try {
-      console.log('[PdfPreview] Starting PDF generation:', {
-        contentType: typeof content,
-        type: type,
-        contentDetails: {
-          type: content?.type,
-          hasData: !!content?.data,
-          dataType: typeof content?.data
-        }
-      });
-
       const pdfPreviewArea = document.getElementById('pdfPreviewArea');
       if (!pdfPreviewArea) {
         throw new Error("PDF preview area not found");
@@ -603,14 +549,12 @@ async function generatePdfPreview(content, type = 'original') {
       // Monitor iframe loading
       const iframe = pdfPreviewArea.querySelector('iframe');
       iframe.onload = () => {
-        console.log('[PdfPreview] PDF iframe loaded successfully');
         showStatus('PDF preview loaded successfully!', 'success');
       };
 
       return true;
 
     } catch (error) {
-      console.error('[PdfPreview] Error:', error);
       showStatus(`Preview generation failed: ${error.message}`, 'error');
       
       // Show error in preview area
@@ -638,19 +582,12 @@ window.retryPdfPreview = async () => {
       ? sidebarState.tailoredDocx 
       : sidebarState.originalDocx;
     
-    console.log('[PdfPreview] Retrying with content:', {
-      hasContent: !!content,
-      contentType: content?.type,
-      hasData: !!content?.data
-    });
-
     if (!content || !content.type || !content.data) {
       throw new Error('Invalid content for retry. Please upload your file again.');
     }
     
     await generatePdfPreview(content, sidebarState.contentType);
   } catch (error) {
-    console.error('[PdfPreview] Retry failed:', error);
     showStatus(error.message, 'error');
   }
 };
@@ -673,13 +610,6 @@ async function restoreState() {
       'generatedDocx',
       'generatedRawContent'
     ]);
-    
-    console.log('[State] Restoring state:', {
-      hasState: !!savedState,
-      hasTailoredLatex: !!savedTailoredLatex,
-      hasGeneratedDocx: !!savedGeneratedDocx,
-      contentType: savedState?.contentType
-    });
     
     if (savedState) {
       // Merge saved state with default state, but don't restore content
@@ -767,13 +697,11 @@ async function restoreState() {
             }
           }
         } catch (error) {
-          console.error('[State] Error loading file:', error);
           showToast('Error loading file. Please re-upload manually.', 'error');
         }
       }
     }
   } catch (error) {
-    console.error('[State] Error restoring state:', error);
     showToast('Error restoring previous session', 'error');
   }
 }
@@ -786,12 +714,6 @@ async function updatePreviewContent() {
   try {
     const contentToShow = sidebarState.contentType === 'generated' ? 
       tailoredLatex : sidebarState.originalContent;
-
-    console.log('[Preview] Updating content:', {
-      type: sidebarState.contentType,
-      hasContent: !!contentToShow,
-      fileType: sidebarState.fileType
-    });
 
     if (contentToShow) {
       rawPreview.style.opacity = '0';
@@ -807,7 +729,6 @@ async function updatePreviewContent() {
       }
     }
   } catch (error) {
-    console.error('[Preview] Error updating content:', error);
     showToast('Error updating preview', 'error');
   }
 }
@@ -815,13 +736,6 @@ async function updatePreviewContent() {
 // Update the file upload handler
 async function handleFileUpload(file) {
   try {
-    console.log('[FileUpload] Starting file upload process', {
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-      extension: file.name.split('.').pop().toLowerCase()
-    });
-
     showUploadingFeedback(file.name);
     showStatus('Reading file...', 'info');
 
@@ -830,14 +744,6 @@ async function handleFileUpload(file) {
 
     // Set file type attribute on document root
     document.documentElement.setAttribute('data-file-type', result.type);
-
-    console.log('[FileUpload] File processing result:', {
-      type: result.type,
-      hasContent: !!result.content,
-      hasPreview: !!result.preview,
-      hasDocx: !!result.docx,
-      success: result.success
-    });
 
     if (!result.success && result.error) {
       throw new Error(result.error);
@@ -873,7 +779,6 @@ async function handleFileUpload(file) {
     return result;
 
   } catch (error) {
-    console.error('[FileUpload] Error:', error);
     showFailedUploadFeedback();
     showStatus(`Upload failed: ${error.message}`, 'error');
     throw error;
@@ -1008,7 +913,6 @@ async function initializeSidepanel() {
     await restoreState();
     setupGenerateButton();
   } catch (error) {
-    console.error('[Sidepanel] Initialization failed:', error);
     showToast('Failed to initialize sidepanel: ' + error.message, 'error');
   }
 }
@@ -1038,19 +942,11 @@ function cleanupBlobUrls() {
 function setupModelSelector() {
   const modelSelect = document.getElementById('modelSelect');
   if (!modelSelect) {
-    console.error('[ModelSelector] Model select element not found');
     return;
   }
 
   modelSelect.addEventListener('change', (e) => {
     const [type, model] = e.target.value.split(':');
-    console.log('[ModelSelector] Model changed:', {
-      value: e.target.value,
-      type,
-      model
-    });
-
-    // Update current selection
     currentModelSelection = {
       type,
       model,
@@ -1069,9 +965,6 @@ function setupModelSelector() {
 
   // Restore saved model selection (handling both string and object formats)
   if (sidebarState.selectedModel) {
-    console.log('[ModelSelector] Restoring saved model:', sidebarState.selectedModel);
-    
-    // Handle legacy string format or new object format
     if (typeof sidebarState.selectedModel === 'string') {
       const [type, model] = sidebarState.selectedModel.split(':');
       currentModelSelection = {
@@ -1114,13 +1007,6 @@ async function generateTailoredContent() {
     const jobDesc = document.getElementById('jobDesc').value.trim();
     const knowledgeBase = document.getElementById('knowledgeBaseText').value.trim();
     
-    console.log('[Tailor] Starting generation:', {
-      fileType: sidebarState.fileType,
-      model: currentModelSelection,
-      hasJobDesc: Boolean(jobDesc),
-      hasKnowledgeBase: Boolean(knowledgeBase)
-    });
-
     if (!jobDesc) {
       throw new Error("Please enter the job description");
     }
@@ -1128,13 +1014,11 @@ async function generateTailoredContent() {
     // Determine pipeline based on file type
     let result;
     if (sidebarState.fileType === 'docx') {
-      console.log('[Tailor] Using DOCX Pipeline');
       if (!sidebarState.originalDocx) {
         throw new Error("Please upload a DOCX file first");
       }
       result = await generateTailoredDocx();
     } else if (sidebarState.fileType === 'latex') {
-      console.log('[Tailor] Using LaTeX Pipeline');
       if (!originalLatex) {
         throw new Error("Please upload a LaTeX file first");
       }
@@ -1166,10 +1050,6 @@ async function generateTailoredContent() {
     return result;
 
   } catch (error) {
-    console.error('[Tailor] Generation failed:', {
-      error,
-      fileType: sidebarState.fileType
-    });
     showStatus(`Generation failed: ${error.message}`, 'error');
     throw error;
   }
@@ -1193,19 +1073,8 @@ function updateGenerationStatus(step, totalSteps, message) {
 // Update generateTailoredLatex with better debugging
 async function generateTailoredLatex() {
   try {
-    console.log('[LaTeX] Starting LaTeX tailoring process', {
-      hasOriginalLatex: !!originalLatex,
-      contentLength: originalLatex?.length,
-      pipeline: 'LaTeX'
-    });
-
     const jobDesc = document.getElementById('jobDesc').value.trim();
     const knowledgeBase = document.getElementById('knowledgeBaseText').value.trim();
-
-    console.log('[LaTeX] Input validation', {
-      hasJobDesc: !!jobDesc,
-      hasKnowledgeBase: !!knowledgeBase
-    });
 
     if (!originalLatex) {
       throw new Error('No LaTeX content found');
@@ -1219,12 +1088,6 @@ async function generateTailoredLatex() {
     updateGenerationStatus(1, 3, 'Analyzing job description and knowledge base');
     
     // Use the new multi-step generation process
-    console.log('[LaTeX] Using multi-step generation process', {
-      modelType: currentModelSelection.type,
-      model: currentModelSelection.model
-    });
-
-    // Create a custom event listener for the multi-step process
     const statusListener = (event) => {
       if (event.detail && event.detail.step) {
         updateGenerationStatus(event.detail.step, event.detail.totalSteps, event.detail.message);
@@ -1244,11 +1107,6 @@ async function generateTailoredLatex() {
         currentModelSelection.model
       );
 
-      console.log('[LaTeX] Generation completed:', {
-        success: true,
-        contentLength: tailoredContent?.length
-      });
-
       return {
         success: true,
         content: tailoredContent,
@@ -1260,7 +1118,6 @@ async function generateTailoredLatex() {
     }
 
   } catch (error) {
-    console.error('[LaTeX] Generation error:', error);
     return {
       success: false,
       error: error.message,
@@ -1272,15 +1129,6 @@ async function generateTailoredLatex() {
 // Update generateTailoredDocx function to properly handle content
 async function generateTailoredDocx() {
   try {
-    console.log('[DOCX] Starting DOCX tailoring process', {
-      hasOriginalDocx: !!sidebarState.originalDocx,
-      originalDocxDetails: {
-        type: sidebarState.originalDocx?.type,
-        hasData: !!sidebarState.originalDocx?.data,
-        originalName: sidebarState.originalDocx?.originalName
-      }
-    });
-
     const jobDesc = document.getElementById('jobDesc').value.trim();
     const knowledgeBase = document.getElementById('knowledgeBaseText').value.trim();
 
@@ -1297,7 +1145,6 @@ async function generateTailoredDocx() {
 
     // Ensure DocxService is initialized
     if (!docxService) {
-      console.log('[DOCX] Initializing DocxService');
       docxService = new window.DocxService();
     }
 
@@ -1310,13 +1157,11 @@ async function generateTailoredDocx() {
         throw new Error('Invalid DOCX format in storage');
       }
     } catch (error) {
-      console.error('[DOCX] Buffer conversion error:', error);
       throw new Error('Failed to process DOCX file: ' + error.message);
     }
 
     showStatus('Processing DOCX file...', 'info');
     
-    console.log('[DOCX] Calling DocxService.tailorDocx with model:', currentModelSelection);
     const result = await docxService.tailorDocx(
       docxBuffer,
       jobDesc,
@@ -1342,7 +1187,6 @@ async function generateTailoredDocx() {
     return result;
 
   } catch (error) {
-    console.error('[DOCX] Tailoring error:', error);
     showStatus(error.message, 'error');
     return {
       success: false,
@@ -1368,9 +1212,6 @@ function setupApiKeyManagement() {
   const finalPolishPromptInput = document.getElementById('finalPolishPrompt');
   const resetMultiAgentPromptsBtn = document.getElementById('resetMultiAgentPrompts');
 
-  // Get the default DOCX prompt
-  const defaultDocxPrompt = window.DocxAIService?.DEFAULT_PROMPT || '';
-
   // Load saved settings
   chrome.storage.local.get([
     'geminiApiKey', 
@@ -1383,50 +1224,25 @@ function setupApiKeyManagement() {
     'experienceRefinementPrompt',
     'finalPolishPrompt'
   ], (result) => {
-    if (result.geminiApiKey) {
-      geminiInput.value = result.geminiApiKey;
-    }
-    if (result.groqApiKey) {
-      groqInput.value = result.groqApiKey;
-    }
-    if (result.customPrompt) {
-      promptInput.value = result.customPrompt;
-    } else {
-      promptInput.value = DEFAULT_PROMPT;
-    }
-    if (result.docxCustomPrompt) {
-      docxPromptInput.value = result.docxCustomPrompt;
-    } else {
-      docxPromptInput.value = defaultDocxPrompt;
-    }
-    
-    // Only set values if they exist in storage, otherwise leave empty
-    if (result.jobAnalysisPrompt) {
-      jobAnalysisPromptInput.value = result.jobAnalysisPrompt;
-    }
-    
-    if (result.projectsOptimizationPrompt) {
-      projectsOptimizationPromptInput.value = result.projectsOptimizationPrompt;
-    }
-    
-    if (result.skillsEnhancementPrompt) {
-      skillsEnhancementPromptInput.value = result.skillsEnhancementPrompt;
-    }
-    
-    if (result.experienceRefinementPrompt) {
-      experienceRefinementPromptInput.value = result.experienceRefinementPrompt;
-    }
-    
-    if (result.finalPolishPrompt) {
-      finalPolishPromptInput.value = result.finalPolishPrompt;
-    }
+    // Set API keys
+    if (result.geminiApiKey) geminiInput.value = result.geminiApiKey;
+    if (result.groqApiKey) groqInput.value = result.groqApiKey;
+
+    // Set prompts only if they exist in storage (not empty)
+    if (result.customPrompt) promptInput.value = result.customPrompt;
+    if (result.docxCustomPrompt) docxPromptInput.value = result.docxCustomPrompt;
+    if (result.jobAnalysisPrompt) jobAnalysisPromptInput.value = result.jobAnalysisPrompt;
+    if (result.projectsOptimizationPrompt) projectsOptimizationPromptInput.value = result.projectsOptimizationPrompt;
+    if (result.skillsEnhancementPrompt) skillsEnhancementPromptInput.value = result.skillsEnhancementPrompt;
+    if (result.experienceRefinementPrompt) experienceRefinementPromptInput.value = result.experienceRefinementPrompt;
+    if (result.finalPolishPrompt) finalPolishPromptInput.value = result.finalPolishPrompt;
   });
 
   // Reset prompts with animation
   document.getElementById('resetPrompt').addEventListener('click', () => {
     promptInput.style.opacity = '0';
     setTimeout(() => {
-      promptInput.value = DEFAULT_PROMPT;
+      promptInput.value = ''; // Clear to use default
       promptInput.style.opacity = '1';
     }, 200);
     showToast('LaTeX prompt reset to default', 'info');
@@ -1435,7 +1251,7 @@ function setupApiKeyManagement() {
   document.getElementById('resetDocxPrompt').addEventListener('click', () => {
     docxPromptInput.style.opacity = '0';
     setTimeout(() => {
-      docxPromptInput.value = defaultDocxPrompt;
+      docxPromptInput.value = ''; // Clear to use default
       docxPromptInput.style.opacity = '1';
     }, 200);
     showToast('DOCX prompt reset to default', 'info');
@@ -1444,17 +1260,17 @@ function setupApiKeyManagement() {
   // Reset multi-agent prompts
   resetMultiAgentPromptsBtn.addEventListener('click', () => {
     const prompts = [
-      { input: jobAnalysisPromptInput, value: window.AIService.DEFAULT_JOB_ANALYSIS_PROMPT },
-      { input: projectsOptimizationPromptInput, value: window.AIService.DEFAULT_PROJECTS_OPTIMIZATION_PROMPT },
-      { input: skillsEnhancementPromptInput, value: window.AIService.DEFAULT_SKILLS_ENHANCEMENT_PROMPT },
-      { input: experienceRefinementPromptInput, value: window.AIService.DEFAULT_EXPERIENCE_REFINEMENT_PROMPT },
-      { input: finalPolishPromptInput, value: window.AIService.DEFAULT_FINAL_POLISH_PROMPT }
+      { input: jobAnalysisPromptInput },
+      { input: projectsOptimizationPromptInput },
+      { input: skillsEnhancementPromptInput },
+      { input: experienceRefinementPromptInput },
+      { input: finalPolishPromptInput }
     ];
     
     prompts.forEach(prompt => {
       prompt.input.style.opacity = '0';
       setTimeout(() => {
-        prompt.input.value = prompt.value;
+        prompt.input.value = ''; // Clear to use default
         prompt.input.style.opacity = '1';
       }, 200);
     });
@@ -1462,24 +1278,60 @@ function setupApiKeyManagement() {
     showToast('Multi-agent prompts reset to default', 'info');
   });
 
-  // Toggle password visibility with icon update
-  document.querySelectorAll('.toggle-visibility').forEach(button => {
-    button.addEventListener('click', () => {
-      const inputId = button.getAttribute('data-for');
-      const input = document.getElementById(inputId);
-      const icon = button.querySelector('.material-icons');
-      
-      if (input.type === 'password') {
-        input.type = 'text';
-        icon.textContent = 'visibility';
-      } else {
-        input.type = 'password';
-        icon.textContent = 'visibility_off';
+  // Save settings with validation and feedback
+  saveBtn.addEventListener('click', async () => {
+    try {
+      // Show saving state
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = `
+        <div class="loading-spinner"></div>
+        <span>Saving...</span>
+      `;
+
+      // Get all values
+      const settings = {
+        geminiApiKey: geminiInput.value.trim(),
+        groqApiKey: groqInput.value.trim()
+      };
+
+      // Only save non-empty prompts
+      if (promptInput.value.trim()) settings.customPrompt = promptInput.value.trim();
+      if (docxPromptInput.value.trim()) settings.docxCustomPrompt = docxPromptInput.value.trim();
+      if (jobAnalysisPromptInput.value.trim()) settings.jobAnalysisPrompt = jobAnalysisPromptInput.value.trim();
+      if (projectsOptimizationPromptInput.value.trim()) settings.projectsOptimizationPrompt = projectsOptimizationPromptInput.value.trim();
+      if (skillsEnhancementPromptInput.value.trim()) settings.skillsEnhancementPrompt = skillsEnhancementPromptInput.value.trim();
+      if (experienceRefinementPromptInput.value.trim()) settings.experienceRefinementPrompt = experienceRefinementPromptInput.value.trim();
+      if (finalPolishPromptInput.value.trim()) settings.finalPolishPrompt = finalPolishPromptInput.value.trim();
+
+      // Validate required fields
+      if (!settings.geminiApiKey && !settings.groqApiKey) {
+        throw new Error('Please enter at least one API key');
       }
-    });
+
+      // Save to Chrome storage
+      await chrome.storage.local.set(settings);
+
+      // Reinitialize services with new settings
+      if (window.AIService) {
+        aiService = new window.AIService();
+      }
+      if (window.DocxAIService) {
+        docxService = new window.DocxAIService();
+      }
+
+      showToast('Settings saved successfully!', 'success');
+      closeModal();
+
+    } catch (error) {
+      showToast(error.message, 'error');
+    } finally {
+      // Reset button state
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = 'Save Settings';
+    }
   });
 
-  // Modal controls with animations
+  // Modal controls
   openBtn.addEventListener('click', () => {
     modal.style.display = 'block';
     document.body.style.overflow = 'hidden';
@@ -1498,81 +1350,6 @@ function setupApiKeyManagement() {
   modal.addEventListener('click', (event) => {
     if (event.target === modal) {
       closeModal();
-    }
-  });
-
-  // Save settings with validation and feedback
-  saveBtn.addEventListener('click', async () => {
-    const geminiKey = geminiInput.value.trim();
-    const groqKey = groqInput.value.trim();
-    const customPrompt = promptInput.value.trim();
-    const docxCustomPrompt = docxPromptInput.value.trim();
-    const jobAnalysisPrompt = jobAnalysisPromptInput.value.trim();
-    const projectsOptimizationPrompt = projectsOptimizationPromptInput.value.trim();
-    const skillsEnhancementPrompt = skillsEnhancementPromptInput.value.trim();
-    const experienceRefinementPrompt = experienceRefinementPromptInput.value.trim();
-    const finalPolishPrompt = finalPolishPromptInput.value.trim();
-
-    try {
-      // Validate inputs
-      if (!geminiKey && !groqKey) {
-        throw new Error('Please enter at least one API key');
-      }
-      if (!customPrompt) {
-        throw new Error('LaTeX prompt template cannot be empty');
-      }
-      if (!docxCustomPrompt) {
-        throw new Error('DOCX prompt template cannot be empty');
-      }
-      if (!jobAnalysisPrompt) {
-        throw new Error('Analysis prompt template cannot be empty');
-      }
-      if (!projectsOptimizationPrompt) {
-        throw new Error('Projects optimization prompt template cannot be empty');
-      }
-      if (!skillsEnhancementPrompt) {
-        throw new Error('Skills enhancement prompt template cannot be empty');
-      }
-      if (!experienceRefinementPrompt) {
-        throw new Error('Experience refinement prompt template cannot be empty');
-      }
-      if (!finalPolishPrompt) {
-        throw new Error('Final polish prompt template cannot be empty');
-      }
-
-      // Show saving state
-      saveBtn.disabled = true;
-      saveBtn.innerHTML = `
-        <div class="loading-spinner"></div>
-        <span>Saving...</span>
-      `;
-
-      // Save to Chrome storage
-      await chrome.storage.local.set({
-        geminiApiKey: geminiKey,
-        groqApiKey: groqKey,
-        customPrompt: customPrompt,
-        docxCustomPrompt: docxCustomPrompt,
-        jobAnalysisPrompt: jobAnalysisPrompt,
-        projectsOptimizationPrompt: projectsOptimizationPrompt,
-        skillsEnhancementPrompt: skillsEnhancementPrompt,
-        experienceRefinementPrompt: experienceRefinementPrompt,
-        finalPolishPrompt: finalPolishPrompt
-      });
-
-      // Reinitialize AI service
-      aiService = new window.AIService();
-      
-      showToast('Settings saved successfully!', 'success');
-      closeModal();
-
-    } catch (error) {
-      console.error('[Settings] Error saving settings:', error);
-      showToast(error.message, 'error');
-    } finally {
-      // Reset button state
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = 'Save Settings';
     }
   });
 }

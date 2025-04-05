@@ -135,12 +135,22 @@ class DocxService {
         model: window.currentModelSelection?.model
       });
 
+      // Get current model selection from window or use defaults
+      const modelType = window.currentModelSelection?.type || 'gemini';
+      const model = window.currentModelSelection?.model || null;
+
+      this.logDebug('ModelSelection', {
+        modelType,
+        model,
+        hasModelSelection: !!window.currentModelSelection
+      });
+
       const tailoredText = await docxAiService.generateContent(
         originalText,
         jobDescription,
         knowledgeBase,
-        window.currentModelSelection?.type || 'gemini',
-        window.currentModelSelection?.model
+        modelType,
+        model
       );
 
       this.logDebug('ContentGeneration', {

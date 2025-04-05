@@ -4,6 +4,13 @@ class DocxAIService extends AIService {
     console.log('[DocxAIService] Initializing DOCX-specific AI Service');
   }
 
+  // Add the missing loadApiKeys method
+  async loadApiKeys() {
+    console.log('[DocxAIService] Loading API keys');
+    await this.loadSettings();
+    return true;
+  }
+
   // Define the default prompt as a static property
   static DEFAULT_PROMPT = `You are an expert ATS resume optimizer. Your task is to enhance this resume for the provided job description.
         
@@ -50,8 +57,17 @@ class DocxAIService extends AIService {
 
       // Use parent class's generateContent method with 'docx' content type
       const response = await super.generateContent(prompt, 'docx', modelType, model);
-      return this.cleanResponse(response);
-
+      
+      // Clean the response
+      const cleanedResponse = this.cleanResponse(response);
+      
+      console.log('[DocxAIService] Content generation complete:', {
+        originalLength: response?.length,
+        cleanedLength: cleanedResponse?.length,
+        sample: cleanedResponse?.substring(0, 100) + '...'
+      });
+      
+      return cleanedResponse;
     } catch (error) {
       console.error('[DocxAIService] Generation error:', error);
       throw error;

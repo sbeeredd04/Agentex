@@ -355,15 +355,94 @@ function setupPreviewUI() {
         compiledPreview.style.display = 'block';
         
         // Get the appropriate content
-        const content = sidebarState.contentType === 'generated' 
-          ? sidebarState.tailoredDocx 
-          : sidebarState.originalDocx;
-
-        if (content) {
-          await generatePdfPreview(content, sidebarState.contentType);
+        if (sidebarState.fileType === 'docx') {
+          // For DOCX files, use the HTML content directly
+          const content = sidebarState.contentType === 'generated' 
+            ? sidebarState.tailoredHtml 
+            : sidebarState.originalHtml;
+            
+          if (content) {
+            // Create a container for the DOCX content
+            compiledPreview.innerHTML = `
+              <div class="docx-container">
+                <div class="docx-toolbar">
+                  <button onclick="window.downloadDocx()">
+                    <span class="material-icons">download</span>
+                    Download DOCX
+                  </button>
+                </div>
+                <div class="docx-viewer">
+                  <iframe srcdoc="${content.replace(/"/g, '&quot;')}" frameborder="0"></iframe>
+                </div>
+              </div>
+            `;
+            
+            // Add window function for download
+            window.downloadDocx = () => {
+              const docxBlob = sidebarState.contentType === 'generated' ? 
+                sidebarState.tailoredDocx : 
+                sidebarState.originalDocx;
+              
+              if (docxBlob && docxBlob.data) {
+                const link = document.createElement('a');
+                link.href = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${docxBlob.data}`;
+                link.download = docxBlob.originalName || 'resume.docx';
+                link.click();
+              } else {
+                showToast('DOCX content not available for download', 'error');
+              }
+            };
+          } else {
+            // If no HTML content, show a message
+            compiledPreview.innerHTML = `
+              <div class="info-message">
+                <span class="material-icons">info</span>
+                <p>DOCX preview is not available. Please use the raw view to see the content.</p>
+              </div>
+            `;
+          }
+        } else {
+          // For LaTeX files, use the PDF preview
+          const content = sidebarState.contentType === 'generated' 
+            ? tailoredLatex 
+            : originalLatex;
+            
+          if (content) {
+            await generateLatexPreview(content);
+          }
         }
       }
     });
+  });
+  
+  // Update the compiled view button based on file type
+  const updateCompiledButtonState = () => {
+    const compiledButton = document.querySelector('.preview-toggle-btn[data-view="compiled"]');
+    if (compiledButton) {
+      if (sidebarState.fileType === 'docx') {
+        compiledButton.disabled = false;
+        compiledButton.title = 'View formatted DOCX';
+      } else if (sidebarState.fileType === 'latex') {
+        compiledButton.disabled = false;
+        compiledButton.title = 'View compiled PDF';
+      } else {
+        compiledButton.disabled = true;
+        compiledButton.title = 'No file loaded';
+      }
+    }
+  };
+  
+  // Call initially and whenever file type changes
+  updateCompiledButtonState();
+  
+  // Update button state when file type changes
+  const observer = new MutationObserver(() => {
+    updateCompiledButtonState();
+  });
+  
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-file-type']
   });
 }
 
@@ -375,20 +454,51 @@ async function updatePreview() {
   window.isPreviewUpdating = true;
 
   try {
+    console.log('[Preview] Updating preview:', {
+      fileType: sidebarState.fileType,
+      contentType: sidebarState.contentType,
+      hasOriginalContent: !!sidebarState.originalContent,
+      hasTailoredContent: sidebarState.fileType === 'docx' ? 
+        !!sidebarState.tailoredContent : 
+        !!tailoredLatex
+    });
+
     // Get content based on type
     let contentToShow;
     if (sidebarState.fileType === 'latex') {
       contentToShow = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
+      console.log('[Preview] Using LaTeX content:', {
+        isGenerated: sidebarState.contentType === 'generated',
+        contentLength: contentToShow?.length
+      });
     } else {
       // For DOCX, get the stored raw content
-      const { generatedRawContent } = await chrome.storage.local.get('generatedRawContent');
-      contentToShow = sidebarState.contentType === 'generated' ? 
-        generatedRawContent : 
-        sidebarState.originalContent;
+      if (sidebarState.contentType === 'generated') {
+        // First try to get from sidebarState
+        contentToShow = sidebarState.tailoredContent;
+        
+        // If not in sidebarState, try to get from storage
+        if (!contentToShow) {
+          const { generatedRawContent } = await chrome.storage.local.get('generatedRawContent');
+          contentToShow = generatedRawContent;
+          console.log('[Preview] Retrieved DOCX content from storage:', {
+            hasContent: !!contentToShow,
+            contentLength: contentToShow?.length
+          });
+        }
+      } else {
+        contentToShow = sidebarState.originalContent;
+      }
+      
+      console.log('[Preview] Using DOCX content:', {
+        isGenerated: sidebarState.contentType === 'generated',
+        contentLength: contentToShow?.length
+      });
     }
 
     if (!contentToShow) {
-      throw new Error('No content available for preview');
+      console.error('[Preview] No content available for preview');
+      throw new Error('No content available for preview. Please try generating the content again.');
     }
 
     // Update raw preview
@@ -411,6 +521,7 @@ async function updatePreview() {
     }
 
   } catch (error) {
+    console.error('[Preview] Error updating preview:', error);
     showStatus(error.message, 'error');
   } finally {
     window.isPreviewUpdating = false;
@@ -430,12 +541,67 @@ async function generatePdfPreview(content, type = 'original') {
       pdfPreviewArea.innerHTML = `
         <div class="loading-preview">
           <div class="loading-spinner"></div>
-          <span>Generating PDF preview...</span>
+          <span>Generating preview...</span>
         </div>
       `;
 
-      showStatus('Generating PDF preview...', 'info');
+      showStatus('Generating preview...', 'info');
 
+      // Check if we're dealing with a DOCX file
+      if (sidebarState.fileType === 'docx') {
+        console.log('[Preview] DOCX file detected, skipping PDF conversion');
+        
+        // For DOCX files, just show the HTML content if available
+        const docxContent = type === 'generated' ? 
+          sidebarState.tailoredHtml : 
+          sidebarState.originalHtml;
+        
+        if (docxContent) {
+          // Create a container for the DOCX content
+          pdfPreviewArea.innerHTML = `
+            <div class="docx-container">
+              <div class="docx-toolbar">
+                <button onclick="window.downloadDocx()">
+                  <span class="material-icons">download</span>
+                  Download DOCX
+                </button>
+              </div>
+              <div class="docx-viewer">
+                <iframe srcdoc="${docxContent.replace(/"/g, '&quot;')}" frameborder="0"></iframe>
+              </div>
+            </div>
+          `;
+          
+          // Add window function for download
+          window.downloadDocx = () => {
+            const docxBlob = type === 'generated' ? 
+              sidebarState.tailoredDocx : 
+              sidebarState.originalDocx;
+            
+            if (docxBlob && docxBlob.data) {
+              const link = document.createElement('a');
+              link.href = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${docxBlob.data}`;
+              link.download = docxBlob.originalName || 'resume.docx';
+              link.click();
+            } else {
+              showToast('DOCX content not available for download', 'error');
+            }
+          };
+          
+          return true;
+        } else {
+          // If no HTML content, show a message
+          pdfPreviewArea.innerHTML = `
+            <div class="info-message">
+              <span class="material-icons">info</span>
+              <p>DOCX preview is not available. Please use the raw view to see the content.</p>
+            </div>
+          `;
+          return true;
+        }
+      }
+
+      // For LaTeX files, proceed with PDF generation
       // Get the appropriate DOCX content
       const docxContent = type === 'generated' ? 
         sidebarState.tailoredDocx : 
@@ -562,7 +728,7 @@ async function generatePdfPreview(content, type = 'original') {
         pdfPreviewArea.innerHTML = `
           <div class="error-message">
             <span class="material-icons">error_outline</span>
-            <p>Failed to generate PDF preview: ${error.message}</p>
+            <p>Failed to generate preview: ${error.message}</p>
             <button onclick="window.retryPdfPreview()" class="retry-button">
               <span class="material-icons">refresh</span>
               Retry
@@ -1191,6 +1357,7 @@ async function generateTailoredDocx() {
 
     // Ensure DocxService is initialized
     if (!docxService) {
+      console.log('[Generate] Initializing DocxService');
       docxService = new window.DocxService();
     }
 
@@ -1199,20 +1366,38 @@ async function generateTailoredDocx() {
     try {
       if (originalDocx.type === 'ArrayBuffer' && originalDocx.data) {
         docxBuffer = docxService.base64ToArrayBuffer(originalDocx.data);
+        console.log('[Generate] Converted DOCX to ArrayBuffer:', {
+          bufferSize: docxBuffer.byteLength
+        });
       } else {
         throw new Error('Invalid DOCX format in storage');
       }
     } catch (error) {
+      console.error('[Generate] DOCX conversion error:', error);
       throw new Error('Failed to process DOCX file: ' + error.message);
     }
 
     showStatus('Processing DOCX file...', 'info');
+    
+    console.log('[Generate] Calling tailorDocx with:', {
+      bufferSize: docxBuffer.byteLength,
+      jobDescLength: jobDesc.length,
+      hasKnowledgeBase: !!knowledgeBase
+    });
     
     const result = await docxService.tailorDocx(
       docxBuffer,
       jobDesc,
       knowledgeBase
     );
+
+    console.log('[Generate] Tailor result:', {
+      success: result.success,
+      hasDocx: !!result.docx,
+      hasHtml: !!result.html,
+      hasText: !!result.text,
+      error: result.error
+    });
 
     if (!result.success) {
       throw new Error(result.error || 'DOCX generation failed');
@@ -1225,12 +1410,22 @@ async function generateTailoredDocx() {
     sidebarState.contentType = 'generated';
 
     // Save state to storage
-    await chrome.storage.local.set({ sidebarState });
+    await chrome.storage.local.set({ 
+      sidebarState,
+      // Store the generated text content for preview
+      generatedRawContent: result.text
+    });
 
     // Update preview
     await updatePreview();
 
-    return result;
+    return {
+      success: true,
+      type: 'docx',
+      docx: result.docx,
+      html: result.html,
+      text: result.text
+    };
 
   } catch (error) {
     showStatus(error.message, 'error');
@@ -1718,7 +1913,7 @@ function injectPreviewStyles() {
       background: var(--bg-primary);
     }
 
-    .pdf-container {
+    .pdf-container, .docx-container {
       width: 100%;
       height: 100%;
       min-height: inherit;
@@ -1727,7 +1922,7 @@ function injectPreviewStyles() {
       background: var(--bg-primary);
     }
 
-    .pdf-toolbar {
+    .pdf-toolbar, .docx-toolbar {
       display: flex;
       align-items: center;
       gap: var(--spacing-sm);
@@ -1736,7 +1931,7 @@ function injectPreviewStyles() {
       border-bottom: 1px solid var(--border-color);
     }
 
-    .pdf-toolbar button {
+    .pdf-toolbar button, .docx-toolbar button {
       display: flex;
       align-items: center;
       gap: var(--spacing-sm);
@@ -1749,21 +1944,37 @@ function injectPreviewStyles() {
       transition: all var(--transition-speed) ease;
     }
 
-    .pdf-toolbar button:hover {
+    .pdf-toolbar button:hover, .docx-toolbar button:hover {
       background: var(--accent-primary);
       color: var(--text-primary);
     }
 
-    .pdf-container iframe {
+    .pdf-container iframe, .docx-container iframe {
       width: 100%;
       height: 100%;
       border: none;
       background: var(--bg-primary);
     }
 
+    /* DOCX viewer specific styles */
+    .docx-viewer {
+      flex: 1;
+      overflow: auto;
+      padding: var(--spacing-md);
+      background: white;
+    }
+
+    .docx-viewer iframe {
+      width: 100%;
+      height: 100%;
+      border: 1px solid var(--border-color);
+      background: white;
+    }
+
     /* Loading and error states */
     .loading-preview,
-    .error-message {
+    .error-message,
+    .info-message {
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -1792,6 +2003,15 @@ function injectPreviewStyles() {
     .error-message .material-icons {
       font-size: 48px;
       color: var(--error-color);
+    }
+
+    .info-message {
+      color: var(--text-secondary);
+    }
+
+    .info-message .material-icons {
+      font-size: 48px;
+      color: var(--accent-primary);
     }
 
     .retry-button {
@@ -2039,7 +2259,7 @@ function validateCurrentState() {
     hasOriginalDocx: !!sidebarState.originalDocx,
     contentType: sidebarState.contentType,
     hasTailoredContent: sidebarState.fileType === 'docx' ? 
-      !!sidebarState.tailoredDocx : 
+      !!sidebarState.tailoredContent : 
       !!tailoredLatex
   };
 
@@ -2092,6 +2312,12 @@ async function handleGenerateClick() {
       if (!sidebarState.originalDocx) {
         throw new Error('DOCX content not found. Please upload your DOCX file again.');
       }
+      
+      // Ensure DocxAIService is available
+      if (!window.DocxAIService) {
+        throw new Error('DocxAIService not found. Please refresh the page and try again.');
+      }
+      
       result = await generateTailoredDocx();
     } else if (sidebarState.fileType === 'latex') {
       console.log('[Generate] Using LaTeX pipeline');
@@ -2126,6 +2352,9 @@ async function handleGenerateClick() {
         hasHtml: !!sidebarState.tailoredHtml,
         contentLength: sidebarState.tailoredContent?.length
       });
+      
+      // Store the generated text content for preview
+      await chrome.storage.local.set({ generatedRawContent: result.text });
     } else {
       tailoredLatex = result.content;
       sidebarState.tailoredContent = result.content;

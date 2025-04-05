@@ -43,8 +43,8 @@ COPY . .
 RUN mkdir -p /tmp/pdf
 
 # Expose port (use PORT from render.com)
-ENV PORT=10000
-EXPOSE 10000
+ENV PORT=${PORT:-10000}
+EXPOSE ${PORT}
 
 # Start the server
 CMD ["node", "server.js"] 

@@ -5,7 +5,6 @@
     "description": "AI-powered resume editor to tailor your resume to a specific job description and generate instant resume PDF",
     "permissions": [
       "activeTab",
-      "scripting",
       "sidePanel",
       "storage",
       "contextMenus",

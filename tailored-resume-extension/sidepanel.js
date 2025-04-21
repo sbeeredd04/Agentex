@@ -1,5 +1,5 @@
 // Debug: Initialize popup.js
-console.log('Initializing popup.js');
+console.log('Initializing sidepanel.js');
 
 // Global variables and state
 let aiService;
@@ -10,6 +10,7 @@ let tailoredCoverLetter = null;
 let currentPdfUrl = null;
 let currentJobTitle = null;
 let currentFile = null;
+pdfAIAnalyzer = new window.PdfAIAnalyzer();
 
 let currentModelSelection = {
   type: 'gemini',
@@ -206,6 +207,16 @@ function setupEventListeners(elements) {
     elements.latexFileInput.addEventListener('change', async (event) => {
       console.log('File input change detected');
       const file = event.target.files[0];
+
+      if (!file) return;
+
+      const extension = file.name.split('.').pop().toLowerCase();
+      console.log(`[FileUpload] Detected file type: .${extension}`);
+
+      if (extension === 'pdf') {
+      showStatus('PDF detected: AI will extract text using OCR before tailoring.', 'info');
+      }
+
       await handleFileUpload(file);
     });
   }
@@ -326,12 +337,16 @@ async function updatePreview() {
     let contentToShow;
     if (sidebarState.fileType === 'latex') {
       contentToShow = sidebarState.contentType === 'generated' ? tailoredLatex : originalLatex;
-    } else {
+    } else if (sidebarState.fileType === 'docx') {
       // For DOCX, get the stored raw content
       const { generatedRawContent } = await chrome.storage.local.get('generatedRawContent');
       contentToShow = sidebarState.contentType === 'generated' ? 
         generatedRawContent : 
         sidebarState.originalContent;
+    } else if (sidebarState.fileType === 'pdf') {
+      contentToShow = sidebarState.contentType === 'generated' 
+        ? sidebarState.tailoredContent 
+        : 'pdf-ai-service.js will be run when generating tailored content';
     }
 
     console.log('[Preview] Content validation:', {
@@ -351,7 +366,15 @@ async function updatePreview() {
     if (textContent) {
       textContent.style.opacity = '0';
       setTimeout(() => {
-        textContent.innerHTML = contentToShow;
+        if (sidebarState.fileType === 'pdf') {
+          if (sidebarState.contentType === 'generated' && sidebarState.tailoredContent) {
+            textContent.innerHTML = `<pre>${sidebarState.tailoredContent}</pre>`;
+          } else {
+            textContent.innerHTML = `<em>Upload a PDF and click Generate to extract & analyze it using OCR + AI.</em>`;
+          }
+        } else {
+          textContent.innerHTML = contentToShow;
+        }
         textContent.style.opacity = '1';
       }, 300);
     }
@@ -991,6 +1014,9 @@ async function generateTailoredContent() {
         throw new Error("Please upload a LaTeX file first");
       }
       result = await generateTailoredLatex();
+    } else if (sidebarState.fileType === 'pdf') {
+      console.log('[Tailor] Using PDF pipeline');
+      result = await generateTailoredPdf(); 
     } else {
       throw new Error("Unsupported file type");
     }
@@ -1181,6 +1207,53 @@ async function generateTailoredDocx() {
       success: false,
       error: error.message
     };
+  }
+}
+
+async function generateTailoredPdf() {
+  try {
+    const jobDesc = document.getElementById('jobDesc').value.trim();
+    const knowledgeBase = document.getElementById('knowledgeBaseText').value.trim();
+
+    if (!sidebarState.originalContent) throw new Error('No PDF uploaded.');
+    if (!jobDesc) throw new Error('Please enter a job description');
+
+    const { customPrompt } = await chrome.storage.local.get('customPrompt');
+    const prompt = customPrompt || DEFAULT_PROMPT;
+
+    const pdfText = await pdfAIAnalyzer.extractTextWithOCR(sidebarState.originalContent);
+    
+    const fullPrompt = `
+${prompt}
+
+Scanned PDF Resume:
+${pdfText}
+
+Job Description:
+${jobDesc}
+
+Knowledge Base:
+${knowledgeBase}
+
+Please generate a tailored resume accordingly.
+    `;
+
+    const tailoredContent = await pdfAIAnalyzer.generateContent(
+      fullPrompt,
+      'latex',
+      currentModelSelection.type,
+      currentModelSelection.model
+    );
+
+    sidebarState.tailoredContent = tailoredContent;
+    sidebarState.contentType = 'generated';
+    await chrome.storage.local.set({ sidebarState });
+
+    await updatePreview();
+    return { success: true, content: tailoredContent, type: 'pdf' };
+  } catch (error) {
+    console.error('[PDF] Generation error:', error);
+    return { success: false, error: error.message, type: 'pdf' };
   }
 }
 

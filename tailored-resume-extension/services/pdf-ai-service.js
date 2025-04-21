@@ -38,4 +38,6 @@ class PdfAIAnalyzer extends AIService {
       return await this.generateContent(text, contentType, modelType);
     }
   }
-  
+
+  window.PdfAIAnalyzer = PdfAIAnalyzer;
+  console.log('[PdfAIAnalyzer] Class registered globally');

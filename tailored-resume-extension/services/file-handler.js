@@ -3,7 +3,8 @@ class FileHandler {
     this.docxService = new DocxService();
     this.supportedTypes = {
       'tex': this.handleLatex.bind(this),
-      'docx': this.handleDocx.bind(this)
+      'docx': this.handleDocx.bind(this),
+      'pdf': this.handlePdf.bind(this)
     };
     this.debug = true;
   }
@@ -106,6 +107,31 @@ class FileHandler {
 
     } catch (error) {
       console.error('[FileHandler] DOCX processing error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async handlePdf(file) {
+    try {
+      this.log('Processing PDF file:', file);
+      window.sidebarState = {
+        ...window.sidebarState,
+        fileType: 'pdf',
+        originalContent: file,
+        uploadedFileName: file.name
+      };
+
+      await chrome.storage.local.set({ sidebarState: window.sidebarState });
+
+      return {
+        success: true,
+        type: 'pdf',
+        content: file,
+        preview: null,
+        docx: null
+      };
+    } catch (error) {
+      console.error('[FileHandler] PDF processing error:', error);
       return { success: false, error: error.message };
     }
   }

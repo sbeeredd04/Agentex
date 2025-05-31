@@ -1212,17 +1212,35 @@ async function generateTailoredDocx() {
 
 async function generateTailoredPdf() {
   try {
+    console.log('[PDF] Starting tailored PDF generation');
+    const file = window.sidebarState?.originalContent;
+
+    if (!file || typeof file.arrayBuffer !== 'function') {
+      throw new Error('PDF file is not available in memory. Please re-upload the file.');
+    }
+
     const jobDesc = document.getElementById('jobDesc').value.trim();
     const knowledgeBase = document.getElementById('knowledgeBaseText').value.trim();
+    const modelTypeSelect = document.getElementById('modelSelect');
+    const selectedModelValue = modelTypeSelect?.value;
 
     if (!sidebarState.originalContent) throw new Error('No PDF uploaded.');
     if (!jobDesc) throw new Error('Please enter a job description');
 
+    // Set current model selection
+    const modelType = selectedModelValue?.startsWith('groq') ? 'groq' : 'gemini';
+    const model = selectedModelValue?.split(':')[1] || null;
+
     const { customPrompt } = await chrome.storage.local.get('customPrompt');
     const prompt = customPrompt || DEFAULT_PROMPT;
 
-    const pdfText = await pdfAIAnalyzer.extractTextWithOCR(sidebarState.originalContent);
-    
+    showStatus('Extracting text from PDF...', 'loading');
+
+    const analyzer = new PdfAIAnalyzer();
+    const pdfText = await analyzer.extractTextWithOCR(sidebarState.originalContent);
+
+    showStatus('Generating tailored content from PDF...', 'loading');
+
     const fullPrompt = `
 ${prompt}
 
@@ -1238,11 +1256,11 @@ ${knowledgeBase}
 Please generate a tailored resume accordingly.
     `;
 
-    const tailoredContent = await pdfAIAnalyzer.generateContent(
+    const tailoredContent = await analyzer.generateContent(
       fullPrompt,
       'latex',
-      currentModelSelection.type,
-      currentModelSelection.model
+      modelType,
+      model
     );
 
     sidebarState.tailoredContent = tailoredContent;
@@ -1250,9 +1268,12 @@ Please generate a tailored resume accordingly.
     await chrome.storage.local.set({ sidebarState });
 
     await updatePreview();
+    showStatus('Tailored resume generated from PDF!', 'success');
+
     return { success: true, content: tailoredContent, type: 'pdf' };
   } catch (error) {
     console.error('[PDF] Generation error:', error);
+    showStatus(`PDF generation failed: ${error.message}`, 'error');
     return { success: false, error: error.message, type: 'pdf' };
   }
 }
@@ -1512,6 +1533,12 @@ async function handleGenerateClick() {
         throw new Error('LaTeX content not found. Please upload your LaTeX file again.');
       }
       result = await generateTailoredLatex();
+    } else if (sidebarState.fileType === 'pdf') {
+      console.log('[Generate] Using PDF pipeline');
+      if (!sidebarState.originalContent) {
+        throw new Error('PDF content not found. Please upload your PDF again.');
+      }
+      result = await generateTailoredPdf();
     } else {
       throw new Error(`Unsupported file type: ${sidebarState.fileType}`);
     }

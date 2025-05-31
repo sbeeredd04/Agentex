@@ -48,7 +48,8 @@
         "services/ai-service.js",
         "services/docx-ai-service.js",
         "server/serverManager.js",
-        "lib/vendor/*"
+        "lib/vendor/*",
+        "lib/pdfs/pdf.worker.min.js"
       ],
       "matches": ["<all_urls>"]
     }],

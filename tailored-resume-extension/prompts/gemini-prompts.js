@@ -92,33 +92,6 @@ export const LATEX_TAILORING_PROMPT = `You are an expert ATS resume tailor for s
 `;
 
 /**
- * Main prompt for DOCX resume tailoring
- * Used when processing DOCX resume files
- */
-export const DOCX_TAILORING_PROMPT = `You are an expert ATS resume optimizer. Your task is to enhance this resume for the provided job description.
-        
-Original Resume:
-{originalText}
-
-Job Description:
-{jobDescription}
-
-Additional Experience:
-{knowledgeBase}
-
-Instructions:
-1. Analyze the job description for key requirements and skills
-2. Maintain the exact same format and structure as the original
-3. Keep all section headers, dates, and contact information unchanged
-4. Focus on enhancing bullet points with relevant achievements and skills
-5. Ensure all modifications are factual and based on provided content
-6. Return the complete updated resume in plain text format
-7. Do not add any formatting markers or LaTeX commands
-8. Keep the same number of bullet points per section
-
-IMPORTANT: Return ONLY the plain text content that should replace the original.`;
-
-/**
  * Job description and knowledge base analysis prompt
  * First step in multi-agent resume tailoring pipeline
  */
@@ -287,7 +260,6 @@ Return ONLY the complete LaTeX resume code, maintaining the same structure and f
 if (typeof window !== 'undefined') {
   window.GeminiPrompts = {
     LATEX_TAILORING_PROMPT,
-    DOCX_TAILORING_PROMPT,
     JOB_ANALYSIS_PROMPT,
     PROJECTS_OPTIMIZATION_PROMPT,
     SKILLS_ENHANCEMENT_PROMPT,

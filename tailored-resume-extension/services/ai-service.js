@@ -29,7 +29,6 @@ class AIService {
     // Initialize prompts with defaults
     this.prompts = {
       custom: this._getDefaultLatexPrompt(),
-      docx: this._getDefaultDocxPrompt(),
       jobAnalysis: this._getDefaultJobAnalysisPrompt(),
       projectsOptimization: this._getDefaultProjectsPrompt(),
       skillsEnhancement: this._getDefaultSkillsPrompt(),
@@ -50,7 +49,6 @@ class AIService {
       const settings = await chrome.storage.local.get([
         'geminiApiKey',
         'customPrompt',
-        'docxCustomPrompt',
         'jobAnalysisPrompt',
         'projectsOptimizationPrompt',
         'skillsEnhancementPrompt',
@@ -63,7 +61,6 @@ class AIService {
 
       // Load custom prompts if available
       if (settings.customPrompt) this.prompts.custom = settings.customPrompt;
-      if (settings.docxCustomPrompt) this.prompts.docx = settings.docxCustomPrompt;
       if (settings.jobAnalysisPrompt) this.prompts.jobAnalysis = settings.jobAnalysisPrompt;
       if (settings.projectsOptimizationPrompt) this.prompts.projectsOptimization = settings.projectsOptimizationPrompt;
       if (settings.skillsEnhancementPrompt) this.prompts.skillsEnhancement = settings.skillsEnhancementPrompt;
@@ -82,32 +79,21 @@ class AIService {
   /**
    * Generate content using Gemini AI
    * @param {string} prompt - The prompt to send to Gemini
-   * @param {string} contentType - Type of content ('latex' or 'docx')
-   * @returns {Promise<string>} Generated content
+   * @returns {Promise<string>} Generated LaTeX content
    */
-  async generateContent(prompt, contentType = 'latex') {
+  async generateContent(prompt) {
     try {
-      console.log('[AIService] Generating content:', {
-        contentType,
+      console.log('[AIService] Generating LaTeX content:', {
         promptLength: prompt.length,
         model: this.model.name
       });
 
-      // Add content type specific instructions
-      let finalPrompt = prompt;
-      if (contentType === 'docx') {
-        finalPrompt += "\n\nIMPORTANT: Return ONLY plain text content without any formatting markers or LaTeX commands.";
-      }
-
-      const response = await this._callGeminiAPI(finalPrompt);
-      
-      return contentType === 'docx' ? 
-        this._cleanDocxResponse(response) : 
-        this._cleanLatexResponse(response);
+      const response = await this._callGeminiAPI(prompt);
+      return this._cleanLatexResponse(response);
 
     } catch (error) {
-      console.error(`[AIService] ${contentType.toUpperCase()} Generation error:`, error);
-      throw new Error(`Failed to generate ${contentType} content: ${error.message}`);
+      console.error('[AIService] LaTeX generation error:', error);
+      throw new Error(`Failed to generate LaTeX content: ${error.message}`);
     }
   }
 
@@ -310,24 +296,6 @@ class AIService {
   }
 
   /**
-   * Clean DOCX response by removing LaTeX commands and formatting
-   * @private
-   * @param {string} text - Raw response text
-   * @returns {string} Cleaned plain text
-   */
-  _cleanDocxResponse(text) {
-    console.log('[AIService] Cleaning DOCX response');
-
-    let cleaned = text
-      .replace(/\\[a-zA-Z]+{([^}]*)}/g, '$1')  // Remove LaTeX commands with content
-      .replace(/\\[a-zA-Z]+/g, '')             // Remove other LaTeX markers
-      .replace(/```[\s\S]*?```/g, '')          // Remove code blocks
-      .trim();
-
-    return cleaned;
-  }
-
-  /**
    * Extract a specific section from LaTeX resume
    * @private
    * @param {string} latex - Complete LaTeX resume
@@ -484,35 +452,6 @@ Job Description:
 
 Knowledge Base / Additional Experience:
 {knowledgeBase}`;
-  }
-
-  /**
-   * Get default DOCX tailoring prompt
-   * @private
-   */
-  _getDefaultDocxPrompt() {
-    return `You are an expert ATS resume optimizer. Your task is to enhance this resume for the provided job description.
-        
-Original Resume:
-{originalText}
-
-Job Description:
-{jobDescription}
-
-Additional Experience:
-{knowledgeBase}
-
-Instructions:
-1. Analyze the job description for key requirements and skills
-2. Maintain the exact same format and structure as the original
-3. Keep all section headers, dates, and contact information unchanged
-4. Focus on enhancing bullet points with relevant achievements and skills
-5. Ensure all modifications are factual and based on provided content
-6. Return the complete updated resume in plain text format
-7. Do not add any formatting markers or LaTeX commands
-8. Keep the same number of bullet points per section
-
-IMPORTANT: Return ONLY the plain text content that should replace the original.`;
   }
 
   /**

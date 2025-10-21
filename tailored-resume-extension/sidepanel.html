@@ -7,18 +7,11 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono:wght@400;700&display=swap">
   <link rel="stylesheet" href="style.css">
   
-  <!-- Vendor scripts in correct order -->
-  <script src="lib/vendor/pizzip.min.js"></script>
-  <script src="lib/vendor/mammoth.browser.min.js"></script>
-  <script src="lib/vendor/docxtemplater.js"></script>
-  
   <!-- Your application scripts -->
   <script src="config.js"></script>
-  <script src="services/docx-service.js"></script>
   <script src="services/file-handler.js"></script>
   <script src="server/serverManager.js"></script>
   <script src="services/ai-service.js"></script>
-  <script src="services/docx-ai-service.js"></script>
   <script src="sidepanel.js"></script>
 </head>
 <body>
@@ -49,9 +42,9 @@
             <div class="upload-content">
               <span class="material-icons upload-icon">upload_file</span>
               <span class="upload-text">Upload Resume</span>
-              <span class="file-type">.tex or .docx files supported</span>
+              <span class="file-type">LaTeX (.tex) files only</span>
             </div>
-            <input type="file" id="latexFile" accept=".tex,.docx" hidden>
+            <input type="file" id="latexFile" accept=".tex" hidden>
           </label>
           <div id="fileNameDisplay" class="file-status"></div>
         </div>
@@ -177,23 +170,6 @@
 
         <div class="settings-section">
           <div class="section-header">
-            <h3>DOCX Prompt Template</h3>
-            <div class="header-actions">
-              <button id="resetDocxPrompt" class="icon-button" title="Reset to default">
-                <span class="material-icons">restart_alt</span>
-              </button>
-            </div>
-          </div>
-          <div class="section-description">Customize the prompt template for DOCX processing</div>
-          <div class="prompt-container">
-            <textarea 
-              id="docxCustomPrompt" 
-              class="modern-input custom-scroll"
-              placeholder="Enter your custom DOCX prompt template..."
-            ></textarea>
-          </div>
-        </div>
-
         <div class="settings-section">
           <div class="section-header">
             <h3>Prompt Templates for Each Section</h3>

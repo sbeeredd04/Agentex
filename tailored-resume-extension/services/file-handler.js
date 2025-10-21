@@ -1,9 +1,9 @@
 /**
  * File Handler Service
  * 
- * Manages file upload and processing for different resume file types.
- * Supports LaTeX (.tex) and DOCX (.docx) formats, routing each to
- * appropriate handlers for parsing and preview generation.
+ * Manages file upload and processing for LaTeX resume files.
+ * This service exclusively supports LaTeX (.tex) format for all
+ * document processing within the system.
  * 
  * @class FileHandler
  * @module services/file-handler
@@ -11,13 +11,11 @@
 class FileHandler {
   /**
    * Initialize File Handler
-   * Sets up supported file type handlers
+   * Sets up LaTeX file handler
    */
   constructor() {
-    this.docxService = new DocxService();
     this.supportedTypes = {
-      'tex': this.handleLatex.bind(this),
-      'docx': this.handleDocx.bind(this)
+      'tex': this.handleLatex.bind(this)
     };
     this.debug = true;
   }
@@ -45,122 +43,74 @@ class FileHandler {
     const handler = this.supportedTypes[extension];
     
     if (!handler) {
-      throw new Error(`Unsupported file type: ${extension}. Only .tex and .docx files are supported.`);
+      throw new Error(`Unsupported file type: ${extension}. Only LaTeX (.tex) files are supported.`);
     }
+
+    this.log('Processing LaTeX file:', {
+      name: file.name,
+      size: file.size,
+      type: file.type
+    });
 
     return await handler(file);
   }
 
   /**
    * Handle LaTeX file
-   * Reads file as plain text
+   * Reads file as plain text and validates basic LaTeX structure
    * 
    * @param {File} file - LaTeX file
    * @returns {Promise<Object>} LaTeX content object
+   * @throws {Error} If file reading fails or content is invalid
    */
   async handleLatex(file) {
-    const content = await this.readFileAsText(file);
-    return {
-      type: 'latex',
-      content,
-      preview: content,
-      success: true
-    };
-  }
-
-  async handleDocx(file) {
     try {
-      this.log('Processing DOCX file:', {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        lastModified: file.lastModified
-      });
+      const content = await this.readFileAsText(file);
       
-      const arrayBuffer = await this.readFileAsArrayBuffer(file);
-      this.log('File read as ArrayBuffer:', {
-        size: arrayBuffer.byteLength,
-        isArrayBuffer: arrayBuffer instanceof ArrayBuffer,
-        firstBytes: new Uint8Array(arrayBuffer.slice(0, 10))
-      });
-      
-      const result = await this.docxService.readDocx(arrayBuffer);
-      
-      if (!result.success) {
-        throw new Error(`DOCX processing failed: ${result.error}`);
+      // Basic validation of LaTeX content
+      if (!content || content.trim().length === 0) {
+        throw new Error('LaTeX file is empty');
       }
 
-      // Enhanced validation of DOCX content
-      if (!result.docx || typeof result.docx !== 'string') {
-        this.log('Invalid DOCX content:', {
-          hasDocx: !!result.docx,
-          docxType: typeof result.docx,
-          docxLength: result.docx?.length,
-          resultKeys: Object.keys(result)
-        });
-        throw new Error('Invalid DOCX content received from processing');
+      // Check for basic LaTeX structure
+      if (!content.includes('\\documentclass') && !content.includes('\\begin{document}')) {
+        this.log('Warning: File may not be a valid LaTeX document');
       }
 
-      // Create properly structured content object with enhanced metadata
-      const docxContent = {
-        type: 'ArrayBuffer',
-        data: result.docx, // base64 string
-        originalName: file.name,
-        timestamp: Date.now(),
-        size: result.docx.length,
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      };
-
-      this.log('DOCX processed successfully:', {
-        htmlLength: result.html?.length,
-        textLength: result.text?.length,
-        docxDataLength: docxContent.data.length,
-        contentStructure: {
-          hasType: !!docxContent.type,
-          hasData: !!docxContent.data,
-          dataType: typeof docxContent.data,
-          originalName: docxContent.originalName,
-          dataPreview: docxContent.data.substring(0, 100) + '...',
-          size: docxContent.size
-        }
+      this.log('LaTeX file processed successfully:', {
+        contentLength: content.length,
+        hasDocumentClass: content.includes('\\documentclass'),
+        hasBeginDocument: content.includes('\\begin{document}')
       });
 
-      // Store in sidebar state with proper structure
-      window.sidebarState = {
-        ...window.sidebarState,
-        fileType: 'docx',
-        originalContent: result.text,
-        originalHtml: result.html,
-        originalDocx: docxContent,
-        uploadedFileName: file.name
+      return {
+        type: 'latex',
+        content,
+        preview: content,
+        success: true
       };
-
-      await chrome.storage.local.set({ sidebarState: window.sidebarState });
-      return { success: true, type: 'docx', content: result.text, preview: result.html, docx: docxContent };
-
     } catch (error) {
-      console.error('[FileHandler] DOCX processing error:', error);
-      return { success: false, error: error.message };
+      this.log('LaTeX processing error:', error);
+      throw new Error(`Failed to process LaTeX file: ${error.message}`);
     }
   }
 
+  /**
+   * Read file as text
+   * @private
+   * @param {File} file - File to read
+   * @returns {Promise<string>} File content as text
+   */
   readFileAsText(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = e => resolve(e.target.result);
-      reader.onerror = e => reject(e);
+      reader.onerror = e => reject(new Error('Failed to read file'));
       reader.readAsText(file);
-    });
-  }
-
-  readFileAsArrayBuffer(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = e => resolve(e.target.result);
-      reader.onerror = e => reject(e);
-      reader.readAsArrayBuffer(file);
     });
   }
 }
 
-window.FileHandler = FileHandler; 
+// Register globally for use in the extension
+window.FileHandler = FileHandler;
+console.log('[FileHandler] LaTeX-only File Handler registered successfully'); 

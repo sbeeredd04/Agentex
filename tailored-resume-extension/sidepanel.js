@@ -1,8 +1,7 @@
-// Initialize popup.js
+// Initialize sidepanel.js
 
 // Global variables and state
 let aiService;
-let docxService = null;
 let originalLatex = null;
 let tailoredLatex = null;
 let originalCoverLetter = null;
@@ -31,9 +30,8 @@ let sidebarState = {
   uploadedFileContent: '',
   isPreviewExpanded: false,
   generatedContent: null,
-  fileType: null,
+  fileType: 'latex', // Always LaTeX now
   originalContent: null,
-  originalDocx: null,
   tailoredContent: null
 };
 

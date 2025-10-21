@@ -8,7 +8,6 @@ This document provides comprehensive manual testing procedures to validate the f
 - [ ] Chrome browser (version 90 or higher)
 - [ ] Valid Gemini API key ([Get one here](https://makersuite.google.com/app/apikey))
 - [ ] Sample LaTeX resume file (.tex)
-- [ ] Sample DOCX resume file (.docx)
 - [ ] Sample job description text
 - [ ] Optional: Additional projects/experience for knowledge base
 
@@ -172,14 +171,10 @@ This document provides comprehensive manual testing procedures to validate the f
 
 ---
 
-### Suite 4: File Upload - DOCX
 
-#### Test 4.1: DOCX File Selection
-**Objective**: Verify DOCX file can be uploaded
 
 **Steps**:
 1. Click "Choose File" button
-2. Select a `.docx` file
 3. Wait for upload to complete
 
 **Expected Results**:
@@ -189,15 +184,11 @@ This document provides comprehensive manual testing procedures to validate the f
 - ✅ Basic formatting preserved
 - ✅ No errors in console
 
-**Pass Criteria**: DOCX uploads and content extracts
 
 ---
 
-#### Test 4.2: DOCX Content Extraction
-**Objective**: Verify DOCX parsing accuracy
 
 **Steps**:
-1. Upload a DOCX resume
 2. Compare preview with original file
 3. Check for missing sections or content
 
@@ -348,13 +339,9 @@ This document provides comprehensive manual testing procedures to validate the f
 
 ---
 
-### Suite 8: Resume Generation - DOCX
 
-#### Test 8.1: Basic DOCX Generation
-**Objective**: Verify DOCX resume generation
 
 **Steps**:
-1. Upload DOCX resume
 2. Add job description
 3. Click "Generate Resume"
 4. Wait for completion
@@ -366,15 +353,12 @@ This document provides comprehensive manual testing procedures to validate the f
 - ✅ Success message displays
 - ✅ Content updated
 
-**Pass Criteria**: DOCX generation works
 
 ---
 
-#### Test 8.2: DOCX Format Preservation
 **Objective**: Verify formatting is preserved
 
 **Steps**:
-1. Generate tailored DOCX
 2. Compare with original
 3. Check formatting elements
 
@@ -508,22 +492,16 @@ This document provides comprehensive manual testing procedures to validate the f
 
 ---
 
-#### Test 11.2: Download DOCX
-**Objective**: Verify DOCX download
 
 **Steps**:
-1. Generate tailored DOCX resume
 2. Download the file
-3. Open in Word or compatible editor
 
 **Expected Results**:
 - ✅ File downloads
 - ✅ Correct filename
-- ✅ Opens in Word/compatible
 - ✅ Content complete
 - ✅ Formatting preserved
 
-**Pass Criteria**: DOCX download works properly
 
 ---
 
@@ -816,7 +794,6 @@ After any code changes, run this quick checklist:
 
 - [ ] Extension loads without errors
 - [ ] Can upload LaTeX file
-- [ ] Can upload DOCX file
 - [ ] Can generate tailored resume
 - [ ] API key works
 - [ ] Settings save properly

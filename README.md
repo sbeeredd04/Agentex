@@ -7,7 +7,7 @@ Agentex is a Chrome extension that uses Google's Gemini AI to intelligently tail
 ## 🌟 Features
 
 - **Smart Resume Tailoring**: Automatically optimize your resume for any job description
-- **Multiple Format Support**: Works with both LaTeX (.tex) and DOCX (.docx) resume files
+- **LaTeX-Only Format**: Works exclusively with LaTeX (.tex) resume files for professional typesetting
 - **Gemini AI-Powered**: Leverages Google's latest Gemini 2.0 Flash model for intelligent optimization
 - **Project Replacement**: Intelligently replaces resume projects with more relevant ones from your knowledge base
 - **ATS Optimization**: Ensures your resume passes automated screening systems
@@ -62,7 +62,7 @@ _The extension will be available on the Chrome Web Store once it completes the r
 
 2. **Upload Your Resume**
    - Click "Choose File" under "Resume Template"
-   - Select your LaTeX (.tex) or DOCX (.docx) resume file
+   - Select your LaTeX (.tex) resume file
    - The file will be parsed and displayed in the preview
 
 3. **Add Job Description**
@@ -118,8 +118,8 @@ Agentex/
 │   ├── config.js                  # Configuration module
 │   ├── services/                  # Core services
 │   │   ├── ai-service.js          # Gemini AI integration
-│   │   ├── docx-ai-service.js     # DOCX-specific AI service
-│   │   ├── docx-service.js        # DOCX file processing
+│   │   ├── 
+│   │   ├── 
 │   │   └── file-handler.js        # File upload handling
 │   ├── prompts/                   # AI prompts
 │   │   └── gemini-prompts.js      # All Gemini prompts
@@ -138,9 +138,9 @@ Agentex/
 - **Frontend**: Vanilla JavaScript (ES6+), HTML5, CSS3
 - **AI Service**: Google Gemini 2.0 Flash API
 - **File Processing**: 
-  - Mammoth.js (DOCX parsing)
+  - 
   - PizZip (ZIP handling)
-  - Docxtemplater (DOCX generation)
+  - 
 - **LaTeX Compilation**: Node.js server with LaTeX toolchain
 - **Chrome APIs**: Storage, Side Panel, Context Menus
 
@@ -152,14 +152,8 @@ Agentex/
 - Implements response cleaning and validation
 - Supports both single-pass and multi-agent modes
 
-#### DOCX Service (`services/docx-service.js`)
-- Parses DOCX files to extract text
-- Modifies DOCX content programmatically
-- Preserves document formatting
-- Generates modified DOCX files
-
 #### File Handler (`services/file-handler.js`)
-- Detects file types (.tex or .docx)
+- Detects LaTeX file type (.tex)
 - Routes to appropriate service
 - Validates file structure
 - Manages file state
@@ -221,7 +215,7 @@ npm start
 ### Prerequisites
 - Chrome browser (v90+)
 - Valid Gemini API key
-- Sample resume files (.tex and/or .docx)
+- Sample LaTeX resume file (.tex)
 - Job description text
 
 ### Test Cases
@@ -237,12 +231,6 @@ npm start
 - [ ] File name displays correctly
 - [ ] Content appears in preview
 - [ ] No errors in console
-
-#### 3. File Upload - DOCX
-- [ ] Can select .docx file
-- [ ] File name displays correctly
-- [ ] Content appears in preview
-- [ ] Formatting preserved in preview
 
 #### 4. Job Description Input
 - [ ] Can paste job description
@@ -263,13 +251,6 @@ npm start
 - [ ] LaTeX structure preserved
 - [ ] Can switch between original/tailored
 
-#### 7. Resume Generation - DOCX
-- [ ] "Generate" button works
-- [ ] Loading indicator shows
-- [ ] Generation completes successfully
-- [ ] Content updated appropriately
-- [ ] Formatting preserved
-
 #### 8. PDF Preview (LaTeX only)
 - [ ] Can switch to "Compiled" view
 - [ ] PDF generates successfully
@@ -279,7 +260,6 @@ npm start
 
 #### 9. Download Functionality
 - [ ] Can download tailored LaTeX
-- [ ] Can download tailored DOCX
 - [ ] Can download compiled PDF
 - [ ] Files open correctly
 
@@ -288,7 +268,6 @@ npm start
 - [ ] Missing API key shows error
 - [ ] Network errors handled gracefully
 - [ ] Invalid LaTeX shows compilation error
-- [ ] Malformed DOCX shows error
 
 #### 11. Settings Management
 - [ ] Can open settings modal
@@ -384,7 +363,7 @@ See [prompt-resume.md](prompt-resume.md) for complete prompt documentation.
 **Problem**: File uploads but preview is blank
 **Solution**:
 - Check browser console for errors
-- Verify file format (.tex or .docx only)
+- Verify file format (.tex only)
 - Try a simpler test file
 - Clear extension storage and retry
 

@@ -1,12 +1,11 @@
 # Gemini Prompts for Resume Analysis and Tailoring
 
-This document contains all Gemini AI prompts used in the Agentex Resume Editor for analyzing and tailoring resumes to job descriptions.
+This document contains all Gemini AI prompts used in the Agentex Resume Editor for analyzing and tailoring LaTeX resumes to job descriptions.
 
 ## Table of Contents
 
 1. [LaTeX Resume Tailoring](#latex-resume-tailoring)
-2. [DOCX Resume Tailoring](#docx-resume-tailoring)
-3. [Multi-Agent Pipeline Prompts](#multi-agent-pipeline-prompts)
+2. [Multi-Agent Pipeline Prompts](#multi-agent-pipeline-prompts)
    - [Job Analysis](#job-analysis)
    - [Projects Optimization](#projects-optimization)
    - [Skills Enhancement](#skills-enhancement)
@@ -46,44 +45,6 @@ Complete LaTeX resume code with optimizations applied
 ```javascript
 const tailoredResume = await geminiService.tailorLatexResume(
   originalLatex,
-  jobDescription,
-  knowledgeBase
-);
-```
-
----
-
-## DOCX Resume Tailoring
-
-### Purpose
-Optimizing DOCX-formatted resumes while preserving document formatting.
-
-### Use Case
-- User uploads a DOCX (.docx) resume file
-- User provides job description and optional knowledge base
-- System generates optimized plain text that replaces DOCX content
-
-### Prompt Details
-
-**Input Variables:**
-- `{originalText}`: Extracted plain text from DOCX
-- `{jobDescription}`: Target job description
-- `{knowledgeBase}`: Additional projects/experience (optional)
-
-**Output:**
-Plain text resume content (no LaTeX or formatting markers)
-
-**Key Features:**
-- Maintains exact format and structure
-- Preserves section headers and dates
-- Enhances bullet points with relevant achievements
-- Factual modifications only
-- No formatting changes
-
-**Example Usage:**
-```javascript
-const tailoredText = await geminiService.tailorDocxResume(
-  extractedText,
   jobDescription,
   knowledgeBase
 );
@@ -294,12 +255,6 @@ All prompts can be customized through the extension settings:
 - Include formatting examples
 - Specify XYZ achievement format
 - Set clear boundaries (what NOT to change)
-
-### For DOCX Resumes
-- Focus on content over formatting
-- Emphasize plain text output
-- Specify no LaTeX/markdown markers
-- Keep factual modifications only
 
 ### For Multi-Agent System
 - Break complex tasks into steps

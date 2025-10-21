@@ -5,6 +5,31 @@ All notable changes to the Agentex Resume Editor project will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025
+
+### Major Changes
+- **LaTeX-Only Implementation**: Removed all DOCX/Word document support
+- **Simplified Architecture**: Streamlined codebase focused exclusively on LaTeX processing
+- **Enhanced LaTeX Support**: Improved LaTeX-specific features and error handling
+
+### Removed
+- **DOCX Support**: All Word document processing removed
+  - Removed `docx-service.js` and `docx-ai-service.js`
+  - Removed Mammoth.js, PizZip, and Docxtemplater libraries
+  - Removed DOCX-specific prompts and UI elements
+  - Removed DOCX file upload support
+
+### Changed
+- **File Handler**: Now exclusively handles LaTeX (.tex) files
+- **AI Service**: Removed DOCX-specific methods and prompts
+- **UI**: Updated to accept only LaTeX files
+- **Documentation**: Updated all docs to reflect LaTeX-only approach
+
+### Rationale
+The application now focuses exclusively on LaTeX for professional resume typesetting and ATS optimization. LaTeX provides superior typographic quality and is the industry standard for academic and technical resumes.
+
+---
+
 ## [2.0.0] - 2025
 
 ### Major Changes

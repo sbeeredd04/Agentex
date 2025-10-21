@@ -1104,111 +1104,76 @@ function cleanupBlobUrls() {
   }
 }
 
-// Add this function to setup model selection
+/**
+ * Setup model selector UI
+ * Configures the Gemini model selection dropdown
+ */
 function setupModelSelector() {
   const modelSelect = document.getElementById('modelSelect');
   if (!modelSelect) {
+    console.warn('[ModelSelector] Model select element not found');
     return;
   }
 
   // Clear existing options
   modelSelect.innerHTML = '';
 
-  // Add Gemini option
+  // Add Gemini option (only option now)
   const geminiOption = document.createElement('option');
   geminiOption.value = 'gemini';
-  geminiOption.textContent = 'Gemini 2.0 Flash';
+  geminiOption.textContent = 'Gemini 2.0 Flash (Thinking)';
+  geminiOption.selected = true;
   modelSelect.appendChild(geminiOption);
-
-  // Add Groq options with BETA tags and disabled state
-  const groqModels = aiService.models.groq.models;
-  Object.keys(groqModels).forEach(modelName => {
-    const groqOption = document.createElement('option');
-    groqOption.value = `groq:${modelName}`;
-    groqOption.textContent = `${modelName} (BETA - Coming Soon)`;
-    groqOption.disabled = true; // Disable the option so it can't be selected
-    modelSelect.appendChild(groqOption);
-  });
 
   // Add event listener for model selection
   modelSelect.addEventListener('change', (e) => {
-    const [type, model] = e.target.value.split(':');
-    currentModelSelection = {
-      type,
-      model,
-      description: type === 'groq' 
-        ? aiService.models.groq.models[model]?.description 
-        : 'Gemini 2.0 Flash'
-    };
-
-    // Save to state (now saving the full object)
-    sidebarState.selectedModel = currentModelSelection;
-    saveState();
-
-    // Show model info in status
-    showStatus(`Selected model: ${currentModelSelection.description}`, 'info');
-  });
-
-  // Restore saved model selection (handling both string and object formats)
-  if (sidebarState.selectedModel) {
-    if (typeof sidebarState.selectedModel === 'string') {
-      const [type, model] = sidebarState.selectedModel.split(':');
-      currentModelSelection = {
-        type,
-        model,
-        description: type === 'groq' 
-          ? aiService.models.groq.models[model]?.description 
-          : 'Gemini 2.0 Flash'
-      };
-      modelSelect.value = sidebarState.selectedModel;
-    } else {
-      // Handle object format
-      currentModelSelection = sidebarState.selectedModel;
-      const selectValue = currentModelSelection.model 
-        ? `${currentModelSelection.type}:${currentModelSelection.model}`
-        : currentModelSelection.type;
-      modelSelect.value = selectValue;
-    }
-  } else {
-    // Set default selection
     currentModelSelection = {
       type: 'gemini',
       model: null,
       description: 'Gemini 2.0 Flash'
     };
-    modelSelect.value = 'gemini';
-  }
 
-  // Add a note about Groq models being upcoming
+    // Save to state
+    sidebarState.selectedModel = currentModelSelection;
+    saveState();
+
+    // Show model info in status
+    showStatus(`Using ${currentModelSelection.description}`, 'info');
+  });
+
+  // Set default selection
+  currentModelSelection = {
+    type: 'gemini',
+    model: null,
+    description: 'Gemini 2.0 Flash'
+  };
+  modelSelect.value = 'gemini';
+
+  // Add info note about Gemini
   const modelSelectContainer = modelSelect.parentElement;
   if (modelSelectContainer) {
-    const betaNote = document.createElement('div');
-    betaNote.className = 'beta-note';
-    betaNote.innerHTML = '<span class="beta-tag">BETA</span> Groq models are coming soon!';
-    betaNote.style.fontSize = '12px';
-    betaNote.style.color = '#888';
-    betaNote.style.marginTop = '5px';
-    betaNote.style.display = 'flex';
-    betaNote.style.alignItems = 'center';
-    betaNote.style.gap = '5px';
-    
-    const betaTag = betaNote.querySelector('.beta-tag');
-    if (betaTag) {
-      betaTag.style.backgroundColor = '#ff9800';
-      betaTag.style.color = 'white';
-      betaTag.style.padding = '2px 5px';
-      betaTag.style.borderRadius = '3px';
-      betaTag.style.fontSize = '10px';
-      betaTag.style.fontWeight = 'bold';
+    // Remove any existing notes
+    const existingNote = modelSelectContainer.querySelector('.model-info-note');
+    if (existingNote) {
+      existingNote.remove();
     }
+
+    const infoNote = document.createElement('div');
+    infoNote.className = 'model-info-note';
+    infoNote.innerHTML = '<span class="info-icon">ℹ️</span> Powered by Google Gemini 2.0 Flash';
+    infoNote.style.fontSize = '12px';
+    infoNote.style.color = '#888';
+    infoNote.style.marginTop = '5px';
+    infoNote.style.display = 'flex';
+    infoNote.style.alignItems = 'center';
+    infoNote.style.gap = '5px';
     
-    modelSelectContainer.appendChild(betaNote);
+    modelSelectContainer.appendChild(infoNote);
   }
 
-  // Log available models on initialization
-  console.log('[ModelSelector] Available models:', {
-    gemini: aiService.models.gemini,
-    groqModels: aiService.models.groq.models,
+  // Log model initialization
+  console.log('[ModelSelector] Gemini model initialized:', {
+    model: 'gemini-2.0-flash',
     currentSelection: currentModelSelection
   });
 }
@@ -1443,7 +1408,6 @@ function setupApiKeyManagement() {
   const closeBtn = document.querySelector('.close-modal');
   const saveBtn = document.getElementById('saveApiKeys');
   const geminiInput = document.getElementById('geminiApiKey');
-  const groqInput = document.getElementById('groqApiKey');
   const promptInput = document.getElementById('customPrompt');
   const docxPromptInput = document.getElementById('docxCustomPrompt');
   const jobAnalysisPromptInput = document.getElementById('jobAnalysisPrompt');
@@ -1456,7 +1420,6 @@ function setupApiKeyManagement() {
   // Load saved settings
   chrome.storage.local.get([
     'geminiApiKey', 
-    'groqApiKey', 
     'customPrompt', 
     'docxCustomPrompt',
     'jobAnalysisPrompt',
@@ -1465,9 +1428,8 @@ function setupApiKeyManagement() {
     'experienceRefinementPrompt',
     'finalPolishPrompt'
   ], (result) => {
-    // Set API keys
+    // Set API key
     if (result.geminiApiKey) geminiInput.value = result.geminiApiKey;
-    if (result.groqApiKey) groqInput.value = result.groqApiKey;
 
     // Set prompts only if they exist in storage (not empty)
     if (result.customPrompt) promptInput.value = result.customPrompt;
@@ -1531,8 +1493,7 @@ function setupApiKeyManagement() {
 
       // Get all values
       const settings = {
-        geminiApiKey: geminiInput.value.trim(),
-        groqApiKey: groqInput.value.trim()
+        geminiApiKey: geminiInput.value.trim()
       };
 
       // Only save non-empty prompts
@@ -1545,8 +1506,8 @@ function setupApiKeyManagement() {
       if (finalPolishPromptInput.value.trim()) settings.finalPolishPrompt = finalPolishPromptInput.value.trim();
 
       // Validate required fields
-      if (!settings.geminiApiKey && !settings.groqApiKey) {
-        throw new Error('Please enter at least one API key');
+      if (!settings.geminiApiKey) {
+        throw new Error('Please enter your Gemini API key');
       }
 
       // Save to Chrome storage

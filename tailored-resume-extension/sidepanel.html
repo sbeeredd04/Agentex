@@ -75,10 +75,9 @@
         <div class="model-selection">
           <label for="modelSelect">AI Model</label>
           <select id="modelSelect" class="modern-select">
-            <option value="gemini">Gemini 2.0 Flash</option>
-            <option value="groq:deepseek-r1-distill-qwen-32b">DeepSeek Qwen 32B</option>
-            <option value="groq:deepseek-r1-distill-llama-70b">DeepSeek Llama 70B</option>
+            <option value="gemini" selected>Gemini 2.0 Flash (Thinking)</option>
           </select>
+          <small class="model-info">Powered by Google Gemini AI</small>
         </div>
       </div>
 
@@ -154,21 +153,7 @@
               </button>
             </div>
           </div>
-          <div class="api-key-input">
-            <div class="api-key-header">
-              <label for="groqApiKey">Groq API Key</label>
-              <a href="https://console.groq.com/keys" target="_blank" class="api-link" title="Get Groq API Key">
-                <span class="material-icons">key</span>
-                Get API Key
-              </a>
-            </div>
-            <div class="input-group">
-              <input type="password" id="groqApiKey" class="modern-input" placeholder="Enter your Groq API key">
-              <button class="icon-button toggle-visibility" data-for="groqApiKey" title="Toggle visibility">
-                <span class="material-icons">visibility_off</span>
-              </button>
-            </div>
-          </div>
+
         </div>
 
         <div class="settings-section">

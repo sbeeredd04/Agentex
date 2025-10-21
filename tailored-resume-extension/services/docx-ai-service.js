@@ -1,17 +1,39 @@
+/**
+ * DOCX AI Service for Resume Tailoring
+ * 
+ * Extends the base AIService to provide DOCX-specific resume tailoring
+ * functionality. This service handles text extraction from DOCX files,
+ * sends them to Gemini AI for optimization, and manages response formatting.
+ * 
+ * @class DocxAIService
+ * @extends AIService
+ * @module services/docx-ai-service
+ */
 class DocxAIService extends AIService {
+  /**
+   * Initialize DOCX AI Service
+   * Inherits configuration from parent AIService
+   */
   constructor() {
     super(); // Call parent constructor to initialize endpoints and models
     console.log('[DocxAIService] Initializing DOCX-specific AI Service');
   }
 
-  // Add the missing loadApiKeys method
+  /**
+   * Load API keys from Chrome storage
+   * @returns {Promise<boolean>} True if successful
+   */
   async loadApiKeys() {
     console.log('[DocxAIService] Loading API keys');
     await this.loadSettings();
     return true;
   }
 
-  // Define the default prompt as a static property
+  /**
+   * Default prompt template for DOCX resume tailoring
+   * Maintains format while enhancing content
+   * @static
+   */
   static DEFAULT_PROMPT = `You are an expert ATS resume optimizer. Your task is to enhance this resume for the provided job description.
         
         Original Resume:
@@ -35,6 +57,17 @@ class DocxAIService extends AIService {
 
         IMPORTANT: Return ONLY the plain text content that should replace the original.`;
 
+  /**
+   * Generate tailored DOCX content using Gemini AI
+   * 
+   * @param {string} originalText - Extracted text from DOCX file
+   * @param {string} jobDescription - Target job description
+   * @param {string} knowledgeBase - Additional projects/experience (optional)
+   * @param {string} modelType - AI model type (default: 'gemini')
+   * @param {string|null} model - Specific model version (optional)
+   * @returns {Promise<string>} Tailored plain text content
+   * @throws {Error} If generation fails or response is invalid
+   */
   async generateContent(originalText, jobDescription, knowledgeBase, modelType = 'gemini', model = null) {
     try {
       console.log('[DocxAIService] Generating content:', {
@@ -56,7 +89,7 @@ class DocxAIService extends AIService {
         .replace('{knowledgeBase}', knowledgeBase || 'None provided');
 
       // Use parent class's generateContent method with 'docx' content type
-      const response = await super.generateContent(prompt, 'docx', modelType, model);
+      const response = await super.generateContent(prompt, 'docx');
       
       // Clean the response
       const cleanedResponse = this.cleanResponse(response);
@@ -74,6 +107,15 @@ class DocxAIService extends AIService {
     }
   }
 
+  /**
+   * Clean AI response text
+   * Removes LaTeX commands, code blocks, and formatting markers
+   * to produce clean plain text suitable for DOCX insertion
+   * 
+   * @param {string} text - Raw response from AI
+   * @returns {string} Cleaned plain text
+   * @throws {Error} If response is empty
+   */
   cleanResponse(text) {
     if (!text) {
       console.error('[DocxAIService] Received empty response');
@@ -103,5 +145,6 @@ class DocxAIService extends AIService {
   }
 }
 
+// Register service globally for use in the extension
 window.DocxAIService = DocxAIService;
-console.log('[DocxAIService] Class registered globally'); 
+console.log('[DocxAIService] DOCX AI Service registered successfully'); 

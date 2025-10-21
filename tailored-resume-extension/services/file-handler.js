@@ -1,4 +1,18 @@
+/**
+ * File Handler Service
+ * 
+ * Manages file upload and processing for different resume file types.
+ * Supports LaTeX (.tex) and DOCX (.docx) formats, routing each to
+ * appropriate handlers for parsing and preview generation.
+ * 
+ * @class FileHandler
+ * @module services/file-handler
+ */
 class FileHandler {
+  /**
+   * Initialize File Handler
+   * Sets up supported file type handlers
+   */
   constructor() {
     this.docxService = new DocxService();
     this.supportedTypes = {
@@ -8,29 +22,49 @@ class FileHandler {
     this.debug = true;
   }
 
+  /**
+   * Log debug messages
+   * @param {...any} args - Arguments to log
+   */
   log(...args) {
     if (this.debug) {
       console.log('[FileHandler]', ...args);
     }
   }
 
+  /**
+   * Handle file upload
+   * Routes file to appropriate handler based on extension
+   * 
+   * @param {File} file - Uploaded file object
+   * @returns {Promise<Object>} Processed file data with type, content, and preview
+   * @throws {Error} If file type is not supported
+   */
   async handleFile(file) {
     const extension = file.name.split('.').pop().toLowerCase();
     const handler = this.supportedTypes[extension];
     
     if (!handler) {
-      throw new Error(`Unsupported file type: ${extension}`);
+      throw new Error(`Unsupported file type: ${extension}. Only .tex and .docx files are supported.`);
     }
 
     return await handler(file);
   }
 
+  /**
+   * Handle LaTeX file
+   * Reads file as plain text
+   * 
+   * @param {File} file - LaTeX file
+   * @returns {Promise<Object>} LaTeX content object
+   */
   async handleLatex(file) {
     const content = await this.readFileAsText(file);
     return {
       type: 'latex',
       content,
-      preview: content
+      preview: content,
+      success: true
     };
   }
 

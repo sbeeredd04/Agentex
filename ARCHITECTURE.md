@@ -1,639 +1,509 @@
-# Architecture Diagrams
+# Agentex Architecture Documentation
 
-This document contains detailed architecture diagrams and technical specifications for the Agentex Resume Editor system.
+## Overview
 
-## 🏗️ System Architecture Overview
+Agentex is a Chrome extension that leverages Google's Gemini AI to intelligently tailor resumes to specific job descriptions. This document provides a comprehensive overview of the system architecture, components, and data flow.
 
-```mermaid
-graph TB
-    subgraph "Client Layer"
-        USER[👤 User]
-        BROWSER[🌐 Chrome Browser]
-        EXT[🧩 Extension UI]
-    end
-    
-    subgraph "Extension Layer"
-        SP[📱 Side Panel]
-        BG[⚙️ Background Worker]
-        CS[📄 Content Scripts]
-        STORAGE[💾 Chrome Storage]
-    end
-    
-    subgraph "Service Layer"
-        FH[📁 File Handler]
-        AIS[🤖 AI Service]
-        DS[📄 DOCX Service]
-        SM[🖥️ Server Manager]
-    end
-    
-    subgraph "Local Server"
-        EXPRESS[🚀 Express Server]
-        LATEX[📝 LaTeX Compiler]
-        LIBRE[📋 LibreOffice]
-        FS[📂 File System]
-    end
-    
-    subgraph "External APIs"
-        GEMINI[🔮 Gemini API]
-        GROQ[⚡ Groq API]
-        DEEPSEEK[🧠 DeepSeek Models]
-    end
-    
-    USER --> BROWSER
-    BROWSER --> EXT
-    EXT --> SP
-    EXT --> BG
-    BG --> STORAGE
-    
-    SP --> FH
-    SP --> AIS
-    SP --> DS
-    SP --> SM
-    
-    FH --> EXPRESS
-    SM --> EXPRESS
-    AIS --> GEMINI
-    AIS --> GROQ
-    GROQ --> DEEPSEEK
-    
-    EXPRESS --> LATEX
-    EXPRESS --> LIBRE
-    EXPRESS --> FS
-    
-    classDef client fill:#e3f2fd
-    classDef extension fill:#f3e5f5
-    classDef service fill:#e8f5e8
-    classDef server fill:#fff3e0
-    classDef external fill:#fce4ec
-    
-    class USER,BROWSER,EXT client
-    class SP,BG,CS,STORAGE extension
-    class FH,AIS,DS,SM service
-    class EXPRESS,LATEX,LIBRE,FS server
-    class GEMINI,GROQ,DEEPSEEK external
+## System Architecture
+
+### High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Chrome Extension                         │
+│  ┌────────────┐  ┌──────────────┐  ┌──────────────────┐   │
+│  │   UI Layer │──│ Service Layer │──│  Storage Layer   │   │
+│  │ (sidepanel)│  │  (services/)  │  │ (chrome.storage) │   │
+│  └────────────┘  └──────────────┘  └──────────────────┘   │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+        ┌──────────────┴──────────────┐
+        │                             │
+        ▼                             ▼
+┌───────────────┐            ┌────────────────┐
+│  Gemini API   │            │  LaTeX Server  │
+│ (Google AI)   │            │  (Render.com)  │
+└───────────────┘            └────────────────┘
 ```
 
-## 📱 Chrome Extension Architecture
+## Core Components
 
-```mermaid
-graph LR
-    subgraph "Extension Components"
-        MF[📋 Manifest v3]
-        BG[⚙️ Background Script]
-        SP[📱 Side Panel]
-        CS[📄 Content Scripts]
-        CFG[⚙️ Config]
-    end
-    
-    subgraph "Browser APIs"
-        STORAGE_API[💾 Storage API]
-        PANEL_API[📱 Side Panel API]
-        CONTEXT_API[🔗 Context Menu API]
-        TAB_API[📑 Tabs API]
-    end
-    
-    subgraph "UI Components"
-        HTML[📄 HTML Structure]
-        CSS[🎨 CSS Styling]
-        JS[⚡ JavaScript Logic]
-        ICONS[🎯 Icons]
-    end
-    
-    subgraph "Services"
-        AI_SVC[🤖 AI Service]
-        FILE_SVC[📁 File Service]
-        DOCX_SVC[📄 DOCX Service]
-        SERVER_SVC[🖥️ Server Service]
-    end
-    
-    MF --> BG
-    MF --> SP
-    MF --> CS
-    
-    BG --> STORAGE_API
-    BG --> CONTEXT_API
-    SP --> PANEL_API
-    SP --> TAB_API
-    
-    SP --> HTML
-    HTML --> CSS
-    HTML --> JS
-    SP --> ICONS
-    
-    JS --> AI_SVC
-    JS --> FILE_SVC
-    JS --> DOCX_SVC
-    JS --> SERVER_SVC
-    
-    classDef manifest fill:#ffeb3b
-    classDef components fill:#4caf50
-    classDef apis fill:#2196f3
-    classDef ui fill:#ff9800
-    classDef services fill:#9c27b0
-    
-    class MF manifest
-    class BG,SP,CS,CFG components
-    class STORAGE_API,PANEL_API,CONTEXT_API,TAB_API apis
-    class HTML,CSS,JS,ICONS ui
-    class AI_SVC,FILE_SVC,DOCX_SVC,SERVER_SVC services
+### 1. UI Layer (`sidepanel.html` + `sidepanel.js`)
+
+**Purpose**: Provides the user interface for resume upload, configuration, and preview.
+
+**Key Features**:
+- File upload (LaTeX and DOCX)
+- Job description and knowledge base input
+- Real-time preview (raw and compiled)
+- Settings management
+- Progress indicators
+
+**Files**:
+- `sidepanel.html` - Main UI structure
+- `sidepanel.js` - UI logic and event handling
+- `sidepanel.css` / `style.css` - Styling
+
+### 2. Service Layer
+
+#### 2.1 AI Service (`services/ai-service.js`)
+
+**Purpose**: Core AI integration with Gemini API.
+
+**Responsibilities**:
+- Communicate with Gemini API
+- Manage AI prompts and responses
+- Handle both single-pass and multi-agent processing
+- Clean and validate AI responses
+
+**Key Methods**:
+```javascript
+- generateContent(prompt, contentType)
+- generateTailoredResume(latex, jobDesc, knowledgeBase)
+- generateTailoredResumeMultiAgent(latex, jobDesc, knowledgeBase)
+- _callGeminiAPI(prompt)
+- _cleanLatexResponse(text)
+- _cleanDocxResponse(text)
 ```
 
-## 🔄 Data Flow Architecture
+**Processing Modes**:
 
-```mermaid
-sequenceDiagram
-    participant U as 👤 User
-    participant E as 🧩 Extension
-    participant F as 📁 File Handler
-    participant A as 🤖 AI Service
-    participant S as 🖥️ Server
-    participant P as 📄 PDF Generator
-    
-    Note over U,P: Resume Upload & Processing Flow
-    
-    U->>E: Upload Resume File
-    E->>F: Process File
-    
-    alt LaTeX File
-        F->>F: Parse LaTeX Content
-        F->>E: Return Text Content
-    else DOCX File
-        F->>F: Extract Text & HTML
-        F->>E: Return Text + Binary Data
-    end
-    
-    Note over U,P: AI Optimization Flow
-    
-    U->>E: Input Job Description
-    U->>E: Add Knowledge Base
-    U->>E: Select AI Model
-    U->>E: Generate Resume
-    
-    E->>A: Send Optimization Request
-    A->>A: Prepare Prompt
-    
-    alt Gemini Model
-        A->>Gemini: API Request
-        Gemini->>A: Optimized Content
-    else Groq Model
-        A->>Groq: API Request
-        Groq->>A: Optimized Content
-    end
-    
-    A->>E: Return Optimized Content
-    E->>E: Update Preview
-    
-    Note over U,P: PDF Generation Flow
-    
-    U->>E: Download PDF
-    E->>S: Compile Request
-    
-    alt LaTeX Content
-        S->>S: Run pdflatex
-        S->>P: Generate PDF
-    else DOCX Content
-        S->>S: Run LibreOffice
-        S->>P: Convert to PDF
-    end
-    
-    P->>S: PDF Binary
-    S->>E: Return PDF
-    E->>U: Download PDF
+1. **Single-Pass Mode** (Default):
+   - Sends everything to Gemini in one request
+   - Faster processing
+   - Good for most use cases
+
+2. **Multi-Agent Mode** (Advanced):
+   - Job Analysis Agent
+   - Projects Optimization Agent
+   - Skills Enhancement Agent
+   - Experience Refinement Agent
+   - Final Polish Agent
+
+#### 2.2 DOCX AI Service (`services/docx-ai-service.js`)
+
+**Purpose**: Specialized AI service for DOCX files.
+
+**Extends**: `AIService`
+
+**Responsibilities**:
+- DOCX-specific prompt handling
+- Plain text response formatting
+- Remove LaTeX/markdown from responses
+
+**Key Methods**:
+```javascript
+- generateContent(originalText, jobDesc, knowledgeBase)
+- cleanResponse(text)
 ```
 
-## 🛠️ Service Layer Architecture
+#### 2.3 DOCX Service (`services/docx-service.js`)
 
-```mermaid
-graph TB
-    subgraph "Frontend Services"
-        UI_CTRL[🎛️ UI Controller]
-        STATE_MGR[📊 State Manager]
-        EVENT_MGR[⚡ Event Manager]
-    end
-    
-    subgraph "Core Services"
-        FILE_HANDLER[📁 File Handler]
-        AI_SERVICE[🤖 AI Service]
-        DOCX_SERVICE[📄 DOCX Service]
-        SERVER_MGR[🖥️ Server Manager]
-    end
-    
-    subgraph "AI Integration"
-        BASE_AI[🧠 Base AI Class]
-        GEMINI_AI[🔮 Gemini Integration]
-        GROQ_AI[⚡ Groq Integration]
-        DOCX_AI[📄 DOCX AI Service]
-    end
-    
-    subgraph "File Processing"
-        LATEX_PROC[📝 LaTeX Processor]
-        DOCX_PROC[📋 DOCX Processor]
-        PDF_GEN[📄 PDF Generator]
-        FILE_UTIL[🔧 File Utilities]
-    end
-    
-    subgraph "Storage & Cache"
-        CHROME_STORAGE[💾 Chrome Storage]
-        TEMP_FILES[📁 Temp Files]
-        STATE_CACHE[⚡ State Cache]
-    end
-    
-    UI_CTRL --> STATE_MGR
-    UI_CTRL --> EVENT_MGR
-    UI_CTRL --> FILE_HANDLER
-    UI_CTRL --> AI_SERVICE
-    UI_CTRL --> SERVER_MGR
-    
-    FILE_HANDLER --> LATEX_PROC
-    FILE_HANDLER --> DOCX_PROC
-    FILE_HANDLER --> FILE_UTIL
-    
-    AI_SERVICE --> BASE_AI
-    BASE_AI --> GEMINI_AI
-    BASE_AI --> GROQ_AI
-    DOCX_SERVICE --> DOCX_AI
-    
-    SERVER_MGR --> PDF_GEN
-    
-    STATE_MGR --> CHROME_STORAGE
-    FILE_HANDLER --> TEMP_FILES
-    UI_CTRL --> STATE_CACHE
-    
-    classDef frontend fill:#e1f5fe
-    classDef core fill:#f3e5f5
-    classDef ai fill:#e8f5e8
-    classDef processing fill:#fff3e0
-    classDef storage fill:#fce4ec
-    
-    class UI_CTRL,STATE_MGR,EVENT_MGR frontend
-    class FILE_HANDLER,AI_SERVICE,DOCX_SERVICE,SERVER_MGR core
-    class BASE_AI,GEMINI_AI,GROQ_AI,DOCX_AI ai
-    class LATEX_PROC,DOCX_PROC,PDF_GEN,FILE_UTIL processing
-    class CHROME_STORAGE,TEMP_FILES,STATE_CACHE storage
+**Purpose**: Handle DOCX file parsing and generation.
+
+**Dependencies**:
+- Mammoth.js (DOCX to HTML)
+- PizZip (ZIP handling)
+- Docxtemplater (DOCX generation)
+
+**Responsibilities**:
+- Extract text from DOCX files
+- Convert DOCX to HTML preview
+- Create modified DOCX files
+- Maintain document formatting
+
+**Key Methods**:
+```javascript
+- extractText(arrayBuffer)
+- parseDocx(arrayBuffer)
+- tailorDocx(docxBuffer, jobDesc, knowledgeBase)
 ```
 
-## 🖥️ Server Architecture
+#### 2.4 File Handler (`services/file-handler.js`)
 
-```mermaid
-graph TB
-    subgraph "HTTP Layer"
-        NGINX[🌐 Nginx Proxy]
-        EXPRESS[🚀 Express Server]
-        CORS[🔐 CORS Middleware]
-        ROUTES[🛣️ Route Handlers]
-    end
-    
-    subgraph "Processing Layer"
-        COMPILE_SVC[⚙️ Compilation Service]
-        FILE_MGR[📁 File Manager]
-        QUEUE_MGR[📋 Queue Manager]
-        ERROR_HANDLER[❌ Error Handler]
-    end
-    
-    subgraph "Document Processors"
-        LATEX_COMPILER[📝 LaTeX Compiler]
-        DOCX_CONVERTER[📄 DOCX Converter]
-        PDF_OPTIMIZER[🔧 PDF Optimizer]
-    end
-    
-    subgraph "System Resources"
-        PDFLATEX[📄 pdflatex Binary]
-        LIBREOFFICE[📋 LibreOffice Binary]
-        TEMP_FS[💾 Temporary File System]
-        LOGS[📊 Log Files]
-    end
-    
-    subgraph "Process Management"
-        PM2[⚙️ PM2 Manager]
-        HEALTH_CHECK[❤️ Health Monitor]
-        METRICS[📈 Metrics Collector]
-    end
-    
-    NGINX --> EXPRESS
-    EXPRESS --> CORS
-    EXPRESS --> ROUTES
-    ROUTES --> COMPILE_SVC
-    ROUTES --> FILE_MGR
-    
-    COMPILE_SVC --> QUEUE_MGR
-    COMPILE_SVC --> LATEX_COMPILER
-    COMPILE_SVC --> DOCX_CONVERTER
-    
-    LATEX_COMPILER --> PDFLATEX
-    DOCX_CONVERTER --> LIBREOFFICE
-    
-    FILE_MGR --> TEMP_FS
-    FILE_MGR --> PDF_OPTIMIZER
-    
-    ERROR_HANDLER --> LOGS
-    PM2 --> EXPRESS
-    PM2 --> HEALTH_CHECK
-    PM2 --> METRICS
-    
-    classDef http fill:#e3f2fd
-    classDef processing fill:#f3e5f5
-    classDef processors fill:#e8f5e8
-    classDef system fill:#fff3e0
-    classDef management fill:#fce4ec
-    
-    class NGINX,EXPRESS,CORS,ROUTES http
-    class COMPILE_SVC,FILE_MGR,QUEUE_MGR,ERROR_HANDLER processing
-    class LATEX_COMPILER,DOCX_CONVERTER,PDF_OPTIMIZER processors
-    class PDFLATEX,LIBREOFFICE,TEMP_FS,LOGS system
-    class PM2,HEALTH_CHECK,METRICS management
+**Purpose**: Route file uploads to appropriate handlers.
+
+**Responsibilities**:
+- Detect file type (.tex or .docx)
+- Route to appropriate service
+- Validate file structure
+- Return standardized result format
+
+**Key Methods**:
+```javascript
+- handleFile(file)
+- handleLatex(file)
+- handleDocx(file)
 ```
 
-## 🔌 API Integration Architecture
+### 3. Configuration Layer
 
-```mermaid
-graph LR
-    subgraph "Extension Client"
-        AI_CLIENT[🤖 AI Client]
-        KEY_MGR[🔑 Key Manager]
-        REQUEST_MGR[📡 Request Manager]
-    end
-    
-    subgraph "API Abstraction"
-        BASE_API[🔧 Base API Class]
-        GEMINI_API[🔮 Gemini Client]
-        GROQ_API[⚡ Groq Client]
-        ERROR_MAPPER[❌ Error Mapper]
-    end
-    
-    subgraph "External Services"
-        GOOGLE_GEMINI[🌟 Google Gemini 2.0]
-        GROQ_SERVICE[⚡ Groq Inference]
-        DEEPSEEK_32B[🧠 DeepSeek Qwen 32B]
-        DEEPSEEK_70B[🧠 DeepSeek Llama 70B]
-    end
-    
-    subgraph "Response Processing"
-        CONTENT_PARSER[📄 Content Parser]
-        FORMAT_VALIDATOR[✅ Format Validator]
-        CONTENT_CLEANER[🧹 Content Cleaner]
-    end
-    
-    AI_CLIENT --> KEY_MGR
-    AI_CLIENT --> REQUEST_MGR
-    REQUEST_MGR --> BASE_API
-    
-    BASE_API --> GEMINI_API
-    BASE_API --> GROQ_API
-    BASE_API --> ERROR_MAPPER
-    
-    GEMINI_API --> GOOGLE_GEMINI
-    GROQ_API --> GROQ_SERVICE
-    GROQ_SERVICE --> DEEPSEEK_32B
-    GROQ_SERVICE --> DEEPSEEK_70B
-    
-    GOOGLE_GEMINI --> CONTENT_PARSER
-    GROQ_SERVICE --> CONTENT_PARSER
-    CONTENT_PARSER --> FORMAT_VALIDATOR
-    FORMAT_VALIDATOR --> CONTENT_CLEANER
-    CONTENT_CLEANER --> AI_CLIENT
-    
-    classDef client fill:#e1f5fe
-    classDef abstraction fill:#f3e5f5
-    classDef external fill:#e8f5e8
-    classDef processing fill:#fff3e0
-    
-    class AI_CLIENT,KEY_MGR,REQUEST_MGR client
-    class BASE_API,GEMINI_API,GROQ_API,ERROR_MAPPER abstraction
-    class GOOGLE_GEMINI,GROQ_SERVICE,DEEPSEEK_32B,DEEPSEEK_70B external
-    class CONTENT_PARSER,FORMAT_VALIDATOR,CONTENT_CLEANER processing
+#### 3.1 Config Module (`config.js`)
+
+**Purpose**: Centralized configuration management.
+
+**Contains**:
+- Gemini API endpoint
+- Default API key
+- Model configuration
+- Application metadata
+
+#### 3.2 Prompts Module (`prompts/gemini-prompts.js`)
+
+**Purpose**: Centralized prompt management.
+
+**Contains**:
+- LaTeX tailoring prompt
+- DOCX tailoring prompt
+- Job analysis prompt
+- Projects optimization prompt
+- Skills enhancement prompt
+- Experience refinement prompt
+- Final polish prompt
+
+### 4. Background Service Worker (`background.js`)
+
+**Purpose**: Chrome extension background tasks.
+
+**Responsibilities**:
+- Initialize side panel
+- Handle context menu
+- Manage extension lifecycle
+
+### 5. Server Manager (`server/serverManager.js`)
+
+**Purpose**: Manage communication with LaTeX compilation server.
+
+**Responsibilities**:
+- Send LaTeX to server
+- Receive compiled PDF
+- Handle server errors
+- Retry logic
+
+### 6. Storage Layer
+
+**Technology**: Chrome Storage API
+
+**Stored Data**:
+- User settings (API keys, custom prompts)
+- Session state (uploaded files, job description)
+- Generated content (tailored resumes)
+- User preferences
+
+## Data Flow
+
+### Resume Tailoring Flow
+
+```
+1. User Actions
+   ├─ Upload Resume File (.tex or .docx)
+   ├─ Enter Job Description
+   └─ (Optional) Add Knowledge Base
+
+2. File Processing
+   ├─ FileHandler detects type
+   ├─ LaTeX: Read as text
+   └─ DOCX: Parse with Mammoth.js
+
+3. AI Processing
+   ├─ Construct prompt with inputs
+   ├─ Send to Gemini API
+   ├─ Receive AI response
+   └─ Clean and validate response
+
+4. Output Generation
+   ├─ LaTeX: Update LaTeX code
+   ├─ DOCX: Replace text content
+   └─ Store in Chrome storage
+
+5. Preview & Download
+   ├─ Show in preview pane
+   ├─ LaTeX: Compile to PDF (optional)
+   └─ Allow download
 ```
 
-## 📄 Document Processing Pipeline
+### LaTeX Compilation Flow
 
-```mermaid
-flowchart TD
-    START([📤 File Upload]) --> DETECT{🔍 Detect File Type}
-    
-    DETECT -->|.tex| LATEX_PATH[📝 LaTeX Processing]
-    DETECT -->|.docx| DOCX_PATH[📄 DOCX Processing]
-    DETECT -->|Invalid| ERROR[❌ Error: Unsupported Format]
-    
-    subgraph "LaTeX Pipeline"
-        LATEX_PATH --> PARSE_TEX[📖 Parse LaTeX]
-        PARSE_TEX --> EXTRACT_TEXT[📋 Extract Text Content]
-        EXTRACT_TEXT --> STORE_LATEX[💾 Store LaTeX Source]
-    end
-    
-    subgraph "DOCX Pipeline"
-        DOCX_PATH --> PARSE_DOCX[📖 Parse DOCX Structure]
-        PARSE_DOCX --> EXTRACT_HTML[🌐 Extract HTML]
-        EXTRACT_HTML --> EXTRACT_TEXT_DOCX[📋 Extract Plain Text]
-        EXTRACT_TEXT_DOCX --> STORE_DOCX[💾 Store DOCX Data]
-    end
-    
-    STORE_LATEX --> AI_PROCESSING[🤖 AI Processing]
-    STORE_DOCX --> AI_PROCESSING
-    
-    subgraph "AI Enhancement"
-        AI_PROCESSING --> BUILD_PROMPT[📝 Build Optimization Prompt]
-        BUILD_PROMPT --> SELECT_MODEL{🔀 Model Selection}
-        
-        SELECT_MODEL -->|Gemini| GEMINI_CALL[🔮 Gemini API Call]
-        SELECT_MODEL -->|Groq| GROQ_CALL[⚡ Groq API Call]
-        
-        GEMINI_CALL --> CLEAN_RESPONSE[🧹 Clean Response]
-        GROQ_CALL --> CLEAN_RESPONSE
-        
-        CLEAN_RESPONSE --> VALIDATE[✅ Validate Content]
-    end
-    
-    VALIDATE --> COMPILATION{🔧 Compilation Type}
-    
-    COMPILATION -->|LaTeX| LATEX_COMPILE[📝 pdflatex Compilation]
-    COMPILATION -->|DOCX| DOCX_COMPILE[📄 LibreOffice Conversion]
-    
-    subgraph "PDF Generation"
-        LATEX_COMPILE --> CHECK_LATEX{✅ LaTeX Success?}
-        CHECK_LATEX -->|Yes| PDF_LATEX[📄 LaTeX PDF Output]
-        CHECK_LATEX -->|No| LATEX_ERROR[❌ LaTeX Error]
-        
-        DOCX_COMPILE --> CHECK_DOCX{✅ DOCX Success?}
-        CHECK_DOCX -->|Yes| PDF_DOCX[📄 DOCX PDF Output]
-        CHECK_DOCX -->|No| DOCX_ERROR[❌ DOCX Error]
-    end
-    
-    PDF_LATEX --> CLEANUP[🧹 Cleanup Temp Files]
-    PDF_DOCX --> CLEANUP
-    
-    CLEANUP --> DOWNLOAD([📥 Download PDF])
-    
-    LATEX_ERROR --> ERROR_HANDLING[🔧 Error Handling]
-    DOCX_ERROR --> ERROR_HANDLING
-    ERROR --> ERROR_HANDLING
-    
-    ERROR_HANDLING --> END_ERROR([❌ Process Failed])
-    DOWNLOAD --> END_SUCCESS([✅ Process Complete])
-    
-    classDef start fill:#4caf50
-    classDef process fill:#2196f3
-    classDef decision fill:#ff9800
-    classDef error fill:#f44336
-    classDef success fill:#4caf50
-    
-    class START start
-    class DETECT,SELECT_MODEL,COMPILATION,CHECK_LATEX,CHECK_DOCX decision
-    class ERROR,LATEX_ERROR,DOCX_ERROR,ERROR_HANDLING,END_ERROR error
-    class DOWNLOAD,END_SUCCESS success
+```
+1. User clicks "Compiled" view
+2. Send LaTeX to server
+3. Server compiles with pdflatex
+4. Receive PDF blob
+5. Display in iframe
+6. Enable download/print
 ```
 
-## 🔄 State Management Architecture
+## API Integration
 
-```mermaid
-stateDiagram-v2
-    [*] --> Initialized
-    
-    Initialized --> FileUploaded : Upload File
-    FileUploaded --> ProcessingFile : Parse Content
-    ProcessingFile --> FileReady : Success
-    ProcessingFile --> FileError : Error
-    
-    FileReady --> GeneratingContent : Start AI Generation
-    GeneratingContent --> ContentGenerated : AI Success
-    GeneratingContent --> GenerationError : AI Error
-    
-    ContentGenerated --> CompilingPDF : Download PDF
-    CompilingPDF --> PDFReady : Compilation Success
-    CompilingPDF --> CompilationError : Compilation Error
-    
-    FileError --> FileUploaded : Retry Upload
-    GenerationError --> FileReady : Retry Generation
-    CompilationError --> ContentGenerated : Retry Compilation
-    
-    PDFReady --> FileReady : New Generation
-    PDFReady --> [*] : Process Complete
-    
-    note right of FileUploaded
-        File content extracted
-        Preview updated
-        UI state saved
-    end note
-    
-    note right of ContentGenerated
-        AI-optimized content
-        Preview refreshed
-        State persisted
-    end note
-    
-    note right of PDFReady
-        PDF generated
-        Download available
-        Process metrics logged
-    end note
+### Gemini API
+
+**Endpoint**: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`
+
+**Authentication**: API Key (query parameter)
+
+**Request Format**:
+```json
+{
+  "contents": [{
+    "parts": [{ "text": "prompt..." }]
+  }]
+}
 ```
 
-## 🌐 Network Communication Architecture
-
-```mermaid
-graph TB
-    subgraph "Chrome Extension"
-        UI[🖥️ User Interface]
-        BG_WORKER[⚙️ Background Worker]
-        STORAGE[💾 Local Storage]
-    end
-    
-    subgraph "Local Network"
-        LOCALHOST[🏠 localhost:3000]
-        LOCAL_API[🔌 Local API Server]
-    end
-    
-    subgraph "External APIs"
-        GEMINI_ENDPOINT[🔮 Gemini API]
-        GROQ_ENDPOINT[⚡ Groq API]
-    end
-    
-    subgraph "Security Layer"
-        CORS_POLICY[🔐 CORS Policy]
-        API_KEYS[🔑 API Key Management]
-        RATE_LIMIT[🚫 Rate Limiting]
-    end
-    
-    UI -->|File Upload| LOCAL_API
-    UI -->|Compilation Request| LOCAL_API
-    BG_WORKER -->|AI Request| GEMINI_ENDPOINT
-    BG_WORKER -->|AI Request| GROQ_ENDPOINT
-    
-    LOCAL_API --> CORS_POLICY
-    GEMINI_ENDPOINT --> API_KEYS
-    GROQ_ENDPOINT --> API_KEYS
-    
-    API_KEYS --> RATE_LIMIT
-    CORS_POLICY --> LOCALHOST
-    
-    STORAGE -.->|State Persistence| UI
-    STORAGE -.->|API Keys| BG_WORKER
-    
-    classDef extension fill:#e1f5fe
-    classDef local fill:#f3e5f5
-    classDef external fill:#e8f5e8
-    classDef security fill:#ffebee
-    
-    class UI,BG_WORKER,STORAGE extension
-    class LOCALHOST,LOCAL_API local
-    class GEMINI_ENDPOINT,GROQ_ENDPOINT external
-    class CORS_POLICY,API_KEYS,RATE_LIMIT security
+**Response Format**:
+```json
+{
+  "candidates": [{
+    "content": {
+      "parts": [{
+        "text": "generated content..."
+      }]
+    }
+  }]
+}
 ```
 
-## 📊 Performance Architecture
+### LaTeX Compilation Server
 
-```mermaid
-graph TB
-    subgraph "Performance Monitoring"
-        METRICS[📊 Metrics Collection]
-        PERF_MONITOR[📈 Performance Monitor]
-        ALERTING[🚨 Alerting System]
-    end
-    
-    subgraph "Optimization Layers"
-        REQUEST_CACHE[⚡ Request Cache]
-        FILE_CACHE[📁 File Cache]
-        RESPONSE_COMPRESS[🗜️ Response Compression]
-        LAZY_LOADING[💤 Lazy Loading]
-    end
-    
-    subgraph "Resource Management"
-        MEMORY_MGR[🧠 Memory Manager]
-        CPU_MONITOR[⚙️ CPU Monitor]
-        DISK_CLEANUP[🧹 Disk Cleanup]
-        PROCESS_QUEUE[📋 Process Queue]
-    end
-    
-    subgraph "Scalability"
-        LOAD_BALANCER[⚖️ Load Balancer]
-        HORIZONTAL_SCALE[↔️ Horizontal Scaling]
-        VERTICAL_SCALE[↕️ Vertical Scaling]
-        CDN[🌐 CDN Distribution]
-    end
-    
-    METRICS --> PERF_MONITOR
-    PERF_MONITOR --> ALERTING
-    
-    REQUEST_CACHE --> RESPONSE_COMPRESS
-    FILE_CACHE --> LAZY_LOADING
-    
-    MEMORY_MGR --> CPU_MONITOR
-    CPU_MONITOR --> DISK_CLEANUP
-    DISK_CLEANUP --> PROCESS_QUEUE
-    
-    LOAD_BALANCER --> HORIZONTAL_SCALE
-    HORIZONTAL_SCALE --> VERTICAL_SCALE
-    VERTICAL_SCALE --> CDN
-    
-    classDef monitoring fill:#e1f5fe
-    classDef optimization fill:#f3e5f5
-    classDef resource fill:#e8f5e8
-    classDef scaling fill:#fff3e0
-    
-    class METRICS,PERF_MONITOR,ALERTING monitoring
-    class REQUEST_CACHE,FILE_CACHE,RESPONSE_COMPRESS,LAZY_LOADING optimization
-    class MEMORY_MGR,CPU_MONITOR,DISK_CLEANUP,PROCESS_QUEUE resource
-    class LOAD_BALANCER,HORIZONTAL_SCALE,VERTICAL_SCALE,CDN scaling
+**Endpoint**: `https://agentex.onrender.com/compile`
+
+**Request Format**:
+```json
+{
+  "latex": "LaTeX code..."
+}
 ```
+
+**Response**: PDF blob
+
+## State Management
+
+### Application State
+
+**Stored in**: `chrome.storage.local`
+
+**Key State Objects**:
+
+```javascript
+sidebarState = {
+  activeTab: 'resume',
+  previewMode: 'text',
+  contentType: 'original',
+  selectedModel: { type: 'gemini', ... },
+  lastJobDescription: '',
+  lastKnowledgeBaseText: '',
+  uploadedFileName: '',
+  fileType: 'latex' | 'docx',
+  originalContent: '',
+  tailoredContent: '',
+  ...
+}
+```
+
+### Session Persistence
+
+**What Persists**:
+- Job description text
+- Knowledge base text
+- Uploaded file metadata
+- Generated content
+- User settings
+
+**What Doesn't Persist**:
+- Actual file content (too large)
+- Preview state
+- Loading states
+
+## Security Considerations
+
+### API Key Security
+
+1. **Storage**: API keys stored in Chrome storage (encrypted at rest)
+2. **Transmission**: Keys sent via HTTPS only
+3. **Access**: Keys only accessible by extension
+4. **No Logging**: Keys never logged to console
+
+### Data Privacy
+
+1. **Local Processing**: File parsing done locally
+2. **Transmission**: Only text sent to Gemini (not full files)
+3. **No Storage**: Gemini doesn't store prompts/responses
+4. **User Control**: Users can delete all data
+
+## Error Handling
+
+### Error Types and Handling
+
+1. **File Upload Errors**
+   - Invalid file format → Clear error message
+   - Corrupted file → Graceful failure with retry
+
+2. **API Errors**
+   - Invalid API key → Prompt to update in settings
+   - Rate limiting → Show retry with delay
+   - Network errors → Offline detection and guidance
+
+3. **Compilation Errors**
+   - Invalid LaTeX → Show error details
+   - Server unavailable → Fallback to raw view
+
+4. **State Errors**
+   - Corrupted state → Reset to defaults
+   - Storage full → Clear old data
+
+## Performance Optimization
+
+### Optimization Strategies
+
+1. **Lazy Loading**: Services loaded only when needed
+2. **Debouncing**: Input changes debounced (500ms)
+3. **Caching**: Compiled PDFs cached in memory
+4. **Request Limiting**: Only one AI request at a time
+5. **State Persistence**: Avoid re-parsing files
+
+### Performance Metrics
+
+- **File Upload**: < 1 second
+- **AI Generation**: 10-30 seconds (Gemini API)
+- **PDF Compilation**: 5-10 seconds (server)
+- **UI Response**: < 100ms
+
+## Extension Manifest
+
+**Version**: Manifest V3
+
+**Key Permissions**:
+- `activeTab`: Access current tab
+- `sidePanel`: Display side panel
+- `storage`: Store settings and state
+- `contextMenus`: Right-click menu
+- `unlimitedStorage`: Large file handling
+
+**Content Security Policy**:
+- `script-src 'self' 'wasm-unsafe-eval'`
+- `object-src 'self'`
+
+## Future Architecture Considerations
+
+### Planned Enhancements
+
+1. **Offline Mode**: Cache prompts and queue requests
+2. **Batch Processing**: Tailor for multiple jobs at once
+3. **Templates**: Pre-defined resume templates
+4. **Analytics**: Track optimization improvements
+5. **Cloud Sync**: Optional cloud backup
+
+### Scalability
+
+- **Current**: Handles resumes up to 10 pages
+- **Future**: Support for larger documents
+- **Future**: Multiple file versions
+
+## Development Setup
+
+### Prerequisites
+
+- Chrome browser (v90+)
+- Node.js (for server development)
+- Text editor with JavaScript support
+
+### Local Development
+
+```bash
+# Clone repository
+git clone https://github.com/sbeeredd04/Agentex.git
+
+# Load extension
+# 1. Open chrome://extensions/
+# 2. Enable Developer mode
+# 3. Load unpacked: tailored-resume-extension/
+
+# Run LaTeX server (optional)
+cd tailored-resume-extension/server
+npm install
+npm start
+```
+
+### Testing
+
+See [TESTING.md](TESTING.md) for comprehensive testing procedures.
+
+## Contributing
+
+### Code Style
+
+- ES6+ JavaScript
+- JSDoc comments for all functions
+- Consistent naming (camelCase)
+- Error handling for all async operations
+
+### Pull Request Process
+
+1. Create feature branch
+2. Implement changes with tests
+3. Update documentation
+4. Submit PR with description
+
+## Troubleshooting
+
+### Common Issues
+
+**Extension won't load**: Check Chrome version and manifest.json syntax
+
+**API errors**: Verify API key and quota
+
+**PDF won't compile**: Check LaTeX syntax and server status
+
+**Performance issues**: Clear Chrome storage and reload
+
+## Appendix
+
+### Technology Stack
+
+- **Frontend**: Vanilla JavaScript, HTML5, CSS3
+- **AI**: Google Gemini 2.0 Flash
+- **File Processing**: Mammoth.js, PizZip, Docxtemplater
+- **LaTeX**: pdflatex (server-side)
+- **Storage**: Chrome Storage API
+- **Server**: Node.js, Express (LaTeX compilation)
+
+### File Structure
+
+```
+Agentex/
+├── tailored-resume-extension/
+│   ├── manifest.json
+│   ├── background.js
+│   ├── config.js
+│   ├── sidepanel.html
+│   ├── sidepanel.js
+│   ├── sidepanel.css
+│   ├── style.css
+│   ├── services/
+│   │   ├── ai-service.js
+│   │   ├── docx-ai-service.js
+│   │   ├── docx-service.js
+│   │   └── file-handler.js
+│   ├── prompts/
+│   │   └── gemini-prompts.js
+│   ├── server/
+│   │   ├── server.js
+│   │   └── serverManager.js
+│   ├── lib/
+│   │   └── vendor/
+│   └── icons/
+├── README.md
+├── TESTING.md
+├── ARCHITECTURE.md (this file)
+└── prompt-resume.md
+```
+
+### Version History
+
+- **v2.0**: Gemini-only implementation
+- **v1.x**: Multi-provider support (deprecated)
 
 ---
 
-These diagrams provide comprehensive visual documentation of the Agentex Resume Editor architecture, covering all major components, data flows, and system interactions.
+*Last Updated: 2025*
+*Document Version: 2.0*

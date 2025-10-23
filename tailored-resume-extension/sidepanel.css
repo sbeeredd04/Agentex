@@ -1,0 +1,38 @@
+/* Model selector styles */
+#modelSelect {
+  width: 100%;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: white;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+#modelSelect option {
+  padding: 8px;
+}
+
+#modelSelect option:disabled {
+  color: #999;
+  font-style: italic;
+  background-color: #f5f5f5;
+}
+
+.beta-note {
+  margin-top: 5px;
+  font-size: 12px;
+  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.beta-tag {
+  background-color: #ff9800;
+  color: white;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: bold;
+} 

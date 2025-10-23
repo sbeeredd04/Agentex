@@ -1,507 +1,461 @@
 # Agentex Resume Editor
 
-An AI-powered Chrome extension that intelligently tailors your resume to specific job descriptions and generates professional PDF outputs. Agentex leverages advanced AI models to optimize your resume content while maintaining formatting and structure.
+**AI-Powered Resume Tailoring Chrome Extension**
 
-## 🚀 Features
+Agentex is a Chrome extension that uses Google's Gemini AI to intelligently tailor your resume to specific job descriptions, helping you pass ATS (Applicant Tracking System) screenings and land more interviews.
 
-- **AI-Powered Resume Tailoring**: Automatically optimize resume content based on job descriptions
-- **Multiple File Format Support**: Works with both LaTeX (.tex) and DOCX (.docx) resume files
-- **Multi-Model AI Integration**: Supports Gemini 2.0 Flash and Groq (DeepSeek) models
-- **Real-time Preview**: Live preview of both raw content and compiled PDF
-- **Knowledge Base Integration**: Add personal achievements and experiences to enhance tailoring
-- **Local PDF Compilation**: Secure local server for LaTeX and DOCX to PDF conversion
-- **Chrome Extension Integration**: Seamless browser integration with side panel UI
+## 🌟 Features
 
-## 📐 Architecture Overview
+- **Smart Resume Tailoring**: Automatically optimize your resume for any job description
+- **LaTeX-Only Format**: Works exclusively with LaTeX (.tex) resume files for professional typesetting
+- **Gemini AI-Powered**: Leverages Google's latest Gemini 2.0 Flash model for intelligent optimization
+- **Project Replacement**: Intelligently replaces resume projects with more relevant ones from your knowledge base
+- **ATS Optimization**: Ensures your resume passes automated screening systems
+- **Real-time Preview**: View your changes instantly with side-by-side comparison
+- **PDF Generation**: Compile LaTeX resumes to PDF directly in the browser
+- **Knowledge Base**: Maintain a repository of additional projects and experience to draw from
 
-```mermaid
-graph TB
-    subgraph "Browser Environment"
-        CE[Chrome Extension]
-        SP[Side Panel UI]
-        BG[Background Script]
-        CS[Content Scripts]
-    end
-    
-    subgraph "Local Server"
-        NS[Node.js Express Server]
-        LC[LaTeX Compiler]
-        DC[DOCX Converter]
-        FM[File Manager]
-    end
-    
-    subgraph "AI Services"
-        GM[Gemini 2.0 Flash]
-        GQ[Groq API]
-        DS[DeepSeek Models]
-    end
-    
-    subgraph "File Processing"
-        FH[File Handler]
-        DS_SVC[DOCX Service]
-        AI_SVC[AI Service]
-        DAI_SVC[DOCX AI Service]
-    end
-    
-    CE --> SP
-    CE --> BG
-    SP --> FH
-    SP --> AI_SVC
-    FH --> NS
-    AI_SVC --> GM
-    AI_SVC --> GQ
-    GQ --> DS
-    NS --> LC
-    NS --> DC
-    NS --> FM
-    DS_SVC --> DAI_SVC
-    
-    classDef browser fill:#e1f5fe
-    classDef server fill:#f3e5f5
-    classDef ai fill:#e8f5e8
-    classDef processing fill:#fff3e0
-    
-    class CE,SP,BG,CS browser
-    class NS,LC,DC,FM server
-    class GM,GQ,DS ai
-    class FH,DS_SVC,AI_SVC,DAI_SVC processing
-```
+## 📋 Table of Contents
 
-## 🏗️ System Architecture
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [How It Works](#how-it-works)
+- [Architecture](#architecture)
+- [Configuration](#configuration)
+- [Manual Testing](#manual-testing)
+- [Customizing Prompts](#customizing-prompts)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
 
-### Component Architecture
+## 🚀 Installation
 
-```mermaid
-graph LR
-    subgraph "Chrome Extension Layer"
-        UI[Side Panel UI]
-        BKG[Background Worker]
-        STORAGE[Chrome Storage]
-    end
-    
-    subgraph "Service Layer"
-        FS[File Service]
-        AIS[AI Service]
-        SMS[Server Manager]
-    end
-    
-    subgraph "Processing Layer"
-        FP[File Processor]
-        CT[Content Transformer]
-        PDF[PDF Generator]
-    end
-    
-    subgraph "External APIs"
-        GEMINI[Gemini API]
-        GROQ[Groq API]
-    end
-    
-    UI --> FS
-    UI --> AIS
-    UI --> SMS
-    BKG --> STORAGE
-    FS --> FP
-    AIS --> GEMINI
-    AIS --> GROQ
-    SMS --> CT
-    CT --> PDF
-    
-    classDef extension fill:#bbdefb
-    classDef service fill:#c8e6c9
-    classDef processing fill:#ffcdd2
-    classDef external fill:#f8bbd9
-    
-    class UI,BKG,STORAGE extension
-    class FS,AIS,SMS service
-    class FP,CT,PDF processing
-    class GEMINI,GROQ external
-```
+### From Source (Development)
 
-### Data Flow Diagram
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Extension
-    participant AIService
-    participant Server
-    participant FileHandler
-    participant ExternalAPI
-    
-    User->>Extension: Upload Resume File
-    Extension->>FileHandler: Process File
-    FileHandler->>Extension: Return Parsed Content
-    
-    User->>Extension: Input Job Description
-    User->>Extension: Click Generate
-    
-    Extension->>AIService: Request Tailored Content
-    AIService->>ExternalAPI: Send Prompt
-    ExternalAPI->>AIService: Return Optimized Content
-    AIService->>Extension: Processed Content
-    
-    Extension->>Server: Compile to PDF
-    Server->>Server: LaTeX/DOCX Processing
-    Server->>Extension: Return PDF
-    
-    Extension->>User: Display Preview & Download
-```
-
-## 🛠️ Technology Stack
-
-### Frontend Technologies
-- **Chrome Extension API**: Manifest V3 with side panel integration
-- **HTML5/CSS3**: Modern responsive UI with glass morphism design
-- **Vanilla JavaScript**: ES6+ for extension logic and DOM manipulation
-- **Material Icons**: Google Material Design icons for UI elements
-
-### Backend Technologies
-- **Node.js**: Runtime environment for server operations
-- **Express.js**: Web framework for API endpoints
-- **PM2**: Process manager for production deployment
-
-### File Processing
-- **LaTeX/pdflatex**: Professional PDF generation from LaTeX
-- **LibreOffice Convert**: DOCX to PDF conversion
-- **Mammoth.js**: DOCX to HTML conversion
-- **docxtemplater**: DOCX template processing
-- **PizZip**: ZIP file manipulation for DOCX files
-
-### AI Integration
-- **Google Gemini 2.0 Flash**: Advanced text generation and optimization
-- **Groq API**: High-performance inference for DeepSeek models
-- **DeepSeek Models**: 
-  - DeepSeek-R1-Distill-Qwen-32B
-  - DeepSeek-R1-Distill-Llama-70B
-
-### Storage & Persistence
-- **Chrome Storage API**: Local extension data storage
-- **File System**: Temporary file handling for compilation
-- **UUID**: Unique identifier generation for file management
-
-### Development Tools
-- **Nodemon**: Development server auto-restart
-- **Multer**: File upload middleware
-- **CORS**: Cross-origin resource sharing configuration
-
-## 📦 Installation
-
-### Prerequisites
-- **Node.js** (v18 or higher)
-- **npm** (v9 or higher)
-- **TeX Live** (for LaTeX compilation)
-- **LibreOffice** (for DOCX conversion)
-- **Chrome Browser** (for extension)
-
-### Server Setup
-
-1. **Clone the repository**:
+1. **Clone the repository**
    ```bash
    git clone https://github.com/sbeeredd04/Agentex.git
-   cd Agentex/tailored-resume-extension/server
+   cd Agentex
    ```
 
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Install system dependencies** (Ubuntu/Debian):
-   ```bash
-   chmod +x setup.sh
-   ./setup.sh
-   ```
-
-   **Manual installation**:
-   ```bash
-   # Install TeX Live
-   sudo apt-get install texlive texlive-latex-extra texlive-fonts-recommended
-   
-   # Install PM2
-   sudo npm install -g pm2
-   
-   # Create directories
-   sudo mkdir -p /tmp/pdf
-   sudo chmod 777 /tmp/pdf
-   ```
-
-4. **Start the server**:
-   ```bash
-   npm start
-   # or with PM2
-   pm2 start ecosystem.config.js
-   ```
-
-### Chrome Extension Installation
-
-1. **Open Chrome** and navigate to `chrome://extensions/`
-
-2. **Enable Developer Mode** (toggle in top right)
-
-3. **Load Extension**:
+2. **Load in Chrome**
+   - Open Chrome and navigate to `chrome://extensions/`
+   - Enable "Developer mode" (toggle in top right)
    - Click "Load unpacked"
-   - Select the `tailored-resume-extension` folder
+   - Select the `tailored-resume-extension` directory
 
-4. **Configure API Keys**:
-   - Click the extension icon or use `Ctrl+Shift+Y`
-   - Open Settings and add your API keys:
-     - Gemini API Key
-     - Groq API Key (optional)
+3. **Configure API Key**
+   - Click the extension icon in Chrome
+   - Click the Settings gear icon
+   - Enter your Gemini API key (get one at [Google AI Studio](https://makersuite.google.com/app/apikey))
+   - Click "Save Settings"
 
-## 🎯 Usage Guide
+### From Chrome Web Store (Coming Soon)
 
-### Basic Workflow
+_The extension will be available on the Chrome Web Store once it completes the review process._
 
-1. **Open Agentex**: Click the extension icon or use `Ctrl+Shift+Y` (Cmd+Shift+Y on Mac)
+## 🎯 Quick Start
 
-2. **Upload Resume**: 
-   - Click "Upload Resume" 
-   - Select your `.tex` or `.docx` file
-   - View the parsed content in the preview
+1. **Open the Extension**
+   - Click the Agentex icon in your Chrome toolbar
+   - Or use keyboard shortcut: `Ctrl+Shift+Y` (Windows/Linux) or `Cmd+Shift+Y` (Mac)
 
-3. **Add Job Description**:
-   - Paste the target job description in the designated field
-   - Include specific requirements and keywords
+2. **Upload Your Resume**
+   - Click "Choose File" under "Resume Template"
+   - Select your LaTeX (.tex) resume file
+   - The file will be parsed and displayed in the preview
 
-4. **Enhance with Knowledge Base** (Optional):
-   - Add personal achievements, skills, and experiences
-   - This helps the AI generate more relevant content
+3. **Add Job Description**
+   - Paste the target job description in the "Job Description" text area
+   - The system will analyze requirements and keywords
 
-5. **Select AI Model**:
-   - Choose between Gemini 2.0 Flash or Groq models
-   - Different models may provide varying optimization styles
+4. **Add Knowledge Base (Optional)**
+   - Add any additional projects or experience in the "Knowledge Base" section
+   - This helps the AI find better project replacements
 
-6. **Generate Tailored Resume**:
-   - Click "Generate Resume"
-   - Review the AI-optimized content
-   - Switch between raw and compiled preview
+5. **Generate Tailored Resume**
+   - Click the "Generate Tailored Resume" button
+   - Wait for Gemini to process (usually 10-30 seconds)
+   - Review the tailored version in the preview pane
 
-7. **Download PDF**:
-   - Click "Download PDF" to get the final document
-   - The PDF maintains professional formatting
+6. **Download Results**
+   - Switch to "Compiled" view to see the PDF version (LaTeX only)
+   - Click "Download" to save your tailored resume
 
-### Advanced Features
+## 🔧 How It Works
 
-#### Model Selection
-- **Gemini 2.0 Flash**: Best for comprehensive content optimization
-- **DeepSeek Qwen 32B**: Fast inference with good quality
-- **DeepSeek Llama 70B**: High-quality optimization for complex requirements
+### Single-Pass Mode (Default)
 
-#### File Format Support
-- **LaTeX (.tex)**: Professional academic and technical resumes
-- **DOCX (.docx)**: Standard business resume format
+For most users, Agentex uses a single-pass approach:
 
-#### Preview Modes
-- **Raw View**: See the optimized text content
-- **Compiled View**: Live PDF preview with formatting
+1. **Analysis**: Gemini analyzes your resume, job description, and knowledge base
+2. **Optimization**: AI identifies relevant projects, skills, and experiences
+3. **Replacement**: Existing content is replaced with better matches from knowledge base
+4. **Formatting**: Original structure and formatting are preserved
+5. **Output**: Complete tailored resume ready for submission
 
-## 🔧 API Documentation
+### Multi-Agent Mode (Advanced)
 
-### Server Endpoints
+For power users, enable multi-agent mode in settings for a more thorough approach:
 
-#### POST `/compile`
-Compile LaTeX content to PDF
+1. **Job Analysis Agent**: Analyzes JD for requirements and priorities
+2. **Projects Optimizer**: Replaces projects with relevant knowledge base entries
+3. **Skills Enhancer**: Adds missing skills and reorganizes by relevance
+4. **Experience Refiner**: Optimizes work experience descriptions
+5. **Final Polish Agent**: Integrates all changes and ensures consistency
 
-**Request Body**:
-```json
-{
-  "latex": "\\documentclass{article}\\begin{document}...\\end{document}"
-}
+## 🏗️ Architecture
+
+### Directory Structure
+
+```
+Agentex/
+├── tailored-resume-extension/     # Main extension code
+│   ├── manifest.json              # Chrome extension manifest
+│   ├── background.js              # Service worker for extension
+│   ├── sidepanel.html             # Main UI
+│   ├── sidepanel.js               # UI logic
+│   ├── config.js                  # Configuration module
+│   ├── services/                  # Core services
+│   │   ├── ai-service.js          # Gemini AI integration
+│   │   ├── 
+│   │   ├── 
+│   │   └── file-handler.js        # File upload handling
+│   ├── prompts/                   # AI prompts
+│   │   └── gemini-prompts.js      # All Gemini prompts
+│   ├── server/                    # LaTeX compilation server
+│   │   ├── server.js              # Node.js server
+│   │   └── serverManager.js       # Server communication
+│   ├── lib/                       # Third-party libraries
+│   │   └── vendor/                # Vendor scripts
+│   └── icons/                     # Extension icons
+├── prompt-resume.md               # Prompt documentation
+└── README.md                      # This file
 ```
 
-**Response**: PDF binary data
+### Technology Stack
 
-#### POST `/compile-docx`
-Convert DOCX to PDF
+- **Frontend**: Vanilla JavaScript (ES6+), HTML5, CSS3
+- **AI Service**: Google Gemini 2.0 Flash API
+- **File Processing**: 
+  - 
+  - PizZip (ZIP handling)
+  - 
+- **LaTeX Compilation**: Node.js server with LaTeX toolchain
+- **Chrome APIs**: Storage, Side Panel, Context Menus
 
-**Request**: Multipart form data with DOCX file
+### Key Components
 
-**Response**: PDF binary data
+#### AI Service (`services/ai-service.js`)
+- Handles all Gemini API communication
+- Manages prompt templates
+- Implements response cleaning and validation
+- Supports both single-pass and multi-agent modes
 
-#### POST `/save-docx`
-Save generated DOCX content
+#### File Handler (`services/file-handler.js`)
+- Detects LaTeX file type (.tex)
+- Routes to appropriate service
+- Validates file structure
+- Manages file state
 
-**Request**: Multipart form data with content and metadata
+#### Server Manager (`server/serverManager.js`)
+- Communicates with LaTeX compilation server
+- Handles PDF generation
+- Manages server health checks
+- Implements retry logic
 
-**Response**:
-```json
-{
-  "success": true,
-  "message": "DOCX saved successfully"
-}
-```
+## ⚙️ Configuration
 
-### Chrome Extension APIs
+### API Keys
 
-#### Storage API Usage
+The extension requires a Gemini API key to function. You can configure it in two ways:
+
+1. **Through Settings UI**
+   - Click Settings icon → Enter API key → Save
+
+2. **In config.js** (for development)
+   ```javascript
+   const config = {
+     GEMINI_API_KEY: 'your-api-key-here',
+     GEMINI_MODEL: 'gemini-2.0-flash'
+   };
+   ```
+
+### Custom Prompts
+
+All prompts can be customized through the Settings panel:
+
+1. Open Settings
+2. Navigate to "Prompts" tab
+3. Edit the desired prompt
+4. Save changes
+5. Use "Reset to Default" to restore original prompts
+
+See [prompt-resume.md](prompt-resume.md) for detailed prompt documentation.
+
+### Server Configuration
+
+For LaTeX compilation, the extension connects to a remote server:
+
 ```javascript
-// Save state
-await chrome.storage.local.set({ sidebarState: state });
-
-// Retrieve state
-const { sidebarState } = await chrome.storage.local.get('sidebarState');
+const config = {
+  SERVER_URL: 'https://agentex.onrender.com'
+};
 ```
 
-#### Side Panel API
-```javascript
-// Open side panel
-await chrome.sidePanel.open({ windowId: tab.windowId });
-```
-
-## 🚀 Development
-
-### Project Structure
-```
-tailored-resume-extension/
-├── manifest.json              # Extension manifest
-├── background.js             # Service worker
-├── sidepanel.html           # Main UI
-├── sidepanel.js             # UI logic
-├── style.css                # Styling
-├── config.js                # Configuration
-├── icons/                   # Extension icons
-├── lib/vendor/              # Third-party libraries
-├── services/                # Core services
-│   ├── ai-service.js        # AI integration
-│   ├── docx-ai-service.js   # DOCX-specific AI
-│   ├── docx-service.js      # DOCX processing
-│   └── file-handler.js      # File operations
-├── server/                  # Local server
-│   ├── server.js            # Main server
-│   ├── serverManager.js     # Server management
-│   ├── package.json         # Dependencies
-│   └── setup.sh             # Setup script
-└── backend/                 # Alternative backend
-    └── compile-server.js    # Compilation server
-```
-
-### Development Setup
-
-1. **Install dependencies**:
-   ```bash
-   cd tailored-resume-extension/server
-   npm install
-   ```
-
-2. **Start development server**:
-   ```bash
-   npm run dev
-   ```
-
-3. **Load extension in Chrome**:
-   - Enable Developer Mode in `chrome://extensions/`
-   - Load unpacked extension
-
-4. **Monitor logs**:
-   - Extension: Chrome DevTools Console
-   - Server: Terminal output or PM2 logs
-
-### Building for Production
-
-1. **Server deployment**:
-   ```bash
-   pm2 start ecosystem.config.js
-   pm2 save
-   pm2 startup
-   ```
-
-2. **Extension packaging**:
-   ```bash
-   # Create ZIP for Chrome Web Store
-   zip -r agentex-extension.zip tailored-resume-extension/ -x "*/node_modules/*" "*/.*"
-   ```
-
-### Code Style and Conventions
-
-- **JavaScript**: ES6+ with modern async/await patterns
-- **Error Handling**: Comprehensive try-catch blocks with logging
-- **Logging**: Structured logging with component prefixes
-- **API Design**: RESTful endpoints with proper HTTP status codes
-
-## 🔒 Security Considerations
-
-- **API Keys**: Stored locally in Chrome storage (not in code)
-- **File Processing**: Temporary files with UUID naming
-- **CORS**: Restricted to specific origins
-- **Local Server**: Runs on localhost only
-- **Data Privacy**: No data sent to external servers except AI APIs
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### Server Won't Start
+To run your own server:
 ```bash
-# Check if port 3000 is in use
-lsof -i :3000
-
-# Kill existing process
-kill -9 <PID>
-
-# Restart server
+cd tailored-resume-extension/server
+npm install
 npm start
 ```
 
-#### LaTeX Compilation Errors
-```bash
-# Check pdflatex installation
-which pdflatex
+## 🧪 Manual Testing
 
-# Install missing packages
-sudo apt-get install texlive-latex-extra
+### Prerequisites
+- Chrome browser (v90+)
+- Valid Gemini API key
+- Sample LaTeX resume file (.tex)
+- Job description text
+
+### Test Cases
+
+#### 1. Extension Installation
+- [ ] Extension loads without errors
+- [ ] Icon appears in toolbar
+- [ ] Side panel opens when clicked
+- [ ] Settings panel accessible
+
+#### 2. File Upload - LaTeX
+- [ ] Can select .tex file
+- [ ] File name displays correctly
+- [ ] Content appears in preview
+- [ ] No errors in console
+
+#### 4. Job Description Input
+- [ ] Can paste job description
+- [ ] Text persists across sessions
+- [ ] No character limit issues
+- [ ] Formatting preserved
+
+#### 5. Knowledge Base
+- [ ] Can add additional projects
+- [ ] Text persists across sessions
+- [ ] No character limit issues
+
+#### 6. Resume Generation - LaTeX
+- [ ] "Generate" button works
+- [ ] Loading indicator shows
+- [ ] Generation completes successfully
+- [ ] Tailored version shows differences
+- [ ] LaTeX structure preserved
+- [ ] Can switch between original/tailored
+
+#### 8. PDF Preview (LaTeX only)
+- [ ] Can switch to "Compiled" view
+- [ ] PDF generates successfully
+- [ ] PDF displays in viewer
+- [ ] Can zoom in/out
+- [ ] Can download PDF
+
+#### 9. Download Functionality
+- [ ] Can download tailored LaTeX
+- [ ] Can download compiled PDF
+- [ ] Files open correctly
+
+#### 10. Error Handling
+- [ ] Invalid file format shows error
+- [ ] Missing API key shows error
+- [ ] Network errors handled gracefully
+- [ ] Invalid LaTeX shows compilation error
+
+#### 11. Settings Management
+- [ ] Can open settings modal
+- [ ] Can save API key
+- [ ] Can edit prompts
+- [ ] Can reset prompts
+- [ ] Settings persist across sessions
+
+#### 12. UI/UX
+- [ ] All buttons work as expected
+- [ ] Tooltips show helpful information
+- [ ] Loading states are clear
+- [ ] Success/error messages display
+- [ ] Responsive layout works
+
+### Acceptance Criteria
+
+**Pass**: All test cases complete successfully
+**Fail**: Any critical functionality (1-9) fails
+**Warning**: UI/UX issues only
+
+### Reporting Issues
+
+When reporting bugs, include:
+- Chrome version
+- Extension version
+- Steps to reproduce
+- Expected vs actual behavior
+- Console errors (if any)
+- Screenshots
+
+## 🎨 Customizing Prompts
+
+### Why Customize?
+
+- Target specific industries (e.g., healthcare, finance)
+- Emphasize certain skills or experiences
+- Match company culture
+- Improve ATS keyword matching
+
+### How to Customize
+
+1. **Open Settings** → Prompts tab
+2. **Choose a prompt** to edit
+3. **Modify the text**
+   - Keep variable placeholders (e.g., `{jobDesc}`)
+   - Maintain structure and formatting
+   - Add industry-specific instructions
+4. **Save and test**
+5. **Reset if needed** using "Reset to Default"
+
+### Examples
+
+**For Tech Startups:**
+```
+Add emphasis on:
+- Fast-paced environment experience
+- Ownership and initiative
+- Cross-functional collaboration
+- Startup experience
 ```
 
-#### Extension Not Loading
-1. Check manifest.json syntax
-2. Verify all required permissions
-3. Check Chrome DevTools for errors
-4. Reload extension in chrome://extensions/
-
-#### PDF Generation Fails
-1. Verify LaTeX syntax in content
-2. Check server logs for compilation errors
-3. Ensure all dependencies are installed
-4. Check file permissions for /tmp/pdf
-
-### Debug Mode
-
-Enable debug logging:
-```javascript
-// In extension
-localStorage.setItem('debug', 'true');
-
-// In server
-DEBUG=* npm start
+**For Enterprise:**
 ```
+Add emphasis on:
+- Large-scale systems
+- Team leadership
+- Process improvement
+- Enterprise tools and practices
+```
+
+See [prompt-resume.md](prompt-resume.md) for complete prompt documentation.
+
+## 🐛 Troubleshooting
+
+### Extension Won't Load
+**Problem**: Extension shows errors when loading
+**Solution**: 
+- Check Chrome version (need 90+)
+- Verify all files are present
+- Check manifest.json for syntax errors
+- Reload extension in chrome://extensions
+
+### API Key Not Working
+**Problem**: Gemini API errors
+**Solution**:
+- Verify API key is correct
+- Check API key has quota remaining
+- Visit [Google AI Studio](https://makersuite.google.com/app/apikey) to check status
+- Try regenerating the API key
+
+### Preview Not Showing
+**Problem**: File uploads but preview is blank
+**Solution**:
+- Check browser console for errors
+- Verify file format (.tex only)
+- Try a simpler test file
+- Clear extension storage and retry
+
+### PDF Compilation Fails
+**Problem**: LaTeX won't compile to PDF
+**Solution**:
+- Check LaTeX syntax in preview
+- Verify server is running
+- Check network connection
+- Look for compilation errors in LaTeX code
+
+### Tailored Resume Looks Wrong
+**Problem**: Output doesn't match expectations
+**Solution**:
+- Review job description for clarity
+- Add more detail to knowledge base
+- Try customizing prompts
+- Use multi-agent mode for complex cases
+
+### Performance Issues
+**Problem**: Extension is slow
+**Solution**:
+- Check internet connection
+- Gemini API may be slow (wait longer)
+- Try shorter job descriptions
+- Clear browser cache
 
 ## 🤝 Contributing
 
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/new-feature`
-3. **Make changes** and test thoroughly
-4. **Add documentation** for new features
-5. **Submit a pull request** with detailed description
+We welcome contributions! Here's how to help:
 
-### Code Review Checklist
+### Reporting Bugs
+- Use GitHub Issues
+- Include reproduction steps
+- Add screenshots if relevant
+- Share console errors
 
-- [ ] Code follows existing style conventions
-- [ ] All functions have proper error handling
-- [ ] New features include appropriate logging
-- [ ] Documentation is updated
-- [ ] Security considerations are addressed
+### Suggesting Features
+- Open a GitHub Issue
+- Describe the use case
+- Explain expected behavior
+- Consider implementation complexity
+
+### Code Contributions
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Update documentation
+6. Submit a pull request
+
+### Coding Standards
+- Use ES6+ JavaScript
+- Add JSDoc comments
+- Follow existing code style
+- Test thoroughly before submitting
 
 ## 📄 License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+[MIT License](LICENSE)
+
+Copyright (c) 2025 Agentex
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## 📞 Support
+
+- **GitHub Issues**: [github.com/sbeeredd04/Agentex/issues](https://github.com/sbeeredd04/Agentex/issues)
+- **Email**: [Contact through GitHub profile](https://github.com/sbeeredd04)
 
 ## 🙏 Acknowledgments
 
-- **Google Gemini**: Advanced AI text generation
-- **Groq**: High-performance AI inference
-- **DeepSeek**: Open-source AI models
-- **LaTeX Community**: Professional document typesetting
-- **Chrome Extensions**: Browser integration platform
+- **Google Gemini** for the powerful AI capabilities
+- **Chrome Extensions Team** for the excellent platform
+- **Open Source Community** for the libraries used
+
+## 📊 Roadmap
+
+- [ ] Chrome Web Store publication
+- [ ] Support for more file formats (PDF input)
+- [ ] Resume templates library
+- [ ] Batch processing for multiple jobs
+- [ ] Advanced analytics and insights
+- [ ] Integration with job boards
+- [ ] Resume scoring and recommendations
 
 ---
 
-**Agentex Resume Editor** - Transforming resume tailoring with AI-powered intelligence.
+**Made with ❤️ for job seekers everywhere**
+
+_Last Updated: 2025_

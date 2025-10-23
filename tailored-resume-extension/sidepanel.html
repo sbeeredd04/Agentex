@@ -7,18 +7,11 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono:wght@400;700&display=swap">
   <link rel="stylesheet" href="style.css">
   
-  <!-- Vendor scripts in correct order -->
-  <script src="lib/vendor/pizzip.min.js"></script>
-  <script src="lib/vendor/mammoth.browser.min.js"></script>
-  <script src="lib/vendor/docxtemplater.js"></script>
-  
   <!-- Your application scripts -->
   <script src="config.js"></script>
-  <script src="services/docx-service.js"></script>
   <script src="services/file-handler.js"></script>
   <script src="server/serverManager.js"></script>
   <script src="services/ai-service.js"></script>
-  <script src="services/docx-ai-service.js"></script>
   <script src="sidepanel.js"></script>
 </head>
 <body>
@@ -42,14 +35,6 @@
       <div class="section upload-section glass-morphism">
         <div class="section-header">
           <h3>Resume Template</h3>
-          <div class="action-buttons">
-            <button class="icon-button" title="Load existing">
-              <span class="material-icons">folder_open</span>
-            </button>
-            <button class="icon-button" title="Create new">
-              <span class="material-icons">add</span>
-            </button>
-          </div>
         </div>
         
         <div class="upload-area">
@@ -57,9 +42,9 @@
             <div class="upload-content">
               <span class="material-icons upload-icon">upload_file</span>
               <span class="upload-text">Upload Resume</span>
-              <span class="file-type">.tex or .docx files supported</span>
+              <span class="file-type">LaTeX (.tex) files only</span>
             </div>
-            <input type="file" id="latexFile" accept=".tex,.docx" hidden>
+            <input type="file" id="latexFile" accept=".tex" hidden>
           </label>
           <div id="fileNameDisplay" class="file-status"></div>
         </div>
@@ -68,14 +53,6 @@
       <div class="section job-section glass-morphism">
         <div class="section-header">
           <h3>Job Description</h3>
-          <div class="action-buttons">
-            <button class="icon-button" title="Save">
-              <span class="material-icons">bookmark</span>
-            </button>
-            <button class="icon-button" title="Clear">
-              <span class="material-icons">clear</span>
-            </button>
-          </div>
         </div>
         <textarea id="jobDesc" class="modern-input" placeholder="Paste the job description here..."></textarea>
       </div>
@@ -83,9 +60,6 @@
       <div class="section knowledge-section glass-morphism">
         <div class="section-header">
           <h3>Knowledge Base</h3>
-          <button class="icon-button" title="Add entry">
-            <span class="material-icons">add</span>
-          </button>
         </div>
         <textarea id="knowledgeBaseText" class="modern-input" placeholder="Add your skills, experiences, and achievements..."></textarea>
       </div>
@@ -94,10 +68,9 @@
         <div class="model-selection">
           <label for="modelSelect">AI Model</label>
           <select id="modelSelect" class="modern-select">
-            <option value="gemini">Gemini 2.0 Flash</option>
-            <option value="groq:deepseek-r1-distill-qwen-32b">DeepSeek Qwen 32B</option>
-            <option value="groq:deepseek-r1-distill-llama-70b">DeepSeek Llama 70B</option>
+            <option value="gemini" selected>Gemini 2.0 Flash (Thinking)</option>
           </select>
+          <small class="model-info">Powered by Google Gemini AI</small>
         </div>
       </div>
 
@@ -105,10 +78,6 @@
         <button id="generateBtn" class="action-button primary">
           <span class="material-icons">auto_fix_high</span>
           <span>Generate Resume</span>
-        </button>
-        <button id="downloadBtn" class="action-button secondary" disabled>
-          <span class="material-icons">download</span>
-          <span>Download PDF</span>
         </button>
       </div>
 
@@ -146,18 +115,23 @@
   </div>
 
   <!-- Settings Modal -->
-  <div id="settingsModal" class="modal glass-morphism">
-    <div class="modal-content glass-morphism">
+  <div id="settingsModal" class="modal">
+    <div class="modal-content">
       <div class="modal-header">
-        <h2>Settings</h2>
-        <button class="icon-button close-modal" title="Close">
-          <span class="material-icons">close</span>
-        </button>
+        <div class="header-content">
+          <h2>Settings</h2>
+          <button class="icon-button close-modal" title="Close">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
       </div>
       <div class="modal-body">
         <div class="settings-section">
-          <h3>API Keys</h3>
-          <div class="api-key-input glass-morphism">
+          <div class="section-header">
+            <h3>API Keys</h3>
+            <span class="section-description">Configure your API keys for AI services</span>
+          </div>
+          <div class="api-key-input">
             <div class="api-key-header">
               <label for="geminiApiKey">Gemini API Key</label>
               <a href="https://aistudio.google.com/app/apikey" target="_blank" class="api-link" title="Get Gemini API Key">
@@ -172,36 +146,91 @@
               </button>
             </div>
           </div>
-          <div class="api-key-input glass-morphism">
-            <div class="api-key-header">
-              <label for="groqApiKey">Groq API Key</label>
-              <a href="https://console.groq.com/keys" target="_blank" class="api-link" title="Get Groq API Key">
-                <span class="material-icons">key</span>
-                Get API Key
-              </a>
-            </div>
-            <div class="input-group">
-              <input type="password" id="groqApiKey" class="modern-input" placeholder="Enter your Groq API key">
-              <button class="icon-button toggle-visibility" data-for="groqApiKey" title="Toggle visibility">
-                <span class="material-icons">visibility_off</span>
-              </button>
-            </div>
-          </div>
+
         </div>
 
         <div class="settings-section">
           <div class="section-header">
             <h3>Custom Prompt Template</h3>
-            <button id="resetPrompt" class="icon-button" title="Reset to default">
-              <span class="material-icons">restart_alt</span>
-            </button>
+            <div class="header-actions">
+              <button id="resetPrompt" class="icon-button" title="Reset to default">
+                <span class="material-icons">restart_alt</span>
+              </button>
+            </div>
           </div>
-          <div class="prompt-container glass-morphism">
+          <div class="section-description">Customize the prompt template for text generation</div>
+          <div class="prompt-container">
             <textarea 
               id="customPrompt" 
               class="modern-input custom-scroll"
               placeholder="Enter your custom prompt template..."
             ></textarea>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-header">
+        <div class="settings-section">
+          <div class="section-header">
+            <h3>Prompt Templates for Each Section</h3>
+            <div class="header-actions">
+              <button id="resetMultiAgentPrompts" class="icon-button" title="Reset to default">
+                <span class="material-icons">restart_alt</span>
+              </button>
+            </div>
+          </div>
+          <div class="section-description">Customize the prompt templates for sections of the resume</div>
+          
+          <div class="multi-agent-prompt-container">
+            <div class="prompt-group">
+              <label for="jobAnalysisPrompt">Analysis Prompt</label>
+              <div class="prompt-description">Analyzes job description and knowledge base to identify key technologies, relevant projects, metrics, and experience requirements</div>
+              <textarea 
+                id="jobAnalysisPrompt" 
+                class="modern-input custom-scroll"
+                placeholder="Enter the job analysis prompt template..."
+              ></textarea>
+            </div>
+            
+            <div class="prompt-group">
+              <label for="projectsOptimizationPrompt">Projects Optimization Prompt</label>
+              <div class="prompt-description">Optimizes the projects section by replacing existing projects with more relevant ones from the knowledge base</div>
+              <textarea 
+                id="projectsOptimizationPrompt" 
+                class="modern-input custom-scroll"
+                placeholder="Enter the projects optimization prompt template..."
+              ></textarea>
+            </div>
+            
+            <div class="prompt-group">
+              <label for="skillsEnhancementPrompt">Skills Enhancement Prompt</label>
+              <div class="prompt-description">Enhances the skills section by adding relevant skills from the job description</div>
+              <textarea 
+                id="skillsEnhancementPrompt" 
+                class="modern-input custom-scroll"
+                placeholder="Enter the skills enhancement prompt template..."
+              ></textarea>
+            </div>
+            
+            <div class="prompt-group">
+              <label for="experienceRefinementPrompt">Experience Refinement Prompt</label>
+              <div class="prompt-description">Refines the experience section to better align with the job requirements</div>
+              <textarea 
+                id="experienceRefinementPrompt" 
+                class="modern-input custom-scroll"
+                placeholder="Enter the experience refinement prompt template..."
+              ></textarea>
+            </div>
+            
+            <div class="prompt-group">
+              <label for="finalPolishPrompt">Final Polish Prompt</label>
+              <div class="prompt-description">Polishes the entire resume to ensure it is optimized for the job description and ATS systems</div>
+              <textarea 
+                id="finalPolishPrompt" 
+                class="modern-input custom-scroll"
+                placeholder="Enter the final polish prompt template..."
+              ></textarea>
+            </div>
           </div>
         </div>
 

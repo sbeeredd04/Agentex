@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: latex-compiler-api
+    runtime: docker
+    region: oregon
+    plan: free
+    rootDir: tailored-resume-extension/server
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DOCKER_BUILDKIT
+        value: "1" 

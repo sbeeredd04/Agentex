@@ -1,6 +1,7 @@
 class ServerManager {
     constructor() {
-      this.API_URL = 'http://localhost:3000';
+      // Use environment variable for API URL if available, otherwise use default
+      this.API_URL = 'https://agentex.onrender.com';
       this.fileCache = new Map();
       this.currentRequest = null;
       console.log('[ServerManager] Initializing with API URL:', this.API_URL);
@@ -290,6 +291,51 @@ class ServerManager {
           success: false,
           error: error.message,
           details: error
+        };
+      }
+    }
+
+    // Add default headers method
+    _getDefaultHeaders() {
+      return {
+        'Content-Type': 'application/json',
+        'Accept': 'application/pdf, application/json',
+        'Origin': 'chrome-extension://jdinfdcbfmnnoanojkbokdhjpjognpmk'
+      };
+    }
+
+    async compileLatex(latex) {
+      try {
+        console.log('[ServerManager] Compiling LaTeX:', { length: latex.length });
+        
+        const response = await fetch(`${this.API_URL}/compile`, {
+          method: 'POST',
+          headers: this._getDefaultHeaders(),
+          credentials: 'include',
+          body: JSON.stringify({ latex }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Server returned ${response.status}`);
+        }
+
+        const pdfBlob = await response.blob();
+        console.log('[ServerManager] Compilation successful:', {
+          size: pdfBlob.size,
+          type: pdfBlob.type
+        });
+
+        return {
+          success: true,
+          content: pdfBlob
+        };
+
+      } catch (error) {
+        console.error('[ServerManager] Compilation error:', error);
+        return {
+          success: false,
+          error: error.message
         };
       }
     }

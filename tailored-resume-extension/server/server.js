@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const libre = require('libreoffice-convert');
 const util = require('util');
 const multer = require('multer');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,30 +19,125 @@ const upload = multer({ storage: storage });
 const allowedOrigins = [
   'chrome-extension://jdinfdcbfmnnoanojkbokdhjpjognpmk',
   'https://agentex.vercel.app',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  'https://agentex.onrender.com'
 ];
 
-const PDFLATEX_PATH = '/Library/TeX/texbin/pdflatex';
+// Platform-independent pdflatex path
+const PDFLATEX_PATH = process.platform === 'darwin' 
+  ? '/Library/TeX/texbin/pdflatex'
+  : '/usr/bin/pdflatex';
+
+// Additional possible paths for pdflatex in Docker container
+const POSSIBLE_PDFLATEX_PATHS = [
+  PDFLATEX_PATH,
+  '/usr/local/texlive/2023/bin/x86_64-linux/pdflatex',
+  '/usr/local/texlive/2022/bin/x86_64-linux/pdflatex',
+  '/usr/local/texlive/2021/bin/x86_64-linux/pdflatex',
+  '/usr/local/bin/pdflatex',
+  '/usr/bin/pdflatex'
+];
+
+// Log the pdflatex path for debugging
+console.log('[Server] Using pdflatex path:', PDFLATEX_PATH);
+console.log('[Server] Checking possible pdflatex paths:', POSSIBLE_PDFLATEX_PATHS);
+
 const TMP_DIR = '/tmp';
 const PDF_DIR = '/tmp/pdf';
 
 const convertAsync = util.promisify(libre.convert);
 
-// CORS middleware
-const allowCors = fn => async (req, res) => {
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(req.headers.origin) ? req.headers.origin : allowedOrigins[0]);
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+// Function to check if pdflatex is installed
+async function checkPdfLatex() {
+  return new Promise((resolve) => {
+    // First try to find pdflatex in PATH
+    exec('which pdflatex', (error, stdout, stderr) => {
+      if (error) {
+        console.error('[Server] pdflatex not found in PATH:', error);
+        
+        // Try to check if pdflatex exists at any of the possible paths
+        let found = false;
+        
+        // Check each possible path
+        Promise.all(POSSIBLE_PDFLATEX_PATHS.map(path => 
+          fs.access(path)
+            .then(() => {
+              console.log('[Server] pdflatex found at path:', path);
+              found = true;
+              return path;
+            })
+            .catch(() => null)
+        )).then(results => {
+          const foundPath = results.find(r => r !== null);
+          if (foundPath) {
+            console.log('[Server] Using pdflatex at:', foundPath);
+            resolve(true);
+          } else {
+            console.error('[Server] pdflatex not found at any expected path');
+            resolve(false);
+          }
+        });
+      } else {
+        console.log('[Server] pdflatex found in PATH at:', stdout.trim());
+        resolve(true);
+      }
+    });
+  });
+}
+
+// Function to escape LaTeX special characters
+function escapeLatexSpecialChars(text) {
+  // Don't escape backslashes in LaTeX commands
+  return text.replace(/([#$%&_{}~^])/g, '\\$1');
+}
+
+// Function to validate LaTeX content
+function validateLatexContent(latex) {
+  // Basic validation - just check if it's a non-empty string
+  if (!latex || typeof latex !== 'string') {
+    return {
+      isValid: false,
+      errors: ['LaTeX content is required']
+    };
   }
-  return await fn(req, res);
-};
+  return {
+    isValid: true,
+    errors: []
+  };
+}
+
+// Function to clean up temporary files
+async function cleanupFiles(fileId) {
+  const extensions = ['.tex', '.log', '.aux', '.out', '.pdf'];
+  for (const ext of extensions) {
+    try {
+      const filePath = path.join(TMP_DIR, `${fileId}${ext}`);
+      await fs.unlink(filePath).catch(() => {});
+      const pdfPath = path.join(PDF_DIR, `${fileId}${ext}`);
+      await fs.unlink(pdfPath).catch(() => {});
+    } catch (err) {
+      console.error(`[Server] Cleanup error for ${fileId}${ext}:`, err);
+    }
+  }
+  console.log('[Server] Cleanup completed');
+}
+
+// More permissive CORS configuration
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, Origin, X-Requested-With');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+  }
+  next();
+});
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -56,6 +152,12 @@ const compileHandler = async (req, res) => {
   const fileId = uuidv4();
   
   try {
+    // Check if pdflatex is installed
+    const pdflatexInstalled = await checkPdfLatex();
+    if (!pdflatexInstalled) {
+      throw new Error('LaTeX compilation is not available - pdflatex not installed');
+    }
+
     const { latex } = req.body;
     if (!latex) {
       return res.status(400).json({ 
@@ -64,54 +166,25 @@ const compileHandler = async (req, res) => {
       });
     }
 
-    // Validate LaTeX content
-    console.log('[Server] Validating LaTeX content:', {
-      contentLength: latex.length,
-      hasDocumentClass: latex.includes('\\documentclass'),
-      hasBeginDocument: latex.includes('\\begin{document}'),
-      hasEndDocument: latex.includes('\\end{document}')
-    });
-
-    // Ensure content is a complete LaTeX document
-    let processedLatex = latex;
-    if (!latex.includes('\\documentclass')) {
-      processedLatex = `\\documentclass{article}
-\\usepackage{latexsym}
-\\usepackage{fullpage}
-\\usepackage{titlesec}
-\\usepackage{marvosym}
-\\usepackage{verbatim}
-\\usepackage{enumitem}
-\\usepackage{hyperref}
-\\usepackage[empty]{fullpage}
-\\usepackage{color}
-\\definecolor{linkcolour}{rgb}{0,0.2,0.6}
-\\hypersetup{colorlinks,breaklinks,urlcolor=linkcolour,linkcolor=linkcolour}
-
-\\begin{document}
-${latex}
-\\end{document}`;
-    }
-
+    // Write the LaTeX content directly without modification
     const texPath = path.join(TMP_DIR, `${fileId}.tex`);
     const outputPath = path.join(PDF_DIR, `${fileId}.pdf`);
-
-    await fs.writeFile(texPath, processedLatex, 'utf8');
+    
+    await fs.writeFile(texPath, latex, 'utf8');
     console.log('[Server] LaTeX file written successfully:', {
       path: texPath,
-      size: processedLatex.length,
-      documentStructure: {
-        hasDocumentClass: processedLatex.includes('\\documentclass'),
-        hasBeginDocument: processedLatex.includes('\\begin{document}'),
-        hasEndDocument: processedLatex.includes('\\end{document}')
-      }
+      size: latex.length
     });
 
-    const cmd = `cd "${TMP_DIR}" && ${PDFLATEX_PATH} -interaction=nonstopmode -output-directory="${PDF_DIR}" "${texPath}"`;
+    // Create output directory if it doesn't exist
+    await fs.mkdir(PDF_DIR, { recursive: true });
+
+    // Use 'pdflatex' command directly (found in PATH) instead of absolute path
+    const cmd = `cd "${TMP_DIR}" && pdflatex -interaction=nonstopmode -output-directory="${PDF_DIR}" "${texPath}"`;
     
     const { stdout, stderr } = await new Promise((resolve, reject) => {
-      exec(cmd, (error, stdout, stderr) => {
-        if (error) {
+      exec(cmd, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+        if (error && !stdout.includes('Output written on')) {
           console.error('[Server] Compilation error:', {
             error,
             stdout,
@@ -140,27 +213,27 @@ ${latex}
 
   } catch (error) {
     console.error('[Server] Error:', error);
+    let errorMessage = error.message || 'Server error';
+    let errorDetails = error.stderr || error.stdout || '';
+    
+    if (errorDetails.includes('! LaTeX Error:')) {
+      const match = errorDetails.match(/! LaTeX Error: (.*?)\./);
+      if (match) {
+        errorMessage = match[1];
+      }
+    }
+    
     res.status(500).json({
       success: false,
-      error: error.message || 'Server error',
-      details: error.stderr || error.stdout || ''
+      error: errorMessage,
+      details: errorDetails
     });
   } finally {
-    // Cleanup
-    try {
-      const extensions = ['.tex', '.log', '.aux', '.out'];
-      for (const ext of extensions) {
-        const filePath = path.join(TMP_DIR, `${fileId}${ext}`);
-        await fs.unlink(filePath).catch(() => {});
-      }
-      console.log('[Server] Cleanup completed');
-    } catch (err) {
-      console.error('[Server] Cleanup error:', err);
-    }
+    await cleanupFiles(fileId);
   }
 };
 
-app.post('/compile', allowCors(compileHandler));
+app.post('/compile', compileHandler);
 
 app.post('/save-docx', upload.single('file'), async (req, res) => {
   try {
@@ -222,6 +295,12 @@ app.post('/save-docx', upload.single('file'), async (req, res) => {
 app.post('/compile-docx', async (req, res) => {
   try {
     const { fileId, options } = req.body;
+    console.log('[Server][CompileDocx] Starting compilation:', {
+      fileId,
+      options,
+      timestamp: new Date().toISOString()
+    });
+
     if (!fileId) {
       throw new Error('File ID is required');
     }
@@ -229,15 +308,15 @@ app.post('/compile-docx', async (req, res) => {
     const inputPath = path.join(TMP_DIR, `${fileId}.docx`);
     const outputPath = path.join(PDF_DIR, `${fileId}.pdf`);
 
-    console.log('[Server] Starting DOCX to PDF conversion:', {
-      fileId,
-      inputPath,
-      outputPath,
-      options
-    });
-
     // Verify input file exists and has content
     const fileStats = await fs.stat(inputPath).catch(() => null);
+    console.log('[Server][CompileDocx] Input file check:', {
+      exists: !!fileStats,
+      size: fileStats?.size,
+      path: inputPath,
+      timestamp: new Date().toISOString()
+    });
+
     if (!fileStats) {
       throw new Error(`Input file not found: ${inputPath}`);
     }
@@ -245,13 +324,15 @@ app.post('/compile-docx', async (req, res) => {
       throw new Error('Input file is empty');
     }
 
-    console.log('[Server] Input file verification:', {
-      size: fileStats.size,
-      created: fileStats.birthtime,
-      path: inputPath
+    // Verify input file content
+    const docxContent = await fs.readFile(inputPath);
+    console.log('[Server][CompileDocx] DOCX content check:', {
+      contentSize: docxContent.length,
+      hasContent: docxContent.length > 0,
+      timestamp: new Date().toISOString()
     });
 
-    // Convert DOCX to PDF using LibreOffice with formatting options
+    // Set up conversion options
     const conversionOptions = [
       '--headless',
       '--convert-to', 'pdf:writer_pdf_Export',
@@ -275,55 +356,71 @@ app.post('/compile-docx', async (req, res) => {
       }
     }
 
-    console.log('[Server] Running conversion with options:', {
+    console.log('[Server][CompileDocx] Conversion setup:', {
       command: 'soffice',
       options: conversionOptions,
-      inputFile: inputPath
+      inputFile: inputPath,
+      timestamp: new Date().toISOString()
     });
 
-    // Execute conversion
-    await new Promise((resolve, reject) => {
+    // Execute conversion with detailed logging
+    const conversionResult = await new Promise((resolve, reject) => {
       exec(`soffice ${conversionOptions.join(' ')} "${inputPath}"`, (error, stdout, stderr) => {
+        console.log('[Server][CompileDocx] Conversion process:', {
+          hasError: !!error,
+          stdout: stdout || 'No output',
+          stderr: stderr || 'No errors',
+          timestamp: new Date().toISOString()
+        });
+
         if (error) {
-          console.error('[Server] Conversion error:', {
-            error,
-            stdout,
-            stderr
-          });
-          reject(new Error('PDF conversion failed: ' + stderr));
+          reject(new Error(`PDF conversion failed: ${stderr || error.message}`));
         } else {
-          console.log('[Server] Conversion output:', {
-            stdout,
-            stderr: stderr || 'No errors'
-          });
-          resolve();
+          resolve({ stdout, stderr });
         }
       });
     });
 
     // Verify PDF was created
     const pdfStats = await fs.stat(outputPath).catch(() => null);
+    console.log('[Server][CompileDocx] PDF verification:', {
+      exists: !!pdfStats,
+      size: pdfStats?.size,
+      path: outputPath,
+      timestamp: new Date().toISOString()
+    });
+
     if (!pdfStats || pdfStats.size === 0) {
       throw new Error('PDF generation failed or produced empty file');
     }
 
-    console.log('[Server] PDF generation successful:', {
-      path: outputPath,
-      size: pdfStats.size
-    });
-
     // Read and send the PDF
     const pdfContent = await fs.readFile(outputPath);
+    console.log('[Server][CompileDocx] Sending PDF:', {
+      contentSize: pdfContent.length,
+      timestamp: new Date().toISOString()
+    });
+
     res.type('application/pdf').send(pdfContent);
 
-    // Cleanup
+    // Cleanup files
     await Promise.all([
-      fs.unlink(inputPath).catch(() => {}),
-      fs.unlink(outputPath).catch(() => {})
+      fs.unlink(inputPath).catch(err => {
+        console.error('[Server][CompileDocx] Cleanup error (input):', err);
+      }),
+      fs.unlink(outputPath).catch(err => {
+        console.error('[Server][CompileDocx] Cleanup error (output):', err);
+      })
     ]);
 
+    console.log('[Server][CompileDocx] Process complete');
+
   } catch (error) {
-    console.error('[Server] DOCX compilation error:', error);
+    console.error('[Server][CompileDocx] Error:', {
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
     res.status(500).json({ 
       success: false, 
       error: error.message,
@@ -341,8 +438,29 @@ app.use((err, req, res, next) => {
   });
 });
 
-initializeDirectories().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-});
+// Initialize server
+async function initializeServer() {
+  try {
+    // Create required directories
+    await fs.mkdir(TMP_DIR, { recursive: true });
+    await fs.mkdir(PDF_DIR, { recursive: true });
+    console.log('[Server] Directories initialized');
+
+    // Check for pdflatex
+    const pdflatexInstalled = await checkPdfLatex();
+    if (!pdflatexInstalled) {
+      console.error('[Server] WARNING: pdflatex is not installed. PDF compilation will not work!');
+    }
+
+    // Start the server
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log('[Server] Initialization complete');
+    });
+  } catch (error) {
+    console.error('[Server] Initialization error:', error);
+    process.exit(1);
+  }
+}
+
+initializeServer();

@@ -931,6 +931,7 @@ async function initializeSidepanel() {
     setupModelSelector();
     setupApiKeyManagement();
     setupPreviewToggle();
+    setupMarkdownSupport();
     
     await restoreState();
     setupGenerateButton();
@@ -977,7 +978,7 @@ function setupModelSelector() {
   // Add Gemini option (only option now)
   const geminiOption = document.createElement('option');
   geminiOption.value = 'gemini';
-  geminiOption.textContent = 'Gemini 2.0 Flash (Thinking)';
+  geminiOption.textContent = 'Gemini 2.5 Flash';
   geminiOption.selected = true;
   modelSelect.appendChild(geminiOption);
 
@@ -986,7 +987,7 @@ function setupModelSelector() {
     currentModelSelection = {
       type: 'gemini',
       model: null,
-      description: 'Gemini 2.0 Flash'
+      description: 'Gemini 2.5 Flash'
     };
 
     // Save to state
@@ -1001,7 +1002,7 @@ function setupModelSelector() {
   currentModelSelection = {
     type: 'gemini',
     model: null,
-    description: 'Gemini 2.0 Flash'
+    description: 'Gemini 2.5 Flash'
   };
   modelSelect.value = 'gemini';
 
@@ -1016,7 +1017,7 @@ function setupModelSelector() {
 
     const infoNote = document.createElement('div');
     infoNote.className = 'model-info-note';
-    infoNote.innerHTML = '<span class="info-icon">ℹ️</span> Powered by Google Gemini 2.0 Flash';
+    infoNote.innerHTML = '<span class="material-icons info-icon">info</span> Powered by Google Gemini 2.5 Flash';
     infoNote.style.fontSize = '12px';
     infoNote.style.color = '#888';
     infoNote.style.marginTop = '5px';
@@ -2039,3 +2040,39 @@ async function handleGenerateClick() {
     generateBtn.innerHTML = originalBtnContent;
   }
 }
+
+/**
+ * Setup markdown preview support for job description and knowledge base
+ */
+function setupMarkdownSupport() {
+  const previewButtons = document.querySelectorAll('.preview-toggle-markdown');
+  
+  previewButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const targetId = button.dataset.target;
+      const textarea = document.getElementById(targetId);
+      const preview = document.getElementById(targetId + 'Preview');
+      
+      if (!textarea || !preview) return;
+      
+      // Toggle preview
+      if (preview.style.display === 'none') {
+        // Show preview
+        const markdown = textarea.value;
+        const html = window.MarkdownParser.toHTML(markdown);
+        preview.innerHTML = html;
+        preview.style.display = 'block';
+        textarea.style.display = 'none';
+        button.innerHTML = '<span class="material-icons">edit</span><span>Edit</span>';
+      } else {
+        // Show editor
+        preview.style.display = 'none';
+        textarea.style.display = 'block';
+        button.innerHTML = '<span class="material-icons">visibility</span><span>Preview</span>';
+      }
+    });
+  });
+  
+  console.log('[MarkdownSupport] Markdown preview initialized');
+}
+

@@ -9,6 +9,7 @@
   
   <!-- Your application scripts -->
   <script src="config.js"></script>
+  <script src="services/markdown-parser.js"></script>
   <script src="services/file-handler.js"></script>
   <script src="server/serverManager.js"></script>
   <script src="services/ai-service.js"></script>
@@ -53,22 +54,60 @@
       <div class="section job-section glass-morphism">
         <div class="section-header">
           <h3>Job Description</h3>
+          <div class="markdown-indicator">
+            <span class="material-icons" title="Markdown supported">markdown</span>
+            <span class="help-text">Markdown supported</span>
+          </div>
         </div>
-        <textarea id="jobDesc" class="modern-input" placeholder="Paste the job description here..."></textarea>
+        <textarea id="jobDesc" class="modern-input markdown-input" placeholder="Paste the job description here... (Markdown supported)
+
+Example:
+## Requirements
+- 3+ years of experience
+- **Python** and **JavaScript**
+
+## Responsibilities
+- Build scalable systems
+- Work with cross-functional teams"></textarea>
+        <div class="markdown-preview" id="jobDescPreview" style="display: none;"></div>
+        <button class="preview-toggle-markdown" data-target="jobDesc">
+          <span class="material-icons">visibility</span>
+          <span>Preview</span>
+        </button>
       </div>
 
       <div class="section knowledge-section glass-morphism">
         <div class="section-header">
           <h3>Knowledge Base</h3>
+          <div class="markdown-indicator">
+            <span class="material-icons" title="Markdown supported">markdown</span>
+            <span class="help-text">Markdown supported</span>
+          </div>
         </div>
-        <textarea id="knowledgeBaseText" class="modern-input" placeholder="Add your skills, experiences, and achievements..."></textarea>
+        <textarea id="knowledgeBaseText" class="modern-input markdown-input" placeholder="Add your skills, experiences, and achievements... (Markdown supported)
+
+Example:
+## Projects
+### E-commerce Platform
+- Built with **React**, **Node.js**, **MongoDB**
+- Improved performance by **40%**
+- Handled **10,000+** daily users
+
+## Skills
+- **Languages**: Python, JavaScript, Go
+- **Frameworks**: React, Django, FastAPI"></textarea>
+        <div class="markdown-preview" id="knowledgeBasePreview" style="display: none;"></div>
+        <button class="preview-toggle-markdown" data-target="knowledgeBaseText">
+          <span class="material-icons">visibility</span>
+          <span>Preview</span>
+        </button>
       </div>
 
       <div class="section model-section glass-morphism">
         <div class="model-selection">
           <label for="modelSelect">AI Model</label>
           <select id="modelSelect" class="modern-select">
-            <option value="gemini" selected>Gemini 2.0 Flash (Thinking)</option>
+            <option value="gemini" selected>Gemini 2.5 Flash</option>
           </select>
           <small class="model-info">Powered by Google Gemini AI</small>
         </div>

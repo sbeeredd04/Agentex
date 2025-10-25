@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -20,36 +20,130 @@
         * {
             font-family: 'Ubuntu Mono', monospace;
         }
+        
+        /* Dark mode styles */
+        .dark {
+            color-scheme: dark;
+        }
+        
+        .dark body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+        
+        .dark .bg-white {
+            background-color: #1e293b;
+        }
+        
+        .dark .bg-gray-50 {
+            background-color: #0f172a;
+        }
+        
+        .dark .text-gray-900 {
+            color: #e2e8f0;
+        }
+        
+        .dark .text-gray-700 {
+            color: #cbd5e1;
+        }
+        
+        .dark .text-gray-600 {
+            color: #94a3b8;
+        }
+        
+        .dark .border-gray-200 {
+            border-color: #334155;
+        }
+        
+        .dark .bg-gray-900 {
+            background-color: #f1f5f9;
+            color: #0f172a;
+        }
+        
+        .dark .text-white {
+            color: #0f172a;
+        }
+        
+        .dark .text-gray-300 {
+            color: #1e293b;
+        }
+        
+        /* Highlight effect */
+        .highlight {
+            background: linear-gradient(120deg, #fbbf24 0%, #fbbf24 100%);
+            background-repeat: no-repeat;
+            background-size: 0% 0.3em;
+            background-position: 0 88%;
+            transition: background-size 0.4s ease;
+            padding: 0 0.2em;
+        }
+        
+        .highlight:hover {
+            background-size: 100% 0.3em;
+        }
+        
+        .dark .highlight {
+            background: linear-gradient(120deg, #3b82f6 0%, #3b82f6 100%);
+            background-repeat: no-repeat;
+            background-size: 0% 0.3em;
+            background-position: 0 88%;
+        }
+        
+        /* Island architecture - navbar isolated */
+        nav {
+            contain: layout style paint;
+            will-change: transform;
+        }
+        
+        /* Video container */
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+        }
+        
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-900">
+<body class="bg-gray-50 text-gray-900 transition-colors duration-300">
     
-    <!-- Navigation -->
-    <nav class="bg-white border-b border-gray-200">
-        <div class="max-w-5xl mx-auto px-6 py-4">
+    <!-- Navigation - Island Architecture -->
+    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50 transition-colors duration-300">
+        <div class="w-3/4 mx-auto px-6 py-4">
             <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-2">
-                    <span class="material-icons text-gray-700">description</span>
+                <div class="flex items-center space-x-3">
+                    <img src="../tailored-resume-extension/icons/icon48.png" alt="Agentex Logo" class="w-8 h-8">
                     <h1 class="text-xl font-bold">Agentex</h1>
                 </div>
                 <div class="flex items-center space-x-6">
                     <a href="#about" class="text-gray-600 hover:text-gray-900 transition">About</a>
+                    <a href="#demo" class="text-gray-600 hover:text-gray-900 transition">Demo</a>
                     <a href="#installation" class="text-gray-600 hover:text-gray-900 transition">Get Started</a>
                     <a href="https://github.com/sbeeredd04/Agentex" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-1 text-gray-600 hover:text-gray-900 transition">
                         <span>GitHub</span>
                         <span class="material-icons text-sm">open_in_new</span>
                     </a>
+                    <button id="themeToggle" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition" aria-label="Toggle theme">
+                        <span class="material-icons text-gray-700">light_mode</span>
+                    </button>
                 </div>
             </div>
         </div>
     </nav>
     
     <!-- Hero Section -->
-    <section class="max-w-5xl mx-auto px-6 py-20">
+    <section class="w-3/4 mx-auto px-6 py-20">
         <div class="text-center space-y-6">
-            <h2 class="text-5xl font-bold">AI-Powered Resume Tailoring</h2>
+            <h2 class="text-5xl font-bold"><span class="highlight">AI-Powered</span> Resume Tailoring</h2>
             <p class="text-xl text-gray-600 max-w-2xl mx-auto">
-                Optimize your resume for any job description using Google's Gemini AI. Pass ATS screenings and land more interviews.
+                Optimize your resume for any job description using <span class="highlight">Google's Gemini AI</span>. Pass <span class="highlight">ATS screenings</span> and land more interviews.
             </p>
             <div class="pt-4">
                 <a href="https://chromewebstore.google.com/detail/agentex-resume-editor/jmgbilodbfopeidngmbaglaomffpldfd" 
@@ -63,72 +157,91 @@
         </div>
     </section>
     
+    <!-- Demo Video Section -->
+    <section id="demo" class="w-3/4 mx-auto px-6 py-16">
+        <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-200 transition-colors duration-300">
+            <div class="flex items-center space-x-2 mb-6">
+                <span class="material-icons text-gray-700">play_circle</span>
+                <h3 class="text-2xl font-bold">See It In Action</h3>
+            </div>
+            <div class="video-container rounded-lg overflow-hidden">
+                <iframe 
+                    src="https://www.youtube.com/embed/OKv4dPgsCkM?autoplay=1&loop=1&playlist=OKv4dPgsCkM&mute=1" 
+                    title="Agentex Demo Video" 
+                    frameborder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen>
+                </iframe>
+            </div>
+        </div>
+    </section>
+    
     <!-- About Section -->
-    <section id="about" class="max-w-5xl mx-auto px-6 py-16">
-        <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-200">
+    <section id="about" class="w-3/4 mx-auto px-6 py-16">
+        <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-200 transition-colors duration-300">
             <div class="flex items-center space-x-2 mb-4">
                 <span class="material-icons text-gray-700">info</span>
                 <h3 class="text-2xl font-bold">About</h3>
             </div>
             <div class="space-y-4 text-gray-700">
                 <p>
-                    Agentex is a Chrome extension that uses Google's Gemini AI to intelligently tailor your resume to specific job descriptions. It helps you pass ATS (Applicant Tracking System) screenings and land more interviews by optimizing your resume content.
+                    Agentex is a <span class="highlight">Chrome extension</span> that uses <span class="highlight">Google's Gemini AI</span> to intelligently tailor your resume to specific job descriptions. It helps you pass <span class="highlight">ATS (Applicant Tracking System) screenings</span> and land more interviews by optimizing your resume content.
                 </p>
                 <p>
-                    The extension works exclusively with LaTeX resume files, ensuring professional typesetting while leveraging AI to replace projects, enhance skills, and refine experience descriptions based on the target job requirements.
+                    The extension works exclusively with <span class="highlight">LaTeX resume files</span>, ensuring professional typesetting while leveraging AI to replace projects, enhance skills, and refine experience descriptions based on the target job requirements.
                 </p>
             </div>
         </div>
     </section>
     
     <!-- Features Section -->
-    <section class="max-w-5xl mx-auto px-6 py-16">
+    <section class="w-3/4 mx-auto px-6 py-16">
         <div class="grid md:grid-cols-2 gap-6">
-            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200 transition-colors duration-300">
                 <div class="flex items-center space-x-2 mb-3">
                     <span class="material-icons text-gray-700">psychology</span>
-                    <h4 class="text-lg font-bold">Gemini AI-Powered</h4>
+                    <h4 class="text-lg font-bold"><span class="highlight">Gemini AI-Powered</span></h4>
                 </div>
                 <p class="text-gray-600">
-                    Leverages Google's latest Gemini 2.0 Flash model for intelligent resume optimization and project replacement.
+                    Leverages Google's latest <span class="highlight">Gemini 2.0 Flash model</span> for intelligent resume optimization and project replacement.
                 </p>
             </div>
             
-            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200 transition-colors duration-300">
                 <div class="flex items-center space-x-2 mb-3">
                     <span class="material-icons text-gray-700">check_circle</span>
-                    <h4 class="text-lg font-bold">ATS Optimization</h4>
+                    <h4 class="text-lg font-bold"><span class="highlight">ATS Optimization</span></h4>
                 </div>
                 <p class="text-gray-600">
-                    Ensures your resume passes automated screening systems with proper keyword matching and formatting.
+                    Ensures your resume passes <span class="highlight">automated screening systems</span> with proper keyword matching and formatting.
                 </p>
             </div>
             
-            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200 transition-colors duration-300">
                 <div class="flex items-center space-x-2 mb-3">
                     <span class="material-icons text-gray-700">picture_as_pdf</span>
-                    <h4 class="text-lg font-bold">PDF Generation</h4>
+                    <h4 class="text-lg font-bold"><span class="highlight">PDF Generation</span></h4>
                 </div>
                 <p class="text-gray-600">
-                    Compile LaTeX resumes to PDF directly in the browser with real-time preview and side-by-side comparison.
+                    Compile LaTeX resumes to PDF directly in the browser with <span class="highlight">real-time preview</span> and side-by-side comparison.
                 </p>
             </div>
             
-            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200 transition-colors duration-300">
                 <div class="flex items-center space-x-2 mb-3">
                     <span class="material-icons text-gray-700">storage</span>
-                    <h4 class="text-lg font-bold">Knowledge Base</h4>
+                    <h4 class="text-lg font-bold"><span class="highlight">Knowledge Base</span></h4>
                 </div>
                 <p class="text-gray-600">
-                    Maintain a repository of additional projects and experience to draw from for better resume tailoring.
+                    Maintain a repository of additional projects and experience to draw from for better <span class="highlight">resume tailoring</span>.
                 </p>
             </div>
         </div>
     </section>
     
     <!-- Installation Section -->
-    <section id="installation" class="max-w-5xl mx-auto px-6 py-16">
-        <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-200">
+    <section id="installation" class="w-3/4 mx-auto px-6 py-16">
+        <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-200 transition-colors duration-300">
             <div class="flex items-center space-x-2 mb-6">
                 <span class="material-icons text-gray-700">download</span>
                 <h3 class="text-2xl font-bold">Get Started</h3>
@@ -140,7 +253,7 @@
                         1
                     </div>
                     <div>
-                        <h4 class="font-bold mb-1">Install the Extension</h4>
+                        <h4 class="font-bold mb-1"><span class="highlight">Install the Extension</span></h4>
                         <p class="text-gray-600">
                             Add Agentex to Chrome from the Chrome Web Store or load it from source for development.
                         </p>
@@ -152,7 +265,7 @@
                         2
                     </div>
                     <div>
-                        <h4 class="font-bold mb-1">Configure API Key</h4>
+                        <h4 class="font-bold mb-1"><span class="highlight">Configure API Key</span></h4>
                         <p class="text-gray-600">
                             Get a free Gemini API key from Google AI Studio and enter it in the extension settings.
                         </p>
@@ -164,7 +277,7 @@
                         3
                     </div>
                     <div>
-                        <h4 class="font-bold mb-1">Upload Resume & Job Description</h4>
+                        <h4 class="font-bold mb-1"><span class="highlight">Upload Resume & Job Description</span></h4>
                         <p class="text-gray-600">
                             Upload your LaTeX resume file and paste the target job description to begin optimization.
                         </p>
@@ -176,7 +289,7 @@
                         4
                     </div>
                     <div>
-                        <h4 class="font-bold mb-1">Generate & Download</h4>
+                        <h4 class="font-bold mb-1"><span class="highlight">Generate & Download</span></h4>
                         <p class="text-gray-600">
                             Click generate to let AI tailor your resume, then download the optimized version as PDF.
                         </p>
@@ -198,11 +311,11 @@ cd Agentex
     </section>
     
     <!-- Chrome Extension CTA -->
-    <section class="max-w-5xl mx-auto px-6 py-16">
-        <div class="bg-gray-900 text-white rounded-lg p-12 text-center">
+    <section class="w-3/4 mx-auto px-6 py-16">
+        <div class="bg-gray-900 text-white rounded-lg p-12 text-center transition-colors duration-300">
             <h3 class="text-3xl font-bold mb-4">Ready to optimize your resume?</h3>
             <p class="text-gray-300 mb-8 max-w-xl mx-auto">
-                Install the Agentex Chrome Extension and start tailoring your resume with AI-powered precision.
+                Install the Agentex Chrome Extension and start tailoring your resume with <span class="highlight">AI-powered precision</span>.
             </p>
             <a href="https://chromewebstore.google.com/detail/agentex-resume-editor/jmgbilodbfopeidngmbaglaomffpldfd" 
                target="_blank" 
@@ -216,7 +329,7 @@ cd Agentex
     </section>
     
     <!-- Footer -->
-    <footer class="max-w-5xl mx-auto px-6 py-12 border-t border-gray-200 mt-12">
+    <footer class="w-3/4 mx-auto px-6 py-12 border-t border-gray-200 mt-12">
         <div class="flex items-center justify-between text-sm text-gray-600">
             <p>© 2025 Agentex. MIT License.</p>
             <div class="flex items-center space-x-6">
@@ -231,6 +344,36 @@ cd Agentex
             </div>
         </div>
     </footer>
+    
+    <!-- Theme Toggle Script -->
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+        const icon = themeToggle.querySelector('.material-icons');
+        
+        // Check for saved theme preference or default to 'light'
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        html.classList.add(currentTheme);
+        updateIcon(currentTheme);
+        
+        themeToggle.addEventListener('click', function() {
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                html.classList.add('light');
+                localStorage.setItem('theme', 'light');
+                updateIcon('light');
+            } else {
+                html.classList.remove('light');
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                updateIcon('dark');
+            }
+        });
+        
+        function updateIcon(theme) {
+            icon.textContent = theme === 'dark' ? 'dark_mode' : 'light_mode';
+        }
+    </script>
     
 </body>
 </html>

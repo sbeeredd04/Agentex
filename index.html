@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentex - AI-Powered Resume Tailoring</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Agentex is an AI-powered Chrome extension that intelligently tailors your resume to specific job descriptions using Google's Gemini AI. Pass ATS screenings and land more interviews.">
+    <meta name="keywords" content="resume, AI, tailoring, ATS, job application, Chrome extension, Gemini AI, LaTeX">
+    <meta name="author" content="Agentex">
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Agentex - AI-Powered Resume Tailoring">
+    <meta property="og:description" content="Optimize your resume for any job description using Google's Gemini AI. Pass ATS screenings and land more interviews.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://sbeeredd04.github.io/Agentex/">
+    <meta property="og:image" content="https://sbeeredd04.github.io/Agentex/icons/icon48.png">
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Agentex - AI-Powered Resume Tailoring">
+    <meta name="twitter:description" content="Optimize your resume for any job description using Google's Gemini AI.">
+    <meta name="twitter:image" content="https://sbeeredd04.github.io/Agentex/icons/icon48.png">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="48x48" href="./icons/icon48.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./icons/icon48.png">
+    <link rel="apple-touch-icon" href="./icons/icon48.png">
+    
+    <!-- TailwindCSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts - Ubuntu Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <style>
+        * {
+            font-family: 'Ubuntu Mono', monospace;
+        }
+        
+        /* Dark mode styles */
+        .dark {
+            color-scheme: dark;
+        }
+        
+        .dark body {
+            background-color: #000000;
+            color: #e2e8f0;
+        }
+        
+        .dark .bg-white {
+            background-color: #1a1a1a;
+        }
+        
+        .dark .bg-gray-50 {
+            background-color: #000000;
+        }
+        
+        .dark .text-gray-900 {
+            color: #e2e8f0;
+        }
+        
+        .dark .text-gray-700 {
+            color: #cbd5e1;
+        }
+        
+        .dark .text-gray-600 {
+            color: #94a3b8;
+        }
+        
+        .dark .border-gray-200 {
+            border-color: #2a2a2a;
+        }
+        
+        .dark .bg-gray-900 {
+            background-color: #f1f5f9;
+            color: #0f172a;
+        }
+        
+        .dark .text-white {
+            color: #0f172a;
+        }
+        
+        .dark .text-gray-300 {
+            color: #2a2a2a;
+        }
+        
+        /* Highlight effect */
+        .highlight {
+            background: linear-gradient(120deg, #fbbf24 0%, #fbbf24 100%);
+            background-repeat: no-repeat;
+            background-size: 0% 0.3em;
+            background-position: 0 88%;
+            transition: background-size 0.4s ease;
+            padding: 0 0.2em;
+        }
+        
+        .highlight:hover {
+            background-size: 100% 0.3em;
+        }
+        
+        .dark .highlight {
+            background: linear-gradient(120deg, #3b82f6 0%, #3b82f6 100%);
+            background-repeat: no-repeat;
+            background-size: 0% 0.3em;
+            background-position: 0 88%;
+        }
+        
+        /* Floating navbar - Island architecture */
+        .floating-nav {
+            position: fixed;
+            top: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            contain: layout style paint;
+            will-change: transform;
+            transition: all 0.3s ease;
+        }
+        
+        .floating-nav-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(229, 231, 235, 0.8);
+        }
+        
+        .dark .floating-nav-container {
+            background: rgba(26, 26, 26, 0.95);
+            border-color: rgba(42, 42, 42, 0.8);
+        }
+        
+        /* Responsive navbar */
+        @media (max-width: 768px) {
+            .floating-nav {
+                top: 1rem;
+                left: 1rem;
+                right: 1rem;
+                transform: none;
+                width: auto;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+            
+            .nav-links.mobile-open {
+                display: flex;
+                flex-direction: column;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                margin-top: 0.5rem;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                border-radius: 1rem;
+                padding: 1rem;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            }
+            
+            .dark .nav-links.mobile-open {
+                background: rgba(26, 26, 26, 0.95);
+            }
+            
+            .mobile-menu-btn {
+                display: block;
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-menu-btn {
+                display: none;
+            }
+        }
+        
+        /* Video container - reduced size */
+        .video-container {
+            position: relative;
+            padding-bottom: 35%;
+            height: 0;
+            overflow: hidden;
+            max-width: 60%;
+            margin: 0 auto;
+        }
+        
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            .video-container {
+                max-width: 80%;
+                padding-bottom: 45%;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .video-container {
+                max-width: 100%;
+                padding-bottom: 56.25%;
+            }
+        }
+        
+        /* Spacing adjustments for floating navbar */
+        body {
+            padding-top: 6rem;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding-top: 5rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 transition-colors duration-300">
+    
+    <!-- Floating Navigation - Island Architecture -->
+    <nav class="floating-nav">
+        <div class="floating-nav-container px-6 py-3">
+            <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center space-x-3">
+                    <img src="./icons/icon48.png" alt="Agentex Logo" class="w-8 h-8">
+                    <h1 class="text-xl font-bold whitespace-nowrap">Agentex</h1>
+                </div>
+                
+                <!-- Desktop Navigation Links -->
+                <div class="nav-links hidden md:flex items-center space-x-6">
+                    <a href="#about" class="text-gray-600 hover:text-gray-900 transition whitespace-nowrap">About</a>
+                    <a href="#demo" class="text-gray-600 hover:text-gray-900 transition whitespace-nowrap">Demo</a>
+                    <a href="#installation" class="text-gray-600 hover:text-gray-900 transition whitespace-nowrap">Get Started</a>
+                    <a href="https://github.com/sbeeredd04/Agentex" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-1 text-gray-600 hover:text-gray-900 transition whitespace-nowrap">
+                        <span>GitHub</span>
+                        <span class="material-icons text-sm">open_in_new</span>
+                    </a>
+                    <button id="themeToggle" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition" aria-label="Toggle theme">
+                        <span class="material-icons text-gray-700">light_mode</span>
+                    </button>
+                </div>
+                
+                <!-- Mobile Menu Button -->
+                <div class="flex items-center space-x-2 md:hidden">
+                    <button id="themeToggleMobile" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition" aria-label="Toggle theme">
+                        <span class="material-icons text-gray-700">light_mode</span>
+                    </button>
+                    <button id="mobileMenuToggle" class="mobile-menu-btn p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition" aria-label="Toggle menu">
+                        <span class="material-icons text-gray-700">menu</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Mobile Navigation Links -->
+            <div id="mobileNav" class="nav-links md:hidden">
+                <a href="#about" class="text-gray-600 hover:text-gray-900 transition py-2">About</a>
+                <a href="#demo" class="text-gray-600 hover:text-gray-900 transition py-2">Demo</a>
+                <a href="#installation" class="text-gray-600 hover:text-gray-900 transition py-2">Get Started</a>
+                <a href="https://github.com/sbeeredd04/Agentex" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-1 text-gray-600 hover:text-gray-900 transition py-2">
+                    <span>GitHub</span>
+                    <span class="material-icons text-sm">open_in_new</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Hero Section -->
+    <section class="w-full max-w-6xl mx-auto px-6 py-20">
+        <div class="text-center space-y-6">
+            <h2 class="text-5xl font-bold"><span class="highlight">AI-Powered</span> Resume Tailoring</h2>
+            <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+                Optimize your resume for any job description using <span class="highlight">Google's Gemini AI</span>. Pass <span class="highlight">ATS screenings</span> and land more interviews.
+            </p>
+            <div class="pt-4">
+                <a href="https://chromewebstore.google.com/detail/agentex-resume-editor/jmgbilodbfopeidngmbaglaomffpldfd" 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   class="inline-flex items-center space-x-2 bg-gray-900 text-white px-8 py-4 rounded-lg hover:bg-gray-800 transition shadow-lg">
+                    <span class="material-icons">extension</span>
+                    <span class="text-lg font-bold">Add to Chrome</span>
+                </a>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Demo Video Section -->
+    <section id="demo" class="w-full max-w-6xl mx-auto px-6 py-16">
+        <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-200 transition-colors duration-300">
+            <div class="flex items-center space-x-2 mb-6">
+                <span class="material-icons text-gray-700">play_circle</span>
+                <h3 class="text-2xl font-bold">See It In Action</h3>
+            </div>
+            <div class="video-container rounded-lg overflow-hidden">
+                <iframe 
+                    src="https://www.youtube.com/embed/OKv4dPgsCkM?autoplay=1&loop=1&playlist=OKv4dPgsCkM&mute=1" 
+                    title="Agentex Demo Video" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen
+                    style="border: none;">
+                </iframe>
+            </div>
+        </div>
+    </section>
+    
+    <!-- About Section -->
+    <section id="about" class="w-full max-w-6xl mx-auto px-6 py-16">
+        <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-200 transition-colors duration-300">
+            <div class="flex items-center space-x-2 mb-4">
+                <span class="material-icons text-gray-700">info</span>
+                <h3 class="text-2xl font-bold">About</h3>
+            </div>
+            <div class="space-y-4 text-gray-700">
+                <p>
+                    Agentex is a <span class="highlight">Chrome extension</span> that uses <span class="highlight">Google's Gemini AI</span> to intelligently tailor your resume to specific job descriptions. It helps you pass <span class="highlight">ATS (Applicant Tracking System) screenings</span> and land more interviews by optimizing your resume content.
+                </p>
+                <p>
+                    The extension works exclusively with <span class="highlight">LaTeX resume files</span>, ensuring professional typesetting while leveraging AI to replace projects, enhance skills, and refine experience descriptions based on the target job requirements.
+                </p>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Features Section -->
+    <section class="w-full max-w-6xl mx-auto px-6 py-16">
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200 transition-colors duration-300">
+                <div class="flex items-center space-x-2 mb-3">
+                    <span class="material-icons text-gray-700">psychology</span>
+                    <h4 class="text-lg font-bold"><span class="highlight">Gemini AI-Powered</span></h4>
+                </div>
+                <p class="text-gray-600">
+                    Leverages Google's latest <span class="highlight">Gemini 2.0 Flash model</span> for intelligent resume optimization and project replacement.
+                </p>
+            </div>
+            
+            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200 transition-colors duration-300">
+                <div class="flex items-center space-x-2 mb-3">
+                    <span class="material-icons text-gray-700">check_circle</span>
+                    <h4 class="text-lg font-bold"><span class="highlight">ATS Optimization</span></h4>
+                </div>
+                <p class="text-gray-600">
+                    Ensures your resume passes <span class="highlight">automated screening systems</span> with proper keyword matching and formatting.
+                </p>
+            </div>
+            
+            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200 transition-colors duration-300">
+                <div class="flex items-center space-x-2 mb-3">
+                    <span class="material-icons text-gray-700">picture_as_pdf</span>
+                    <h4 class="text-lg font-bold"><span class="highlight">PDF Generation</span></h4>
+                </div>
+                <p class="text-gray-600">
+                    Compile LaTeX resumes to PDF directly in the browser with <span class="highlight">real-time preview</span> and side-by-side comparison.
+                </p>
+            </div>
+            
+            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200 transition-colors duration-300">
+                <div class="flex items-center space-x-2 mb-3">
+                    <span class="material-icons text-gray-700">storage</span>
+                    <h4 class="text-lg font-bold"><span class="highlight">Knowledge Base</span></h4>
+                </div>
+                <p class="text-gray-600">
+                    Maintain a repository of additional projects and experience to draw from for better <span class="highlight">resume tailoring</span>.
+                </p>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Installation Section -->
+    <section id="installation" class="w-full max-w-6xl mx-auto px-6 py-16">
+        <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-200 transition-colors duration-300">
+            <div class="flex items-center space-x-2 mb-6">
+                <span class="material-icons text-gray-700">download</span>
+                <h3 class="text-2xl font-bold">Get Started</h3>
+            </div>
+            
+            <div class="space-y-6">
+                <div class="flex items-start space-x-4">
+                    <div class="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold">
+                        1
+                    </div>
+                    <div>
+                        <h4 class="font-bold mb-1"><span class="highlight">Install the Extension</span></h4>
+                        <p class="text-gray-600">
+                            Add Agentex to Chrome from the Chrome Web Store or load it from source for development.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flex items-start space-x-4">
+                    <div class="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold">
+                        2
+                    </div>
+                    <div>
+                        <h4 class="font-bold mb-1"><span class="highlight">Configure API Key</span></h4>
+                        <p class="text-gray-600">
+                            Get a free Gemini API key from Google AI Studio and enter it in the extension settings.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flex items-start space-x-4">
+                    <div class="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold">
+                        3
+                    </div>
+                    <div>
+                        <h4 class="font-bold mb-1"><span class="highlight">Upload Resume & Job Description</span></h4>
+                        <p class="text-gray-600">
+                            Upload your LaTeX resume file and paste the target job description to begin optimization.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flex items-start space-x-4">
+                    <div class="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold">
+                        4
+                    </div>
+                    <div>
+                        <h4 class="font-bold mb-1"><span class="highlight">Generate & Download</span></h4>
+                        <p class="text-gray-600">
+                            Click generate to let AI tailor your resume, then download the optimized version as PDF.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="pt-6 border-t border-gray-200">
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-sm text-gray-600 mb-2">For development installation:</p>
+                        <code class="block bg-gray-900 text-gray-100 p-3 rounded text-sm overflow-x-auto">
+git clone https://github.com/sbeeredd04/Agentex.git
+cd Agentex
+# Load tailored-resume-extension in chrome://extensions/
+                        </code>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Chrome Extension CTA -->
+    <section class="w-full max-w-6xl mx-auto px-6 py-16">
+        <div class="bg-gray-900 text-white rounded-lg p-12 text-center transition-colors duration-300">
+            <h3 class="text-3xl font-bold mb-4">Ready to optimize your resume?</h3>
+            <p class="text-gray-300 mb-8 max-w-xl mx-auto">
+                Install the Agentex Chrome Extension and start tailoring your resume with <span class="highlight">AI-powered precision</span>.
+            </p>
+            <a href="https://chromewebstore.google.com/detail/agentex-resume-editor/jmgbilodbfopeidngmbaglaomffpldfd" 
+               target="_blank" 
+               rel="noopener noreferrer"
+               class="inline-flex items-center space-x-2 bg-white text-gray-900 px-8 py-4 rounded-lg hover:bg-gray-100 transition shadow-lg font-bold">
+                <span class="material-icons">extension</span>
+                <span class="text-lg">Add to Chrome</span>
+                <span class="material-icons">open_in_new</span>
+            </a>
+        </div>
+    </section>
+    
+    <!-- Footer -->
+    <footer class="w-full max-w-6xl mx-auto px-6 py-12 border-t border-gray-200 mt-12">
+        <div class="flex items-center justify-between text-sm text-gray-600">
+            <p>© 2025 Agentex. MIT License.</p>
+            <div class="flex items-center space-x-6">
+                <a href="https://github.com/sbeeredd04/Agentex" target="_blank" rel="noopener noreferrer" class="hover:text-gray-900 transition flex items-center space-x-1">
+                    <span>GitHub</span>
+                    <span class="material-icons text-sm">open_in_new</span>
+                </a>
+                <a href="https://github.com/sbeeredd04/Agentex/issues" target="_blank" rel="noopener noreferrer" class="hover:text-gray-900 transition flex items-center space-x-1">
+                    <span>Issues</span>
+                    <span class="material-icons text-sm">open_in_new</span>
+                </a>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Theme Toggle & Mobile Menu Script -->
+    <script>
+        // Theme Toggle functionality
+        const themeToggle = document.getElementById('themeToggle');
+        const themeToggleMobile = document.getElementById('themeToggleMobile');
+        const html = document.documentElement;
+        const icon = themeToggle.querySelector('.material-icons');
+        const iconMobile = themeToggleMobile.querySelector('.material-icons');
+        
+        // Check for saved theme preference or default to 'light'
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        
+        // Clear existing theme classes and apply saved theme
+        html.classList.remove('light', 'dark');
+        html.classList.add(currentTheme);
+        updateIcon(currentTheme);
+        
+        function toggleTheme() {
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                html.classList.add('light');
+                localStorage.setItem('theme', 'light');
+                updateIcon('light');
+            } else {
+                html.classList.remove('light');
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                updateIcon('dark');
+            }
+        }
+        
+        themeToggle.addEventListener('click', toggleTheme);
+        themeToggleMobile.addEventListener('click', toggleTheme);
+        
+        function updateIcon(theme) {
+            const iconText = theme === 'dark' ? 'dark_mode' : 'light_mode';
+            icon.textContent = iconText;
+            iconMobile.textContent = iconText;
+        }
+        
+        // Mobile Menu Toggle
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const mobileNav = document.getElementById('mobileNav');
+        const mobileMenuIcon = mobileMenuToggle.querySelector('.material-icons');
+        
+        mobileMenuToggle.addEventListener('click', function() {
+            mobileNav.classList.toggle('mobile-open');
+            mobileMenuIcon.textContent = mobileNav.classList.contains('mobile-open') ? 'close' : 'menu';
+        });
+        
+        // Close mobile menu when clicking a link
+        const mobileLinks = mobileNav.querySelectorAll('a');
+        mobileLinks.forEach(link => {
+            link.addEventListener('click', function() {
+                mobileNav.classList.remove('mobile-open');
+                mobileMenuIcon.textContent = 'menu';
+            });
+        });
+        
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const isClickInside = mobileMenuToggle.contains(event.target) || mobileNav.contains(event.target);
+            if (!isClickInside && mobileNav.classList.contains('mobile-open')) {
+                mobileNav.classList.remove('mobile-open');
+                mobileMenuIcon.textContent = 'menu';
+            }
+        });
+    </script>
+    
+</body>
+</html>

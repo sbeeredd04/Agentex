@@ -5,6 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Agentex - AI-Powered Resume Tailoring</title>
     
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Agentex is an AI-powered Chrome extension that intelligently tailors your resume to specific job descriptions using Google's Gemini AI. Pass ATS screenings and land more interviews.">
+    <meta name="keywords" content="resume, AI, tailoring, ATS, job application, Chrome extension, Gemini AI, LaTeX">
+    <meta name="author" content="Agentex">
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Agentex - AI-Powered Resume Tailoring">
+    <meta property="og:description" content="Optimize your resume for any job description using Google's Gemini AI. Pass ATS screenings and land more interviews.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://sbeeredd04.github.io/Agentex/">
+    <meta property="og:image" content="https://sbeeredd04.github.io/Agentex/icons/icon48.png">
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Agentex - AI-Powered Resume Tailoring">
+    <meta name="twitter:description" content="Optimize your resume for any job description using Google's Gemini AI.">
+    <meta name="twitter:image" content="https://sbeeredd04.github.io/Agentex/icons/icon48.png">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="48x48" href="./icons/icon48.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./icons/icon48.png">
+    <link rel="apple-touch-icon" href="./icons/icon48.png">
+    
     <!-- TailwindCSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -89,10 +112,73 @@
             background-position: 0 88%;
         }
         
-        /* Island architecture - navbar isolated */
-        nav {
+        /* Floating navbar - Island architecture */
+        .floating-nav {
+            position: fixed;
+            top: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
             contain: layout style paint;
             will-change: transform;
+            transition: all 0.3s ease;
+        }
+        
+        .floating-nav-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(229, 231, 235, 0.8);
+        }
+        
+        .dark .floating-nav-container {
+            background: rgba(26, 26, 26, 0.95);
+            border-color: rgba(42, 42, 42, 0.8);
+        }
+        
+        /* Responsive navbar */
+        @media (max-width: 768px) {
+            .floating-nav {
+                top: 1rem;
+                left: 1rem;
+                right: 1rem;
+                transform: none;
+                width: auto;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+            
+            .nav-links.mobile-open {
+                display: flex;
+                flex-direction: column;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                margin-top: 0.5rem;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                border-radius: 1rem;
+                padding: 1rem;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            }
+            
+            .dark .nav-links.mobile-open {
+                background: rgba(26, 26, 26, 0.95);
+            }
+            
+            .mobile-menu-btn {
+                display: block;
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-menu-btn {
+                display: none;
+            }
         }
         
         /* Video container - reduced size */
@@ -112,23 +198,51 @@
             width: 100%;
             height: 100%;
         }
+        
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            .video-container {
+                max-width: 80%;
+                padding-bottom: 45%;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .video-container {
+                max-width: 100%;
+                padding-bottom: 56.25%;
+            }
+        }
+        
+        /* Spacing adjustments for floating navbar */
+        body {
+            padding-top: 6rem;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding-top: 5rem;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900 transition-colors duration-300">
     
-    <!-- Navigation - Island Architecture -->
-    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50 transition-colors duration-300">
-        <div class="w-3/4 mx-auto px-6 py-4">
-            <div class="flex items-center justify-between">
+    <!-- Floating Navigation - Island Architecture -->
+    <nav class="floating-nav">
+        <div class="floating-nav-container px-6 py-3">
+            <div class="flex items-center justify-between gap-4">
                 <div class="flex items-center space-x-3">
                     <img src="./icons/icon48.png" alt="Agentex Logo" class="w-8 h-8">
-                    <h1 class="text-xl font-bold">Agentex</h1>
+                    <h1 class="text-xl font-bold whitespace-nowrap">Agentex</h1>
                 </div>
-                <div class="flex items-center space-x-6">
-                    <a href="#about" class="text-gray-600 hover:text-gray-900 transition">About</a>
-                    <a href="#demo" class="text-gray-600 hover:text-gray-900 transition">Demo</a>
-                    <a href="#installation" class="text-gray-600 hover:text-gray-900 transition">Get Started</a>
-                    <a href="https://github.com/sbeeredd04/Agentex" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-1 text-gray-600 hover:text-gray-900 transition">
+                
+                <!-- Desktop Navigation Links -->
+                <div class="nav-links hidden md:flex items-center space-x-6">
+                    <a href="#about" class="text-gray-600 hover:text-gray-900 transition whitespace-nowrap">About</a>
+                    <a href="#demo" class="text-gray-600 hover:text-gray-900 transition whitespace-nowrap">Demo</a>
+                    <a href="#installation" class="text-gray-600 hover:text-gray-900 transition whitespace-nowrap">Get Started</a>
+                    <a href="https://github.com/sbeeredd04/Agentex" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-1 text-gray-600 hover:text-gray-900 transition whitespace-nowrap">
                         <span>GitHub</span>
                         <span class="material-icons text-sm">open_in_new</span>
                     </a>
@@ -136,12 +250,33 @@
                         <span class="material-icons text-gray-700">light_mode</span>
                     </button>
                 </div>
+                
+                <!-- Mobile Menu Button -->
+                <div class="flex items-center space-x-2 md:hidden">
+                    <button id="themeToggleMobile" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition" aria-label="Toggle theme">
+                        <span class="material-icons text-gray-700">light_mode</span>
+                    </button>
+                    <button id="mobileMenuToggle" class="mobile-menu-btn p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition" aria-label="Toggle menu">
+                        <span class="material-icons text-gray-700">menu</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Mobile Navigation Links -->
+            <div id="mobileNav" class="nav-links md:hidden">
+                <a href="#about" class="text-gray-600 hover:text-gray-900 transition py-2">About</a>
+                <a href="#demo" class="text-gray-600 hover:text-gray-900 transition py-2">Demo</a>
+                <a href="#installation" class="text-gray-600 hover:text-gray-900 transition py-2">Get Started</a>
+                <a href="https://github.com/sbeeredd04/Agentex" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-1 text-gray-600 hover:text-gray-900 transition py-2">
+                    <span>GitHub</span>
+                    <span class="material-icons text-sm">open_in_new</span>
+                </a>
             </div>
         </div>
     </nav>
     
     <!-- Hero Section -->
-    <section class="w-3/4 mx-auto px-6 py-20">
+    <section class="w-full max-w-6xl mx-auto px-6 py-20">
         <div class="text-center space-y-6">
             <h2 class="text-5xl font-bold"><span class="highlight">AI-Powered</span> Resume Tailoring</h2>
             <p class="text-xl text-gray-600 max-w-2xl mx-auto">
@@ -160,7 +295,7 @@
     </section>
     
     <!-- Demo Video Section -->
-    <section id="demo" class="w-3/4 mx-auto px-6 py-16">
+    <section id="demo" class="w-full max-w-6xl mx-auto px-6 py-16">
         <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-200 transition-colors duration-300">
             <div class="flex items-center space-x-2 mb-6">
                 <span class="material-icons text-gray-700">play_circle</span>
@@ -179,7 +314,7 @@
     </section>
     
     <!-- About Section -->
-    <section id="about" class="w-3/4 mx-auto px-6 py-16">
+    <section id="about" class="w-full max-w-6xl mx-auto px-6 py-16">
         <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-200 transition-colors duration-300">
             <div class="flex items-center space-x-2 mb-4">
                 <span class="material-icons text-gray-700">info</span>
@@ -197,7 +332,7 @@
     </section>
     
     <!-- Features Section -->
-    <section class="w-3/4 mx-auto px-6 py-16">
+    <section class="w-full max-w-6xl mx-auto px-6 py-16">
         <div class="grid md:grid-cols-2 gap-6">
             <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200 transition-colors duration-300">
                 <div class="flex items-center space-x-2 mb-3">
@@ -242,7 +377,7 @@
     </section>
     
     <!-- Installation Section -->
-    <section id="installation" class="w-3/4 mx-auto px-6 py-16">
+    <section id="installation" class="w-full max-w-6xl mx-auto px-6 py-16">
         <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-200 transition-colors duration-300">
             <div class="flex items-center space-x-2 mb-6">
                 <span class="material-icons text-gray-700">download</span>
@@ -313,7 +448,7 @@ cd Agentex
     </section>
     
     <!-- Chrome Extension CTA -->
-    <section class="w-3/4 mx-auto px-6 py-16">
+    <section class="w-full max-w-6xl mx-auto px-6 py-16">
         <div class="bg-gray-900 text-white rounded-lg p-12 text-center transition-colors duration-300">
             <h3 class="text-3xl font-bold mb-4">Ready to optimize your resume?</h3>
             <p class="text-gray-300 mb-8 max-w-xl mx-auto">
@@ -331,7 +466,7 @@ cd Agentex
     </section>
     
     <!-- Footer -->
-    <footer class="w-3/4 mx-auto px-6 py-12 border-t border-gray-200 mt-12">
+    <footer class="w-full max-w-6xl mx-auto px-6 py-12 border-t border-gray-200 mt-12">
         <div class="flex items-center justify-between text-sm text-gray-600">
             <p>© 2025 Agentex. MIT License.</p>
             <div class="flex items-center space-x-6">
@@ -347,11 +482,14 @@ cd Agentex
         </div>
     </footer>
     
-    <!-- Theme Toggle Script -->
+    <!-- Theme Toggle & Mobile Menu Script -->
     <script>
+        // Theme Toggle functionality
         const themeToggle = document.getElementById('themeToggle');
+        const themeToggleMobile = document.getElementById('themeToggleMobile');
         const html = document.documentElement;
         const icon = themeToggle.querySelector('.material-icons');
+        const iconMobile = themeToggleMobile.querySelector('.material-icons');
         
         // Check for saved theme preference or default to 'light'
         const currentTheme = localStorage.getItem('theme') || 'light';
@@ -361,7 +499,7 @@ cd Agentex
         html.classList.add(currentTheme);
         updateIcon(currentTheme);
         
-        themeToggle.addEventListener('click', function() {
+        function toggleTheme() {
             if (html.classList.contains('dark')) {
                 html.classList.remove('dark');
                 html.classList.add('light');
@@ -373,11 +511,44 @@ cd Agentex
                 localStorage.setItem('theme', 'dark');
                 updateIcon('dark');
             }
-        });
+        }
+        
+        themeToggle.addEventListener('click', toggleTheme);
+        themeToggleMobile.addEventListener('click', toggleTheme);
         
         function updateIcon(theme) {
-            icon.textContent = theme === 'dark' ? 'dark_mode' : 'light_mode';
+            const iconText = theme === 'dark' ? 'dark_mode' : 'light_mode';
+            icon.textContent = iconText;
+            iconMobile.textContent = iconText;
         }
+        
+        // Mobile Menu Toggle
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const mobileNav = document.getElementById('mobileNav');
+        const mobileMenuIcon = mobileMenuToggle.querySelector('.material-icons');
+        
+        mobileMenuToggle.addEventListener('click', function() {
+            mobileNav.classList.toggle('mobile-open');
+            mobileMenuIcon.textContent = mobileNav.classList.contains('mobile-open') ? 'close' : 'menu';
+        });
+        
+        // Close mobile menu when clicking a link
+        const mobileLinks = mobileNav.querySelectorAll('a');
+        mobileLinks.forEach(link => {
+            link.addEventListener('click', function() {
+                mobileNav.classList.remove('mobile-open');
+                mobileMenuIcon.textContent = 'menu';
+            });
+        });
+        
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const isClickInside = mobileMenuToggle.contains(event.target) || mobileNav.contains(event.target);
+            if (!isClickInside && mobileNav.classList.contains('mobile-open')) {
+                mobileNav.classList.remove('mobile-open');
+                mobileMenuIcon.textContent = 'menu';
+            }
+        });
     </script>
     
 </body>

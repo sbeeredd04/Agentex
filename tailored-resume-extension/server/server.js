@@ -11,9 +11,24 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configure multer for file uploads
+// Rate limiting configuration
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 30; // 30 requests per minute
+
+// Request queue for handling concurrent requests
+const requestQueue = [];
+let activeRequests = 0;
+const MAX_CONCURRENT_REQUESTS = 5;
+
+// Configure multer for file uploads with size limits
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
+});
 
 // Define allowed origins
 const allowedOrigins = [
@@ -122,6 +137,66 @@ async function cleanupFiles(fileId) {
   console.log('[Server] Cleanup completed');
 }
 
+// Rate limiting middleware
+function rateLimitMiddleware(req, res, next) {
+  const clientId = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+  const now = Date.now();
+  
+  // Clean up old entries
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now - value.timestamp > RATE_LIMIT_WINDOW) {
+      rateLimitMap.delete(key);
+    }
+  }
+  
+  // Check rate limit
+  const clientData = rateLimitMap.get(clientId) || { count: 0, timestamp: now };
+  
+  if (now - clientData.timestamp > RATE_LIMIT_WINDOW) {
+    // Reset if window has passed
+    clientData.count = 1;
+    clientData.timestamp = now;
+  } else {
+    clientData.count++;
+  }
+  
+  rateLimitMap.set(clientId, clientData);
+  
+  if (clientData.count > MAX_REQUESTS_PER_WINDOW) {
+    console.warn(`[Server] Rate limit exceeded for ${clientId}`);
+    return res.status(429).json({
+      success: false,
+      error: 'Too many requests. Please try again later.',
+      retryAfter: Math.ceil((RATE_LIMIT_WINDOW - (now - clientData.timestamp)) / 1000)
+    });
+  }
+  
+  next();
+}
+
+// Request queue middleware for managing concurrent requests
+async function queueMiddleware(req, res, next) {
+  if (activeRequests >= MAX_CONCURRENT_REQUESTS) {
+    // Add to queue
+    await new Promise((resolve) => {
+      requestQueue.push(resolve);
+    });
+  }
+  
+  activeRequests++;
+  
+  // Ensure we decrement and process queue on response
+  res.on('finish', () => {
+    activeRequests--;
+    if (requestQueue.length > 0) {
+      const resolve = requestQueue.shift();
+      resolve();
+    }
+  });
+  
+  next();
+}
+
 // More permissive CORS configuration
 app.use((req, res, next) => {
   const origin = req.headers.origin;
@@ -140,6 +215,13 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '10mb' }));
+
+// Apply rate limiting to all routes
+app.use(rateLimitMiddleware);
+
+// Apply queue middleware to resource-intensive routes
+app.use('/compile', queueMiddleware);
+app.use('/compile-docx', queueMiddleware);
 
 async function initializeDirectories() {
   await fs.mkdir(TMP_DIR, { recursive: true });
@@ -430,11 +512,37 @@ app.post('/compile-docx', async (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error('[Server] Error:', err);
-  res.status(500).json({
+  // Enhanced error logging
+  console.error('[Server] Error:', {
+    message: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method,
+    timestamp: new Date().toISOString(),
+    ip: req.ip
+  });
+  
+  // Send appropriate error response
+  const statusCode = err.statusCode || 500;
+  const errorMessage = process.env.NODE_ENV === 'production' 
+    ? 'An error occurred processing your request'
+    : err.message;
+  
+  res.status(statusCode).json({
     success: false,
-    error: 'Server error',
-    details: err.message
+    error: errorMessage,
+    ...(process.env.NODE_ENV !== 'production' && { details: err.stack })
+  });
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    activeRequests,
+    queueLength: requestQueue.length
   });
 });
 

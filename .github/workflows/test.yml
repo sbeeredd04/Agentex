@@ -1,0 +1,385 @@
+name: Extension Tests
+
+on:
+  push:
+    branches: [ main, copilot/** ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-extension:
+    name: Test Chrome Extension Functionality
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
+    
+    - name: Validate manifest.json
+      run: |
+        echo "Validating Chrome extension manifest..."
+        cd tailored-resume-extension
+        if [ ! -f "manifest.json" ]; then
+          echo "Error: manifest.json not found!"
+          exit 1
+        fi
+        
+        # Check if manifest is valid JSON
+        if ! jq empty manifest.json 2>/dev/null; then
+          echo "Error: manifest.json is not valid JSON!"
+          exit 1
+        fi
+        
+        echo "✓ manifest.json is valid"
+        
+        # Check required fields
+        if ! jq -e '.manifest_version' manifest.json > /dev/null; then
+          echo "Error: manifest_version is missing!"
+          exit 1
+        fi
+        
+        if ! jq -e '.name' manifest.json > /dev/null; then
+          echo "Error: name is missing!"
+          exit 1
+        fi
+        
+        if ! jq -e '.version' manifest.json > /dev/null; then
+          echo "Error: version is missing!"
+          exit 1
+        fi
+        
+        echo "✓ All required fields present in manifest.json"
+    
+    - name: Check required files
+      run: |
+        echo "Checking required extension files..."
+        cd tailored-resume-extension
+        
+        required_files=(
+          "sidepanel.html"
+          "sidepanel.js"
+          "sidepanel.css"
+          "style.css"
+          "background.js"
+          "config.js"
+          "services/ai-service.js"
+          "services/file-handler.js"
+          "services/markdown-parser.js"
+          "server/serverManager.js"
+        )
+        
+        for file in "${required_files[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "✗ Missing required file: $file"
+            exit 1
+          else
+            echo "✓ Found: $file"
+          fi
+        done
+        
+        echo "✓ All required files present"
+    
+    - name: Validate JavaScript syntax
+      run: |
+        echo "Validating JavaScript files..."
+        cd tailored-resume-extension
+        
+        js_files=(
+          "sidepanel.js"
+          "background.js"
+          "config.js"
+          "services/ai-service.js"
+          "services/file-handler.js"
+          "services/markdown-parser.js"
+          "server/serverManager.js"
+        )
+        
+        for file in "${js_files[@]}"; do
+          echo "Checking $file..."
+          if ! node --check "$file" 2>/dev/null; then
+            echo "✗ Syntax error in $file"
+            exit 1
+          else
+            echo "✓ $file syntax valid"
+          fi
+        done
+        
+        echo "✓ All JavaScript files have valid syntax"
+    
+    - name: Validate HTML structure
+      run: |
+        echo "Validating HTML files..."
+        cd tailored-resume-extension
+        
+        if [ ! -f "sidepanel.html" ]; then
+          echo "Error: sidepanel.html not found!"
+          exit 1
+        fi
+        
+        # Check for required elements
+        if ! grep -q 'id="latexFile"' sidepanel.html; then
+          echo "✗ Missing file upload input"
+          exit 1
+        fi
+        
+        if ! grep -q 'id="jobDesc"' sidepanel.html; then
+          echo "✗ Missing job description textarea"
+          exit 1
+        fi
+        
+        if ! grep -q 'id="knowledgeBaseText"' sidepanel.html; then
+          echo "✗ Missing knowledge base textarea"
+          exit 1
+        fi
+        
+        if ! grep -q 'id="generateBtn"' sidepanel.html; then
+          echo "✗ Missing generate button"
+          exit 1
+        fi
+        
+        if ! grep -q 'id="pdfPreviewArea"' sidepanel.html; then
+          echo "✗ Missing PDF preview area"
+          exit 1
+        fi
+        
+        echo "✓ All required UI elements present in HTML"
+    
+    - name: Check for Gemini 2.5 Flash references
+      run: |
+        echo "Verifying Gemini 2.5 Flash integration..."
+        cd tailored-resume-extension
+        
+        # Check if Gemini 2.5 Flash is referenced
+        if ! grep -r "gemini-2.5-flash" services/ai-service.js; then
+          echo "✗ Gemini 2.5 Flash model not found in ai-service.js"
+          exit 1
+        fi
+        
+        # Check if old Gemini 2.0 references are removed
+        if grep -r "gemini-2.0-flash" services/ai-service.js; then
+          echo "✗ Old Gemini 2.0 references still present"
+          exit 1
+        fi
+        
+        echo "✓ Gemini 2.5 Flash correctly configured"
+    
+    - name: Check for emoji removal
+      run: |
+        echo "Checking for emoji removal..."
+        cd tailored-resume-extension
+        
+        # Check sidepanel.js for common emojis
+        if grep -E '(ℹ️|📝|🎨|⚙️|🔧|📄|💾|🔑|✅|❌|⚠️|📊|🚀|💡|📌|🔍|📁|🖥️|📱|🎯)' sidepanel.js sidepanel.html; then
+          echo "✗ Emojis found - should use Material Icons instead"
+          exit 1
+        fi
+        
+        echo "✓ No emojis found in UI files"
+    
+    - name: Verify Material Icons usage
+      run: |
+        echo "Verifying Material Icons integration..."
+        cd tailored-resume-extension
+        
+        # Check if Material Icons are properly loaded
+        if ! grep -q 'fonts.googleapis.com/icon?family=Material+Icons' sidepanel.html; then
+          echo "✗ Material Icons not loaded in HTML"
+          exit 1
+        fi
+        
+        # Check if Material Icons are used
+        if ! grep -q 'class="material-icons"' sidepanel.html; then
+          echo "✗ Material Icons not used in HTML"
+          exit 1
+        fi
+        
+        echo "✓ Material Icons properly integrated"
+    
+    - name: Verify markdown support
+      run: |
+        echo "Verifying markdown support..."
+        cd tailored-resume-extension
+        
+        # Check if markdown parser exists
+        if [ ! -f "services/markdown-parser.js" ]; then
+          echo "✗ Markdown parser not found"
+          exit 1
+        fi
+        
+        # Check if markdown is indicated in UI
+        if ! grep -q 'markdown-indicator' sidepanel.html; then
+          echo "✗ Markdown indicator not found in UI"
+          exit 1
+        fi
+        
+        if ! grep -q 'Markdown supported' sidepanel.html; then
+          echo "✗ Markdown support text not found"
+          exit 1
+        fi
+        
+        echo "✓ Markdown support verified"
+    
+    - name: Check prompt files
+      run: |
+        echo "Verifying prompt files..."
+        cd tailored-resume-extension/prompts
+        
+        required_prompts=(
+          "latex-tailoring.md"
+          "job-analysis.md"
+          "projects-optimization.md"
+          "skills-enhancement.md"
+          "experience-refinement.md"
+          "final-polish.md"
+        )
+        
+        for prompt in "${required_prompts[@]}"; do
+          if [ ! -f "$prompt" ]; then
+            echo "✗ Missing prompt file: $prompt"
+            exit 1
+          else
+            echo "✓ Found: $prompt"
+          fi
+        done
+        
+        echo "✓ All prompt files present"
+    
+    - name: Summary
+      if: success()
+      run: |
+        echo ""
+        echo "=========================================="
+        echo "✓ All extension tests passed successfully!"
+        echo "=========================================="
+        echo ""
+        echo "Verified:"
+        echo "  • Extension manifest is valid"
+        echo "  • All required files are present"
+        echo "  • JavaScript syntax is valid"
+        echo "  • HTML structure is correct"
+        echo "  • Gemini 2.5 Flash is configured"
+        echo "  • Emojis removed, Material Icons used"
+        echo "  • Markdown support implemented"
+        echo "  • All prompt files are present"
+        echo ""
+
+  test-server:
+    name: Test Server Configuration
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+    
+    - name: Validate server files
+      run: |
+        echo "Validating server files..."
+        cd tailored-resume-extension/server
+        
+        if [ ! -f "server.js" ]; then
+          echo "✗ server.js not found!"
+          exit 1
+        fi
+        
+        if [ ! -f "serverManager.js" ]; then
+          echo "✗ serverManager.js not found!"
+          exit 1
+        fi
+        
+        echo "✓ Server files present"
+    
+    - name: Check server syntax
+      run: |
+        echo "Checking server JavaScript syntax..."
+        cd tailored-resume-extension/server
+        
+        if ! node --check server.js 2>/dev/null; then
+          echo "✗ Syntax error in server.js"
+          exit 1
+        fi
+        
+        if ! node --check serverManager.js 2>/dev/null; then
+          echo "✗ Syntax error in serverManager.js"
+          exit 1
+        fi
+        
+        echo "✓ Server syntax valid"
+    
+    - name: Verify rate limiting implementation
+      run: |
+        echo "Verifying rate limiting..."
+        cd tailored-resume-extension/server
+        
+        if ! grep -q "rateLimitMiddleware" server.js; then
+          echo "✗ Rate limiting middleware not found"
+          exit 1
+        fi
+        
+        if ! grep -q "MAX_REQUESTS_PER_WINDOW" server.js; then
+          echo "✗ Rate limit configuration not found"
+          exit 1
+        fi
+        
+        echo "✓ Rate limiting implemented"
+    
+    - name: Verify request queue implementation
+      run: |
+        echo "Verifying request queue..."
+        cd tailored-resume-extension/server
+        
+        if ! grep -q "queueMiddleware" server.js; then
+          echo "✗ Queue middleware not found"
+          exit 1
+        fi
+        
+        if ! grep -q "MAX_CONCURRENT_REQUESTS" server.js; then
+          echo "✗ Concurrent request limit not found"
+          exit 1
+        fi
+        
+        echo "✓ Request queue implemented"
+    
+    - name: Verify health check endpoint
+      run: |
+        echo "Verifying health check endpoint..."
+        cd tailored-resume-extension/server
+        
+        if ! grep -q "/health" server.js; then
+          echo "✗ Health check endpoint not found"
+          exit 1
+        fi
+        
+        echo "✓ Health check endpoint present"
+    
+    - name: Summary
+      if: success()
+      run: |
+        echo ""
+        echo "========================================"
+        echo "✓ All server tests passed successfully!"
+        echo "========================================"
+        echo ""
+        echo "Verified:"
+        echo "  • Server files are present"
+        echo "  • Server syntax is valid"
+        echo "  • Rate limiting is implemented"
+        echo "  • Request queue is implemented"
+        echo "  • Health check endpoint exists"
+        echo ""

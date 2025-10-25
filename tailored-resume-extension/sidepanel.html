@@ -9,6 +9,7 @@
   
   <!-- Your application scripts -->
   <script src="config.js"></script>
+  <script src="services/markdown-parser.js"></script>
   <script src="services/file-handler.js"></script>
   <script src="server/serverManager.js"></script>
   <script src="services/ai-service.js"></script>
@@ -32,15 +33,20 @@
     </header>
 
     <main class="main-content">
+      <!-- Upload Section - Moved to top for primary workflow -->
       <div class="section upload-section glass-morphism">
         <div class="section-header">
-          <h3>Resume Template</h3>
+          <div class="header-left">
+            <span class="material-icons section-icon">upload_file</span>
+            <h3>Resume Template</h3>
+          </div>
+          <span class="step-indicator">Step 1</span>
         </div>
         
         <div class="upload-area">
           <label for="latexFile" class="file-upload-label">
             <div class="upload-content">
-              <span class="material-icons upload-icon">upload_file</span>
+              <span class="material-icons upload-icon">cloud_upload</span>
               <span class="upload-text">Upload Resume</span>
               <span class="file-type">LaTeX (.tex) files only</span>
             </div>
@@ -50,40 +56,108 @@
         </div>
       </div>
 
-      <div class="section job-section glass-morphism">
-        <div class="section-header">
-          <h3>Job Description</h3>
+      <!-- Two-column layout for job desc and knowledge base -->
+      <div class="input-grid">
+        <div class="section job-section glass-morphism">
+          <div class="section-header">
+            <div class="header-left">
+              <span class="material-icons section-icon">work</span>
+              <h3>Job Description</h3>
+            </div>
+            <div class="header-right">
+              <div class="markdown-indicator">
+                <span class="material-icons" title="Markdown supported">markdown</span>
+                <span class="help-text">Markdown</span>
+              </div>
+              <span class="step-indicator">Step 2</span>
+            </div>
+          </div>
+          <textarea id="jobDesc" class="modern-input markdown-input" placeholder="Paste the job description here... (Markdown supported)
+
+Example:
+## Requirements
+- 3+ years of experience
+- **Python** and **JavaScript**
+
+## Responsibilities
+- Build scalable systems
+- Work with cross-functional teams"></textarea>
+          <div class="markdown-preview" id="jobDescPreview" style="display: none;"></div>
+          <button class="preview-toggle-markdown" data-target="jobDesc">
+            <span class="material-icons">visibility</span>
+            <span>Preview</span>
+          </button>
         </div>
-        <textarea id="jobDesc" class="modern-input" placeholder="Paste the job description here..."></textarea>
+
+        <div class="section knowledge-section glass-morphism">
+          <div class="section-header">
+            <div class="header-left">
+              <span class="material-icons section-icon">inventory_2</span>
+              <h3>Knowledge Base</h3>
+            </div>
+            <div class="header-right">
+              <div class="markdown-indicator">
+                <span class="material-icons" title="Markdown supported">markdown</span>
+                <span class="help-text">Markdown</span>
+              </div>
+              <span class="step-indicator">Step 3</span>
+            </div>
+          </div>
+          <textarea id="knowledgeBaseText" class="modern-input markdown-input" placeholder="Add your skills, experiences, and achievements... (Markdown supported)
+
+Example:
+## Projects
+### E-commerce Platform
+- Built with **React**, **Node.js**, **MongoDB**
+- Improved performance by **40%**
+- Handled **10,000+** daily users
+
+## Skills
+- **Languages**: Python, JavaScript, Go
+- **Frameworks**: React, Django, FastAPI"></textarea>
+          <div class="markdown-preview" id="knowledgeBasePreview" style="display: none;"></div>
+          <button class="preview-toggle-markdown" data-target="knowledgeBaseText">
+            <span class="material-icons">visibility</span>
+            <span>Preview</span>
+          </button>
+        </div>
       </div>
 
-      <div class="section knowledge-section glass-morphism">
+      <!-- Model Selection - Compact -->
+      <div class="section model-section glass-morphism compact">
         <div class="section-header">
-          <h3>Knowledge Base</h3>
+          <div class="header-left">
+            <span class="material-icons section-icon">smart_toy</span>
+            <h3>AI Model</h3>
+          </div>
+          <span class="step-indicator">Step 4</span>
         </div>
-        <textarea id="knowledgeBaseText" class="modern-input" placeholder="Add your skills, experiences, and achievements..."></textarea>
-      </div>
-
-      <div class="section model-section glass-morphism">
         <div class="model-selection">
-          <label for="modelSelect">AI Model</label>
           <select id="modelSelect" class="modern-select">
-            <option value="gemini" selected>Gemini 2.0 Flash (Thinking)</option>
+            <option value="gemini" selected>Gemini 2.5 Flash</option>
           </select>
-          <small class="model-info">Powered by Google Gemini AI</small>
+          <small class="model-info">
+            <span class="material-icons info-icon">info</span>
+            Powered by Google Gemini AI
+          </small>
         </div>
       </div>
 
-      <div class="action-buttons-container">
+      <!-- Action Button - Prominent -->
+      <div class="action-section">
         <button id="generateBtn" class="action-button primary">
           <span class="material-icons">auto_fix_high</span>
-          <span>Generate Resume</span>
+          <span>Generate Tailored Resume</span>
         </button>
       </div>
 
+      <!-- Preview Section - Collapsible -->
       <div class="section preview-section glass-morphism">
         <div class="preview-header">
-          <h3>Preview</h3>
+          <div class="header-left">
+            <span class="material-icons section-icon">preview</span>
+            <h3>Preview</h3>
+          </div>
           <div class="preview-controls">
             <div class="preview-toggle-group">
               <button class="preview-toggle-btn active" data-view="raw">

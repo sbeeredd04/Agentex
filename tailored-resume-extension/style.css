@@ -2223,3 +2223,176 @@ main {
   font-size: 16px;
   color: var(--accent-secondary);
 }
+
+/* Improved UI Layout Styles */
+
+/* Step Indicators */
+.step-indicator {
+  background: var(--accent-primary);
+  color: var(--text-primary);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Section Icons */
+.section-icon {
+  font-size: 20px;
+  color: var(--accent-secondary);
+  margin-right: var(--spacing-xs);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+/* Two-column grid for inputs */
+.input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+@media (max-width: 768px) {
+  .input-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Compact model section */
+.model-section.compact {
+  padding: var(--spacing-md);
+}
+
+.model-section.compact .model-selection {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.model-section.compact .modern-select {
+  flex: 1;
+  min-width: 200px;
+}
+
+.model-section.compact .model-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: var(--text-secondary);
+}
+
+/* Prominent action section */
+.action-section {
+  display: flex;
+  justify-content: center;
+  margin: var(--spacing-xl) 0;
+}
+
+.action-section .action-button {
+  padding: var(--spacing-md) var(--spacing-xl);
+  font-size: 1.1rem;
+  min-width: 300px;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  transition: all var(--transition-normal);
+}
+
+.action-section .action-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+}
+
+/* Upload section improvements */
+.upload-section .section-header {
+  margin-bottom: var(--spacing-md);
+}
+
+.upload-area {
+  margin-top: var(--spacing-md);
+}
+
+.file-upload-label {
+  transition: all var(--transition-normal);
+  cursor: pointer;
+}
+
+.file-upload-label:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.2);
+}
+
+.file-upload-label .upload-icon {
+  font-size: 48px;
+  color: var(--accent-primary);
+  transition: all var(--transition-normal);
+}
+
+.file-upload-label:hover .upload-icon {
+  transform: scale(1.1);
+  color: var(--accent-secondary);
+}
+
+/* Better textarea styling */
+.modern-input {
+  transition: all var(--transition-fast);
+  border: 1px solid var(--border-color);
+}
+
+.modern-input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Preview section improvements */
+.preview-section {
+  margin-top: var(--spacing-xl);
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Better visual hierarchy */
+.section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.section h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* Improved spacing */
+.main-content {
+  padding: var(--spacing-lg);
+  max-width: 100%;
+}
+
+/* Better button states */
+.action-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.action-button:disabled:hover {
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}

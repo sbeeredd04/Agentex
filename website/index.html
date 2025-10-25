@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentex - AI-Powered Resume Tailoring</title>
+    
+    <!-- TailwindCSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts - Ubuntu Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <style>
+        * {
+            font-family: 'Ubuntu Mono', monospace;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+    
+    <!-- Navigation -->
+    <nav class="bg-white border-b border-gray-200">
+        <div class="max-w-5xl mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <span class="material-icons text-gray-700">description</span>
+                    <h1 class="text-xl font-bold">Agentex</h1>
+                </div>
+                <div class="flex items-center space-x-6">
+                    <a href="#about" class="text-gray-600 hover:text-gray-900 transition">About</a>
+                    <a href="#installation" class="text-gray-600 hover:text-gray-900 transition">Get Started</a>
+                    <a href="https://github.com/sbeeredd04/Agentex" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-1 text-gray-600 hover:text-gray-900 transition">
+                        <span>GitHub</span>
+                        <span class="material-icons text-sm">open_in_new</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Hero Section -->
+    <section class="max-w-5xl mx-auto px-6 py-20">
+        <div class="text-center space-y-6">
+            <h2 class="text-5xl font-bold">AI-Powered Resume Tailoring</h2>
+            <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+                Optimize your resume for any job description using Google's Gemini AI. Pass ATS screenings and land more interviews.
+            </p>
+            <div class="pt-4">
+                <a href="https://chromewebstore.google.com/detail/agentex-resume-editor/jmgbilodbfopeidngmbaglaomffpldfd" 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   class="inline-flex items-center space-x-2 bg-gray-900 text-white px-8 py-4 rounded-lg hover:bg-gray-800 transition shadow-lg">
+                    <span class="material-icons">extension</span>
+                    <span class="text-lg font-bold">Add to Chrome</span>
+                </a>
+            </div>
+        </div>
+    </section>
+    
+    <!-- About Section -->
+    <section id="about" class="max-w-5xl mx-auto px-6 py-16">
+        <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-200">
+            <div class="flex items-center space-x-2 mb-4">
+                <span class="material-icons text-gray-700">info</span>
+                <h3 class="text-2xl font-bold">About</h3>
+            </div>
+            <div class="space-y-4 text-gray-700">
+                <p>
+                    Agentex is a Chrome extension that uses Google's Gemini AI to intelligently tailor your resume to specific job descriptions. It helps you pass ATS (Applicant Tracking System) screenings and land more interviews by optimizing your resume content.
+                </p>
+                <p>
+                    The extension works exclusively with LaTeX resume files, ensuring professional typesetting while leveraging AI to replace projects, enhance skills, and refine experience descriptions based on the target job requirements.
+                </p>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Features Section -->
+    <section class="max-w-5xl mx-auto px-6 py-16">
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+                <div class="flex items-center space-x-2 mb-3">
+                    <span class="material-icons text-gray-700">psychology</span>
+                    <h4 class="text-lg font-bold">Gemini AI-Powered</h4>
+                </div>
+                <p class="text-gray-600">
+                    Leverages Google's latest Gemini 2.0 Flash model for intelligent resume optimization and project replacement.
+                </p>
+            </div>
+            
+            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+                <div class="flex items-center space-x-2 mb-3">
+                    <span class="material-icons text-gray-700">check_circle</span>
+                    <h4 class="text-lg font-bold">ATS Optimization</h4>
+                </div>
+                <p class="text-gray-600">
+                    Ensures your resume passes automated screening systems with proper keyword matching and formatting.
+                </p>
+            </div>
+            
+            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+                <div class="flex items-center space-x-2 mb-3">
+                    <span class="material-icons text-gray-700">picture_as_pdf</span>
+                    <h4 class="text-lg font-bold">PDF Generation</h4>
+                </div>
+                <p class="text-gray-600">
+                    Compile LaTeX resumes to PDF directly in the browser with real-time preview and side-by-side comparison.
+                </p>
+            </div>
+            
+            <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+                <div class="flex items-center space-x-2 mb-3">
+                    <span class="material-icons text-gray-700">storage</span>
+                    <h4 class="text-lg font-bold">Knowledge Base</h4>
+                </div>
+                <p class="text-gray-600">
+                    Maintain a repository of additional projects and experience to draw from for better resume tailoring.
+                </p>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Installation Section -->
+    <section id="installation" class="max-w-5xl mx-auto px-6 py-16">
+        <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-200">
+            <div class="flex items-center space-x-2 mb-6">
+                <span class="material-icons text-gray-700">download</span>
+                <h3 class="text-2xl font-bold">Get Started</h3>
+            </div>
+            
+            <div class="space-y-6">
+                <div class="flex items-start space-x-4">
+                    <div class="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold">
+                        1
+                    </div>
+                    <div>
+                        <h4 class="font-bold mb-1">Install the Extension</h4>
+                        <p class="text-gray-600">
+                            Add Agentex to Chrome from the Chrome Web Store or load it from source for development.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flex items-start space-x-4">
+                    <div class="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold">
+                        2
+                    </div>
+                    <div>
+                        <h4 class="font-bold mb-1">Configure API Key</h4>
+                        <p class="text-gray-600">
+                            Get a free Gemini API key from Google AI Studio and enter it in the extension settings.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flex items-start space-x-4">
+                    <div class="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold">
+                        3
+                    </div>
+                    <div>
+                        <h4 class="font-bold mb-1">Upload Resume & Job Description</h4>
+                        <p class="text-gray-600">
+                            Upload your LaTeX resume file and paste the target job description to begin optimization.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flex items-start space-x-4">
+                    <div class="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold">
+                        4
+                    </div>
+                    <div>
+                        <h4 class="font-bold mb-1">Generate & Download</h4>
+                        <p class="text-gray-600">
+                            Click generate to let AI tailor your resume, then download the optimized version as PDF.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="pt-6 border-t border-gray-200">
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-sm text-gray-600 mb-2">For development installation:</p>
+                        <code class="block bg-gray-900 text-gray-100 p-3 rounded text-sm overflow-x-auto">
+git clone https://github.com/sbeeredd04/Agentex.git
+cd Agentex
+# Load tailored-resume-extension in chrome://extensions/
+                        </code>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Chrome Extension CTA -->
+    <section class="max-w-5xl mx-auto px-6 py-16">
+        <div class="bg-gray-900 text-white rounded-lg p-12 text-center">
+            <h3 class="text-3xl font-bold mb-4">Ready to optimize your resume?</h3>
+            <p class="text-gray-300 mb-8 max-w-xl mx-auto">
+                Install the Agentex Chrome Extension and start tailoring your resume with AI-powered precision.
+            </p>
+            <a href="https://chromewebstore.google.com/detail/agentex-resume-editor/jmgbilodbfopeidngmbaglaomffpldfd" 
+               target="_blank" 
+               rel="noopener noreferrer"
+               class="inline-flex items-center space-x-2 bg-white text-gray-900 px-8 py-4 rounded-lg hover:bg-gray-100 transition shadow-lg font-bold">
+                <span class="material-icons">extension</span>
+                <span class="text-lg">Add to Chrome</span>
+                <span class="material-icons">open_in_new</span>
+            </a>
+        </div>
+    </section>
+    
+    <!-- Footer -->
+    <footer class="max-w-5xl mx-auto px-6 py-12 border-t border-gray-200 mt-12">
+        <div class="flex items-center justify-between text-sm text-gray-600">
+            <p>© 2025 Agentex. MIT License.</p>
+            <div class="flex items-center space-x-6">
+                <a href="https://github.com/sbeeredd04/Agentex" target="_blank" rel="noopener noreferrer" class="hover:text-gray-900 transition flex items-center space-x-1">
+                    <span>GitHub</span>
+                    <span class="material-icons text-sm">open_in_new</span>
+                </a>
+                <a href="https://github.com/sbeeredd04/Agentex/issues" target="_blank" rel="noopener noreferrer" class="hover:text-gray-900 transition flex items-center space-x-1">
+                    <span>Issues</span>
+                    <span class="material-icons text-sm">open_in_new</span>
+                </a>
+            </div>
+        </div>
+    </footer>
+    
+</body>
+</html>

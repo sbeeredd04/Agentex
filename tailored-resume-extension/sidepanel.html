@@ -9,9 +9,11 @@
   
   <!-- Your application scripts -->
   <script src="config.js"></script>
+  <script src="services/model-config.js"></script>
   <script src="services/file-handler.js"></script>
   <script src="server/serverManager.js"></script>
   <script src="services/ai-service.js"></script>
+  <script src="services/claude-service.js"></script>
   <script src="sidepanel.js"></script>
 </head>
 <body>
@@ -66,11 +68,26 @@
 
       <div class="section model-section glass-morphism">
         <div class="model-selection">
-          <label for="modelSelect">AI Model</label>
-          <select id="modelSelect" class="modern-select">
-            <option value="gemini" selected>Gemini 2.0 Flash (Thinking)</option>
+          <label for="providerSelect">AI Provider</label>
+          <select id="providerSelect" class="modern-select" style="margin-bottom: 12px;">
+            <option value="gemini" selected>Google Gemini</option>
+            <option value="claude">Anthropic Claude</option>
           </select>
-          <small class="model-info">Powered by Google Gemini AI</small>
+          
+          <label for="modelSelect">Model</label>
+          <select id="modelSelect" class="modern-select">
+            <optgroup label="Gemini Models">
+              <option value="gemini-2.0-flash-exp" selected>Gemini 2.0 Flash (Experimental) ⚡</option>
+              <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+              <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+            </optgroup>
+            <optgroup label="Claude Models">
+              <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet ⭐</option>
+              <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
+              <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+            </optgroup>
+          </select>
+          <small class="model-info" id="modelInfo">Fast, efficient, and latest Gemini model</small>
         </div>
       </div>
 
@@ -131,6 +148,7 @@
             <h3>API Keys</h3>
             <span class="section-description">Configure your API keys for AI services</span>
           </div>
+          
           <div class="api-key-input">
             <div class="api-key-header">
               <label for="geminiApiKey">Gemini API Key</label>
@@ -147,6 +165,21 @@
             </div>
           </div>
 
+          <div class="api-key-input" style="margin-top: 16px;">
+            <div class="api-key-header">
+              <label for="claudeApiKey">Claude API Key (Optional)</label>
+              <a href="https://console.anthropic.com/settings/keys" target="_blank" class="api-link" title="Get Claude API Key">
+                <span class="material-icons">key</span>
+                Get API Key
+              </a>
+            </div>
+            <div class="input-group">
+              <input type="password" id="claudeApiKey" class="modern-input" placeholder="Enter your Claude API key (optional)">
+              <button class="icon-button toggle-visibility" data-for="claudeApiKey" title="Toggle visibility">
+                <span class="material-icons">visibility_off</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="settings-section">

@@ -1,19 +1,20 @@
 # Agentex Resume Editor
 
-**AI-Powered Resume Tailoring Chrome Extension**
+**AI-Powered Resume Tailoring Chrome Extension with Multi-Model Support**
 
-Agentex is a Chrome extension that uses Google's Gemini AI to intelligently tailor your resume to specific job descriptions, helping you pass ATS (Applicant Tracking System) screenings and land more interviews.
+Agentex is a professional Chrome extension that uses cutting-edge AI models (Google Gemini & Anthropic Claude) to intelligently tailor your resume to specific job descriptions, helping you pass ATS (Applicant Tracking System) screenings and land more interviews.
 
 ## 🌟 Features
 
+- **Multi-Model AI Support**: Choose between Google Gemini 2.0 Flash or Claude 3.5 Sonnet for optimal results
 - **Smart Resume Tailoring**: Automatically optimize your resume for any job description
 - **LaTeX-Only Format**: Works exclusively with LaTeX (.tex) resume files for professional typesetting
-- **Gemini AI-Powered**: Leverages Google's latest Gemini 2.0 Flash model for intelligent optimization
-- **Project Replacement**: Intelligently replaces resume projects with more relevant ones from your knowledge base
+- **Intelligent Project Replacement**: Replaces resume projects with more relevant ones from your knowledge base
 - **ATS Optimization**: Ensures your resume passes automated screening systems
 - **Real-time Preview**: View your changes instantly with side-by-side comparison
 - **PDF Generation**: Compile LaTeX resumes to PDF directly in the browser
 - **Knowledge Base**: Maintain a repository of additional projects and experience to draw from
+- **Professional Dark Theme**: Modern, minimalist UI designed for focus and productivity
 
 ## 📋 Table of Contents
 
@@ -44,10 +45,11 @@ Agentex is a Chrome extension that uses Google's Gemini AI to intelligently tail
    - Click "Load unpacked"
    - Select the `tailored-resume-extension` directory
 
-3. **Configure API Key**
+3. **Configure API Keys**
    - Click the extension icon in Chrome
    - Click the Settings gear icon
-   - Enter your Gemini API key (get one at [Google AI Studio](https://makersuite.google.com/app/apikey))
+   - Enter your Gemini API key (get one at [Google AI Studio](https://aistudio.google.com/app/apikey))
+   - (Optional) Enter your Claude API key (get one at [Anthropic Console](https://console.anthropic.com/settings/keys))
    - Click "Save Settings"
 
 ### From Chrome Web Store (Coming Soon)
@@ -65,7 +67,12 @@ _The extension will be available on the Chrome Web Store once it completes the r
    - Select your LaTeX (.tex) resume file
    - The file will be parsed and displayed in the preview
 
-3. **Add Job Description**
+3. **Select AI Model**
+   - Choose between Gemini or Claude providers
+   - Select your preferred model variant
+   - Gemini 2.0 Flash (Experimental) and Claude 3.5 Sonnet are recommended
+
+4. **Add Job Description**
    - Paste the target job description in the "Job Description" text area
    - The system will analyze requirements and keywords
 
@@ -136,21 +143,24 @@ Agentex/
 ### Technology Stack
 
 - **Frontend**: Vanilla JavaScript (ES6+), HTML5, CSS3
-- **AI Service**: Google Gemini 2.0 Flash API
-- **File Processing**: 
-  - 
-  - PizZip (ZIP handling)
-  - 
+- **AI Services**: 
+  - Google Gemini 2.0 Flash (Experimental) API
+  - Anthropic Claude 3.5 Sonnet API
+- **File Processing**: LaTeX parsing and compilation
+- **LaTeX Compilation**: Node.js server with LaTeX toolchain
+- **Chrome APIs**: Storage, Side Panel, Context Menus
+- **Design**: Modern dark theme with glass morphism effects
 - **LaTeX Compilation**: Node.js server with LaTeX toolchain
 - **Chrome APIs**: Storage, Side Panel, Context Menus
 
 ### Key Components
 
-#### AI Service (`services/ai-service.js`)
-- Handles all Gemini API communication
-- Manages prompt templates
+#### AI Services
+- **Gemini Service** (`services/ai-service.js`): Handles Google Gemini API communication
+- **Claude Service** (`services/claude-service.js`): Handles Anthropic Claude API communication
+- **Model Config** (`services/model-config.js`): Manages multi-model configuration and selection
+- Supports both single-pass and multi-agent processing modes
 - Implements response cleaning and validation
-- Supports both single-pass and multi-agent modes
 
 #### File Handler (`services/file-handler.js`)
 - Detects LaTeX file type (.tex)
@@ -168,18 +178,31 @@ Agentex/
 
 ### API Keys
 
-The extension requires a Gemini API key to function. You can configure it in two ways:
+The extension supports multiple AI providers. You can configure them in two ways:
 
 1. **Through Settings UI**
-   - Click Settings icon → Enter API key → Save
+   - Click Settings icon → Enter API key(s) → Save
+   - Gemini: Get key at [Google AI Studio](https://aistudio.google.com/app/apikey)
+   - Claude: Get key at [Anthropic Console](https://console.anthropic.com/settings/keys)
 
 2. **In config.js** (for development)
    ```javascript
    const config = {
-     GEMINI_API_KEY: 'your-api-key-here',
-     GEMINI_MODEL: 'gemini-2.0-flash'
+     GEMINI_API_KEY: 'your-gemini-api-key-here',
+     CLAUDE_API_KEY: 'your-claude-api-key-here',
+     DEFAULT_PROVIDER: 'gemini' // or 'claude'
    };
    ```
+
+### Model Selection
+
+Available models:
+- **Gemini 2.0 Flash (Experimental)** - Latest, fast, with thinking capabilities (Recommended)
+- **Gemini 1.5 Pro** - More accurate, detailed analysis
+- **Gemini 1.5 Flash** - Fast and efficient
+- **Claude 3.5 Sonnet** - Excellent for nuanced language (Recommended)
+- **Claude 3.5 Haiku** - Fast and efficient
+- **Claude 3 Opus** - Most powerful, best for complex resumes
 
 ### Custom Prompts
 

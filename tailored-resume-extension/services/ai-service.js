@@ -17,12 +17,12 @@ class AIService {
   constructor() {
     console.log('[AIService] Initializing Gemini AI Service');
     
-    // Initialize Gemini endpoint
-    this.endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+    // Initialize Gemini endpoint with latest experimental model
+    this.endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
     
     // Initialize model configuration
     this.model = {
-      name: 'gemini-2.0-flash',
+      name: 'gemini-2.0-flash-exp',
       apiKey: null
     };
 

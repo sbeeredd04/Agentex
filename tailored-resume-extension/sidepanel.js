@@ -2,6 +2,7 @@
 
 // Global variables and state
 let aiService;
+let claudeService;
 let originalLatex = null;
 let tailoredLatex = null;
 let originalCoverLetter = null;
@@ -11,8 +12,8 @@ let currentJobTitle = null;
 let currentFile = null;
 
 let currentModelSelection = {
-  type: 'gemini',
-  model: null
+  provider: 'gemini',
+  model: 'gemini-2.0-flash-exp'
 };
 
 let sidebarState = {
@@ -20,8 +21,8 @@ let sidebarState = {
   previewMode: 'text',
   contentType: 'original',
   selectedModel: {
-    type: 'gemini',
-    model: null,
+    provider: 'gemini',
+    model: 'gemini-2.0-flash-exp',
     lastUsed: null
   },
   lastJobDescription: '',
@@ -352,30 +353,20 @@ function setupPreviewUI() {
         rawPreview.style.display = 'none';
         compiledPreview.style.display = 'block';
         
-        // Get the appropriate content
-        " frameborder="0"></iframe>
-                </div>
-              </div>
-            `;
-            
-            // Add window function for download
-          } else {
-            // If no HTML content, show a message
-            compiledPreview.innerHTML = `
-              <div class="info-message">
-                <span class="material-icons">info</span>
-              </div>
-            `;
-          }
+        // For LaTeX files, use the PDF preview
+        const content = sidebarState.contentType === 'generated' 
+          ? tailoredLatex 
+          : originalLatex;
+          
+        if (content) {
+          await generateLatexPreview(content);
         } else {
-          // For LaTeX files, use the PDF preview
-          const content = sidebarState.contentType === 'generated' 
-            ? tailoredLatex 
-            : originalLatex;
-            
-          if (content) {
-            await generateLatexPreview(content);
-          }
+          compiledPreview.innerHTML = `
+            <div class="info-message">
+              <span class="material-icons">info</span>
+              <p>No content available for compilation</p>
+            </div>
+          `;
         }
       }
     });
@@ -385,7 +376,7 @@ function setupPreviewUI() {
   const updateCompiledButtonState = () => {
     const compiledButton = document.querySelector('.preview-toggle-btn[data-view="compiled"]');
     if (compiledButton) {
-       else if (sidebarState.fileType === 'latex') {
+      if (sidebarState.fileType === 'latex') {
         compiledButton.disabled = false;
         compiledButton.title = 'View compiled PDF';
       } else {
@@ -420,7 +411,8 @@ async function updatePreview() {
     console.log('[Preview] Updating preview:', {
       fileType: sidebarState.fileType,
       contentType: sidebarState.contentType,
-      hasOriginalContent: !!sidebarState.originalContent,
+      hasOriginalContent: !!sidebarState.originalContent
+    });
 
     // Get content based on type
     let contentToShow;
@@ -439,17 +431,18 @@ async function updatePreview() {
         if (!contentToShow) {
           const { generatedRawContent } = await chrome.storage.local.get('generatedRawContent');
           contentToShow = generatedRawContent;
+          console.log('[Preview] Got content from storage:', {
             hasContent: !!contentToShow,
-            contentLength: contentToShow?.length
+            contentLength: contentToShow ? contentToShow.length : 0
           });
         }
       } else {
         contentToShow = sidebarState.originalContent;
       }
       
-      console.log('[Preview] Using LaTeX content:', {
+      console.log('[Preview] Using content:', {
         isGenerated: sidebarState.contentType === 'generated',
-        contentLength: contentToShow?.length
+        contentLength: contentToShow ? contentToShow.length : 0
       });
     }
 
@@ -709,10 +702,6 @@ async function restoreState() {
             // For LaTeX files, create a text file
             const blob = new Blob([savedState.originalContent || ''], { type: 'text/plain' });
             file = new File([blob], sidebarState.uploadedFileName, { type: 'text/plain' });
-          } else );
-            file = new File([blob], sidebarState.uploadedFileName, { 
-              type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
-            });
           }
 
           if (file) {
@@ -722,6 +711,7 @@ async function restoreState() {
             // After successful upload, restore any generated content if it exists
             if (sidebarState.fileType === 'latex' && savedTailoredLatex) {
               tailoredLatex = savedTailoredLatex;
+            }
           }
         } catch (error) {
           showToast('Error loading file. Please re-upload manually.', 'error');
@@ -923,12 +913,21 @@ async function initializeSidepanel() {
       throw new Error('AIService not found');
     }
     
+    if (!window.ClaudeService) {
+      console.warn('ClaudeService not found - Claude models will be unavailable');
+    }
     
-    aiService = new window.AIService();    
+    // Initialize AI services
+    aiService = new window.AIService();
+    if (window.ClaudeService) {
+      claudeService = new window.ClaudeService();
+    }
+    
     const elements = setupUIElements();
     setupEventListeners(elements);
     setupPreviewUI();
     setupModelSelector();
+    setupProviderSelector();
     setupApiKeyManagement();
     setupPreviewToggle();
     
@@ -961,8 +960,68 @@ function cleanupBlobUrls() {
 }
 
 /**
+ * Setup provider selector UI
+ * Configures the AI provider selection dropdown
+ */
+function setupProviderSelector() {
+  const providerSelect = document.getElementById('providerSelect');
+  if (!providerSelect) {
+    console.warn('[ProviderSelector] Provider select element not found');
+    return;
+  }
+
+  providerSelect.addEventListener('change', (e) => {
+    const provider = e.target.value;
+    currentModelSelection.provider = provider;
+    sidebarState.selectedModel.provider = provider;
+    
+    // Update model dropdown
+    updateModelDropdown(provider);
+    saveState();
+    
+    console.log('[ProviderSelector] Provider changed to:', provider);
+  });
+}
+
+/**
+ * Update model dropdown based on selected provider
+ */
+function updateModelDropdown(provider) {
+  const modelSelect = document.getElementById('modelSelect');
+  const modelInfo = document.getElementById('modelInfo');
+  
+  if (!modelSelect) return;
+  
+  // Get models for selected provider
+  const models = window.ModelConfig?.getProviderModels(provider);
+  if (!models) return;
+  
+  // Clear and populate options
+  modelSelect.innerHTML = '';
+  
+  for (const [modelId, config] of Object.entries(models)) {
+    const option = document.createElement('option');
+    option.value = modelId;
+    option.textContent = config.name;
+    if (config.recommended) {
+      option.selected = true;
+      currentModelSelection.model = modelId;
+    }
+    modelSelect.appendChild(option);
+  }
+  
+  // Update model info
+  if (modelInfo) {
+    const selectedConfig = models[modelSelect.value];
+    if (selectedConfig) {
+      modelInfo.textContent = selectedConfig.features.join(', ');
+    }
+  }
+}
+
+/**
  * Setup model selector UI
- * Configures the Gemini model selection dropdown
+ * Configures the model selection dropdown
  */
 function setupModelSelector() {
   const modelSelect = document.getElementById('modelSelect');
@@ -971,66 +1030,31 @@ function setupModelSelector() {
     return;
   }
 
-  // Clear existing options
-  modelSelect.innerHTML = '';
-
-  // Add Gemini option (only option now)
-  const geminiOption = document.createElement('option');
-  geminiOption.value = 'gemini';
-  geminiOption.textContent = 'Gemini 2.0 Flash (Thinking)';
-  geminiOption.selected = true;
-  modelSelect.appendChild(geminiOption);
+  // Initialize with current provider
+  updateModelDropdown(currentModelSelection.provider);
 
   // Add event listener for model selection
   modelSelect.addEventListener('change', (e) => {
-    currentModelSelection = {
-      type: 'gemini',
-      model: null,
-      description: 'Gemini 2.0 Flash'
-    };
-
-    // Save to state
-    sidebarState.selectedModel = currentModelSelection;
+    const modelId = e.target.value;
+    currentModelSelection.model = modelId;
+    sidebarState.selectedModel.model = modelId;
     saveState();
-
-    // Show model info in status
-    showStatus(`Using ${currentModelSelection.description}`, 'info');
+    
+    // Update model info
+    const modelInfo = document.getElementById('modelInfo');
+    if (modelInfo) {
+      const config = window.ModelConfig?.getModelConfig(currentModelSelection.provider, modelId);
+      if (config) {
+        modelInfo.textContent = config.features.join(', ');
+      }
+    }
+    
+    console.log('[ModelSelector] Model changed to:', modelId);
   });
 
-  // Set default selection
-  currentModelSelection = {
-    type: 'gemini',
-    model: null,
-    description: 'Gemini 2.0 Flash'
-  };
-  modelSelect.value = 'gemini';
-
-  // Add info note about Gemini
-  const modelSelectContainer = modelSelect.parentElement;
-  if (modelSelectContainer) {
-    // Remove any existing notes
-    const existingNote = modelSelectContainer.querySelector('.model-info-note');
-    if (existingNote) {
-      existingNote.remove();
-    }
-
-    const infoNote = document.createElement('div');
-    infoNote.className = 'model-info-note';
-    infoNote.innerHTML = '<span class="info-icon">ℹ️</span> Powered by Google Gemini 2.0 Flash';
-    infoNote.style.fontSize = '12px';
-    infoNote.style.color = '#888';
-    infoNote.style.marginTop = '5px';
-    infoNote.style.display = 'flex';
-    infoNote.style.alignItems = 'center';
-    infoNote.style.gap = '5px';
-    
-    modelSelectContainer.appendChild(infoNote);
-  }
-
-  // Log model initialization
-  console.log('[ModelSelector] Gemini model initialized:', {
-    model: 'gemini-2.0-flash',
-    currentSelection: currentModelSelection
+  console.log('[ModelSelector] Model selector initialized:', {
+    provider: currentModelSelection.provider,
+    model: currentModelSelection.model
   });
 }
 
@@ -1047,7 +1071,7 @@ async function generateTailoredContent() {
     // Determine pipeline based on file type
     let result;
     
-    } else if (sidebarState.fileType === 'latex') {
+    if (sidebarState.fileType === 'latex') {
       if (!originalLatex) {
         throw new Error("Please upload a LaTeX file first");
       }
@@ -1058,10 +1082,8 @@ async function generateTailoredContent() {
 
     if (result.success) {
       // Update state based on file type
-       else {
-        tailoredLatex = result.content;
-        sidebarState.tailoredContent = result.content;
-      }
+      tailoredLatex = result.content;
+      sidebarState.tailoredContent = result.content;
       
       sidebarState.contentType = 'generated';
       await chrome.storage.local.set({ sidebarState });
@@ -1123,14 +1145,27 @@ async function generateTailoredLatex() {
     document.addEventListener('aiServiceStatus', statusListener);
     
     try {
-      // Use the new multi-step generation method
-      const tailoredContent = await aiService.generateTailoredResume(
-        originalLatex,
-        jobDesc,
-        knowledgeBase,
-        currentModelSelection.type,
-        currentModelSelection.model
-      );
+      // Select AI service based on provider
+      let service, tailoredContent;
+      
+      if (currentModelSelection.provider === 'claude') {
+        if (!claudeService) {
+          throw new Error('Claude service not available');
+        }
+        service = claudeService;
+        tailoredContent = await service.generateTailoredResume(
+          originalLatex,
+          jobDesc,
+          knowledgeBase
+        );
+      } else {
+        service = aiService;
+        tailoredContent = await service.generateTailoredResume(
+          originalLatex,
+          jobDesc,
+          knowledgeBase
+        );
+      }
 
       return {
         success: true,
@@ -1159,6 +1194,7 @@ function setupApiKeyManagement() {
   const closeBtn = document.querySelector('.close-modal');
   const saveBtn = document.getElementById('saveApiKeys');
   const geminiInput = document.getElementById('geminiApiKey');
+  const claudeInput = document.getElementById('claudeApiKey');
   const promptInput = document.getElementById('customPrompt');
   const jobAnalysisPromptInput = document.getElementById('jobAnalysisPrompt');
   const projectsOptimizationPromptInput = document.getElementById('projectsOptimizationPrompt');
@@ -1169,7 +1205,8 @@ function setupApiKeyManagement() {
 
   // Load saved settings
   chrome.storage.local.get([
-    'geminiApiKey', 
+    'geminiApiKey',
+    'claudeApiKey',
     'customPrompt', 
     'jobAnalysisPrompt',
     'projectsOptimizationPrompt',
@@ -1177,8 +1214,9 @@ function setupApiKeyManagement() {
     'experienceRefinementPrompt',
     'finalPolishPrompt'
   ], (result) => {
-    // Set API key
+    // Set API keys
     if (result.geminiApiKey) geminiInput.value = result.geminiApiKey;
+    if (result.claudeApiKey) claudeInput.value = result.claudeApiKey;
 
     // Set prompts only if they exist in storage (not empty)
     if (result.customPrompt) promptInput.value = result.customPrompt;
@@ -1232,7 +1270,8 @@ function setupApiKeyManagement() {
 
       // Get all values
       const settings = {
-        geminiApiKey: geminiInput.value.trim()
+        geminiApiKey: geminiInput.value.trim(),
+        claudeApiKey: claudeInput.value.trim()
       };
 
       // Only save non-empty prompts
@@ -1244,14 +1283,20 @@ function setupApiKeyManagement() {
       if (finalPolishPromptInput.value.trim()) settings.finalPolishPrompt = finalPolishPromptInput.value.trim();
 
       // Validate required fields
-      if (!settings.geminiApiKey) {
-        throw new Error('Please enter your Gemini API key');
+      if (!settings.geminiApiKey && !settings.claudeApiKey) {
+        throw new Error('Please enter at least one API key (Gemini or Claude)');
       }
 
       // Save to Chrome storage
       await chrome.storage.local.set(settings);
 
       // Reinitialize services with new settings
+      if (settings.geminiApiKey) {
+        await aiService.loadSettings();
+      }
+      if (settings.claudeApiKey && claudeService) {
+        await claudeService.loadSettings();
+      }
       if (window.AIService) {
         aiService = new window.AIService();
       }

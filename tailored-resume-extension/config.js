@@ -19,15 +19,23 @@ console.log('[Config] Loading configuration module');
 const config = {
   // Gemini AI Configuration
   GEMINI_API_KEY: 'AIzaSyCsVeBSru9Wu51L9QA8EIjWlP2_Zow4FC8',
-  GEMINI_MODEL: 'gemini-2.0-flash',
-  GEMINI_ENDPOINT: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+  GEMINI_MODEL: 'gemini-2.0-flash-exp',
+  GEMINI_ENDPOINT: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
+  
+  // Claude AI Configuration (Optional)
+  CLAUDE_API_KEY: '',
+  CLAUDE_MODEL: 'claude-3-5-sonnet-20241022',
   
   // Application Settings
   APP_NAME: 'Agentex Resume Editor',
-  APP_VERSION: '2.0',
+  APP_VERSION: '3.0',
   
   // Server Configuration
-  SERVER_URL: 'https://agentex.onrender.com'
+  SERVER_URL: 'https://agentex.onrender.com',
+  
+  // AI Provider Settings
+  DEFAULT_PROVIDER: 'gemini', // 'gemini' or 'claude'
+  ENABLE_FALLBACK: true
 };
 
 // Make configuration available globally

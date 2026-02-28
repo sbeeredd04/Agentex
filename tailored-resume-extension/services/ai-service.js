@@ -55,7 +55,7 @@ class AIService {
       const settings = await chrome.storage.local.get([
         'geminiApiKey', 'claudeApiKey',
         'selectedProvider', 'selectedModelId',
-        'customPrompt',
+        'systemPrompt', 'guardrailRules',
         'strictMode', 'preserveEducation', 'preserveContact'
       ]);
 
@@ -64,9 +64,13 @@ class AIService {
       this.currentProvider = settings.selectedProvider || this.currentProvider;
       this.currentModelId = settings.selectedModelId || this.currentModelId;
 
-      if (settings.customPrompt) {
-        this._customPrompt = settings.customPrompt;
+      if (settings.systemPrompt) {
+        this._customPrompt = settings.systemPrompt;
+      } else {
+        this._customPrompt = null;
       }
+
+      this._guardrailRules = settings.guardrailRules || '';
 
       this.guardrailSettings = {
         strictMode: settings.strictMode !== false,
@@ -299,7 +303,8 @@ ${allowedSkills || 'Use only what appears in the original resume'}
 - Keep date formats exactly as-is
 
 ### LENGTH: Output must be within ±20% of original length
-### PROTECTED: ${this.guardrails.PROTECTED_SECTIONS?.join(', ') || 'education, contact, name'}`;
+### PROTECTED: ${this.guardrails.PROTECTED_SECTIONS?.join(', ') || 'education, contact, name'}
+${this._guardrailRules ? `\n### USER HARD RULES (MUST FOLLOW — these override other guidance):\n${this._guardrailRules.split('\n').filter(l => l.trim()).map(l => `- ${l.trim()}`).join('\n')}` : ''}`;
   }
 
   _formatUserInstructions() {
@@ -583,6 +588,14 @@ OUTPUT ONLY THE CORRECTED LATEX CODE:`;
     }
 
     return new Error(msg);
+  }
+
+  /** Get the default system prompt text */
+  static getDefaultPrompt() {
+    // Create a temporary instance to get the prompt
+    const temp = Object.create(AIService.prototype);
+    temp.guardrailSettings = { strictMode: true, preserveEducation: true, preserveContact: true };
+    return temp._getExpertSystemPrompt();
   }
 
   /** Get current status for UI */

@@ -105,6 +105,14 @@ async function handleMessage(message, sender) {
       };
     }
 
+    // ---- GET DEFAULT PROMPT ----
+    case 'GET_DEFAULT_PROMPT': {
+      if (self.AIService?.getDefaultPrompt) {
+        return { prompt: self.AIService.getDefaultPrompt() };
+      }
+      return { prompt: '' };
+    }
+
     // ---- SET MODEL ----
     case 'SET_MODEL': {
       await chrome.storage.local.set({
@@ -202,15 +210,23 @@ async function handleMessage(message, sender) {
       const view = message.view || 'main';
       await chrome.storage.local.set({ sidePanelView: view });
       try {
-        if (sender.tab?.id) {
-          await chrome.sidePanel.open({ tabId: sender.tab.id });
-        } else if (sender.tab?.windowId) {
-          await chrome.sidePanel.open({ windowId: sender.tab.windowId });
+        // Prefer windowId — more reliable across Chrome versions
+        const windowId = sender.tab?.windowId;
+        const tabId = sender.tab?.id;
+        if (windowId) {
+          await chrome.sidePanel.open({ windowId });
+        } else if (tabId) {
+          await chrome.sidePanel.open({ tabId });
+        } else {
+          // Fallback: get current window
+          const win = await chrome.windows.getCurrent();
+          await chrome.sidePanel.open({ windowId: win.id });
         }
+        return { success: true };
       } catch (e) {
-        console.warn('[BG] sidePanel.open error (may already be open):', e.message);
+        console.error('[BG] sidePanel.open error:', e.message);
+        return { error: `Could not open side panel: ${e.message}` };
       }
-      return { success: true };
     }
 
     // ---- SETTINGS CHANGED ----

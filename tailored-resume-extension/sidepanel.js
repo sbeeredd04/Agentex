@@ -30,11 +30,10 @@
     setupUpload();
     setupSettings();
     setupSettingsToggle();
-    setupAdvancedToggle();
+    setupPromptSection();
     setupBugReport();
     setupStorageSync();
     await restoreState();
-    await loadAnalytics();
     updateBanner();
   }
 
@@ -216,14 +215,37 @@
     });
   }
 
-  function setupAdvancedToggle() {
-    const toggle = $('#toggle-advanced');
-    const content = $('#advanced-content');
+  // ── System Prompt Section (collapsible, with default + reset) ──
+  let _defaultPrompt = '';
+
+  function setupPromptSection() {
+    const toggle = $('#toggle-prompt-section');
+    const content = $('#prompt-section-content');
+    const promptArea = $('#system-prompt');
+    const resetBtn = $('#btn-reset-prompt');
+
     if (toggle && content) {
       toggle.addEventListener('click', () => {
         const isHidden = content.style.display === 'none';
         content.style.display = isHidden ? 'block' : 'none';
         toggle.querySelector('.section-hint .material-icons').textContent = isHidden ? 'expand_less' : 'expand_more';
+      });
+    }
+
+    // Load the default prompt from the background/AI service
+    chrome.runtime.sendMessage({ type: 'GET_DEFAULT_PROMPT' }).then(res => {
+      _defaultPrompt = res?.prompt || '';
+      // If prompt area is empty, show the default
+      if (promptArea && !promptArea.value) {
+        promptArea.value = _defaultPrompt;
+      }
+    }).catch(() => { });
+
+    // Reset button
+    if (resetBtn && promptArea) {
+      resetBtn.addEventListener('click', () => {
+        promptArea.value = _defaultPrompt;
+        showToast('Prompt reset to default.', 'success');
       });
     }
   }
@@ -242,31 +264,13 @@
     });
   }
 
-  // ── Analytics ──
-  async function loadAnalytics() {
-    try {
-      const analytics = config.getAnalytics ? await config.getAnalytics() : { generations: 0, errors: 0, models: {} };
-      if ($('#stat-generations')) $('#stat-generations').textContent = analytics.generations || 0;
-      if ($('#stat-errors')) $('#stat-errors').textContent = analytics.errors || 0;
-
-      const usage = $('#stat-model-usage');
-      if (usage && analytics.models && Object.keys(analytics.models).length > 0) {
-        const lines = Object.entries(analytics.models)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([key, count]) => `${key.split(':')[1] || key}: ${count}`)
-          .join(' | ');
-        usage.textContent = `Most used: ${lines}`;
-      }
-    } catch { }
-  }
-
   // ── State ──
   async function restoreState() {
     const data = await chrome.storage.local.get([
       'resumeLatex', 'resumeFilename', 'selectedModel', 'geminiApiKey', 'claudeApiKey',
       'knowledgeBase', 'focusSkills', 'focusExperience', 'focusSummary', 'focusProjects',
-      'preserveEducation', 'preserveContact', 'strictMode', 'customInstructions', 'systemPrompt'
+      'preserveEducation', 'preserveContact', 'strictMode', 'customInstructions',
+      'systemPrompt', 'guardrailRules'
     ]);
 
     if (data.resumeFilename && fileStatus) {
@@ -298,11 +302,18 @@
     }
 
     if (data.customInstructions) $('#custom-instructions').value = data.customInstructions;
-    if (data.systemPrompt) $('#system-prompt').value = data.systemPrompt;
+    if (data.guardrailRules && $('#guardrail-rules')) $('#guardrail-rules').value = data.guardrailRules;
+
+    // System prompt: if user has a saved custom one, show it; otherwise setupPromptSection fills the default
+    if (data.systemPrompt && $('#system-prompt')) $('#system-prompt').value = data.systemPrompt;
   }
 
   async function saveSettings() {
     const [provider, modelId] = (modelSelect ? modelSelect.value : 'gemini:gemini-2.5-flash').split(':');
+
+    // If the system prompt matches the default, don't save it (so AI service uses built-in default)
+    const promptVal = $('#system-prompt')?.value.trim() || '';
+    const isDefaultPrompt = promptVal === _defaultPrompt.trim();
 
     await chrome.storage.local.set({
       selectedModel: modelSelect ? modelSelect.value : null,
@@ -319,7 +330,8 @@
       preserveContact: $('#preserve-contact')?.checked ?? true,
       strictMode: $('#strict-mode')?.checked ?? true,
       customInstructions: $('#custom-instructions')?.value.trim(),
-      systemPrompt: $('#system-prompt')?.value.trim(),
+      systemPrompt: isDefaultPrompt ? '' : promptVal,
+      guardrailRules: $('#guardrail-rules')?.value.trim() || '',
     });
 
     chrome.runtime.sendMessage({ type: 'SETTINGS_CHANGED' }).catch(() => { });

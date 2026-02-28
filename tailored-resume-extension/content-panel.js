@@ -146,29 +146,72 @@
         } catch { }
     }
 
-    // ── Drag & Resize ──
-    const _drag = { active: false, startX: 0, startY: 0, panelL: 0, panelT: 0, moved: false };
-    const _resize = { active: false, startX: 0, startY: 0, bodyW: 0, bodyH: 0 };
+    // ── Position state (transform-based for GPU-accelerated 60fps) ──
+    // We track position as {x, y} in viewport coords (top-left of panel).
+    // CSS `transform: translate(x, y)` is used instead of left/top for smooth rendering.
+    const _pos = { x: 0, y: 0 };
+    const ICON_SIZE = 48;
+    const EDGE_MARGIN = 12;
 
-    function _ensureTopLeft() {
-        if (!panel.style.top) {
-            const r = panel.getBoundingClientRect();
-            panel.style.right = 'auto';
-            panel.style.bottom = 'auto';
-            panel.style.left = r.left + 'px';
-            panel.style.top = r.top + 'px';
+    function _initPosition() {
+        // Start at bottom-right
+        _pos.x = window.innerWidth - ICON_SIZE - EDGE_MARGIN;
+        _pos.y = window.innerHeight - ICON_SIZE - EDGE_MARGIN;
+        _applyPosition();
+    }
+
+    function _applyPosition(animate = false) {
+        if (animate) {
+            panel.classList.add('ax-snapping');
+        } else {
+            panel.classList.remove('ax-snapping');
+        }
+        panel.style.transform = `translate(${_pos.x}px, ${_pos.y}px)`;
+    }
+
+    function _clamp() {
+        const isCollapsed = panel.classList.contains('ax-collapsed');
+        const pw = isCollapsed ? ICON_SIZE : body.offsetWidth || 420;
+        const ph = isCollapsed ? ICON_SIZE : body.offsetHeight || 400;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        _pos.x = Math.max(0, Math.min(vw - pw, _pos.x));
+        _pos.y = Math.max(0, Math.min(vh - ph, _pos.y));
+    }
+
+    function _snapToEdge(animate = true) {
+        const isCollapsed = panel.classList.contains('ax-collapsed');
+        const vw = window.innerWidth;
+        const elW = isCollapsed ? ICON_SIZE : (body.offsetWidth || 420);
+        const centerX = _pos.x + elW / 2;
+        // Snap to nearest horizontal edge
+        if (centerX < vw / 2) {
+            _pos.x = EDGE_MARGIN;
+        } else {
+            _pos.x = vw - elW - EDGE_MARGIN;
+        }
+        _clamp();
+        _applyPosition(animate);
+        // Remove animation class after transition
+        if (animate) {
+            const onEnd = () => { panel.classList.remove('ax-snapping'); panel.removeEventListener('transitionend', onEnd); };
+            panel.addEventListener('transitionend', onEnd);
         }
     }
 
+    // ── Drag & Resize ──
+    const _drag = { active: false, startX: 0, startY: 0, origX: 0, origY: 0, moved: false };
+    const _resize = { active: false, startX: 0, startY: 0, bodyW: 0, bodyH: 0 };
+
     function _startDrag(e) {
-        _ensureTopLeft();
         _drag.active = true;
         _drag.moved = false;
         _drag.startX = e.clientX;
         _drag.startY = e.clientY;
-        _drag.panelL = parseFloat(panel.style.left);
-        _drag.panelT = parseFloat(panel.style.top);
+        _drag.origX = _pos.x;
+        _drag.origY = _pos.y;
         panel.classList.add('ax-dragging');
+        panel.classList.remove('ax-snapping');
         e.preventDefault();
     }
 
@@ -178,12 +221,17 @@
         if (_drag.moved) { _drag.moved = false; return; }
         state.expanded = true;
         panel.classList.remove('ax-collapsed');
+        // Reposition so expanded panel stays in viewport
+        _clamp();
+        _applyPosition(true);
         refreshStatus();
     });
 
     $('#ax-close').addEventListener('click', () => {
         state.expanded = false;
         panel.classList.add('ax-collapsed');
+        // Snap icon back to edge
+        setTimeout(() => _snapToEdge(true), 10);
     });
 
     // Header drag (expanded panel)
@@ -194,7 +242,6 @@
 
     // Resize handle
     $('#ax-resize').addEventListener('mousedown', (e) => {
-        _ensureTopLeft();
         _resize.active = true;
         _resize.startX = e.clientX;
         _resize.startY = e.clientY;
@@ -209,9 +256,10 @@
             const dx = e.clientX - _drag.startX;
             const dy = e.clientY - _drag.startY;
             if (Math.abs(dx) > 4 || Math.abs(dy) > 4) _drag.moved = true;
-            const pw = panel.offsetWidth, ph = panel.offsetHeight;
-            panel.style.left = Math.max(0, Math.min(window.innerWidth - pw, _drag.panelL + dx)) + 'px';
-            panel.style.top = Math.max(0, Math.min(window.innerHeight - ph, _drag.panelT + dy)) + 'px';
+            _pos.x = _drag.origX + dx;
+            _pos.y = _drag.origY + dy;
+            _clamp();
+            _applyPosition(false);
         }
         if (_resize.active) {
             const dx = e.clientX - _resize.startX;
@@ -222,22 +270,65 @@
     });
 
     document.addEventListener('mouseup', () => {
-        _drag.active = false;
+        if (_drag.active) {
+            _drag.active = false;
+            panel.classList.remove('ax-dragging');
+            // Snap to nearest edge (both icon and expanded panel)
+            _snapToEdge(true);
+        }
         _resize.active = false;
-        panel.classList.remove('ax-dragging');
     });
+
+    // Keep panel in bounds on window resize
+    window.addEventListener('resize', () => {
+        _clamp();
+        if (panel.classList.contains('ax-collapsed')) {
+            _snapToEdge(false);
+        }
+        _applyPosition(false);
+    });
+
+    // ── Helper: safe sendMessage with stale-context recovery ──
+    function safeSendMessage(msg) {
+        return new Promise((resolve, reject) => {
+            try {
+                if (!chrome.runtime?.id) {
+                    reject(new Error('Extension context invalidated'));
+                    return;
+                }
+                chrome.runtime.sendMessage(msg, (response) => {
+                    if (chrome.runtime.lastError) {
+                        reject(new Error(chrome.runtime.lastError.message));
+                    } else {
+                        resolve(response);
+                    }
+                });
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+
+    function handleExtensionError() {
+        showToast(`Extension was reloaded. Refreshing page to reconnect...`, 'warning', 3000);
+        setTimeout(() => location.reload(), 2000);
+    }
 
     // ── Sidebar → open side panel (main view) ──
     $('#ax-sidebar-btn').addEventListener('click', () => {
-        chrome.runtime.sendMessage({ type: 'OPEN_SIDE_PANEL', view: 'main' }).catch(() => {
-            showToast('Could not open sidebar. Try clicking the extension icon.', 'warning');
+        safeSendMessage({ type: 'OPEN_SIDE_PANEL', view: 'main' }).then(res => {
+            if (res?.error) showToast(res.error, 'error');
+        }).catch(() => {
+            handleExtensionError();
         });
     });
 
     // ── Settings → open side panel (settings view) ──
     $('#ax-settings-btn').addEventListener('click', () => {
-        chrome.runtime.sendMessage({ type: 'OPEN_SIDE_PANEL', view: 'settings' }).catch(() => {
-            showToast('Could not open settings. Try clicking the extension icon.', 'warning');
+        safeSendMessage({ type: 'OPEN_SIDE_PANEL', view: 'settings' }).then(res => {
+            if (res?.error) showToast(res.error, 'error');
+        }).catch(() => {
+            handleExtensionError();
         });
     });
 
@@ -516,6 +607,7 @@
     function b64ToBlob(b, m) { const bin = atob(b); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return new Blob([u8], { type: m }); }
 
     // ── Init ──
+    _initPosition();
     loadTheme();
     populateModels();
     setTimeout(() => refreshStatus(), 500);

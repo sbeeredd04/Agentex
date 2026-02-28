@@ -29,13 +29,24 @@
     --warn: #ca8a04;
     --sh: 0 8px 30px rgba(0, 0, 0, 0.12);
     position: fixed;
-    bottom: 24px;
-    right: 24px;
+    top: 0;
+    left: 0;
     z-index: 2147483647;
     font-family: 'Source Sans Pro', -apple-system, sans-serif;
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
+    align-items: flex-start;
+    will-change: transform;
+}
+
+/* Smooth snap-to-edge animation */
+.ax-panel.ax-snapping {
+    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Disable transition during drag */
+.ax-panel.ax-dragging {
+    transition: none !important;
 }
 
 /* ── Dark vars ── */

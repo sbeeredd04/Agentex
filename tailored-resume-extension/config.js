@@ -7,12 +7,14 @@
 console.log('[Config] Loading configuration module');
 
 // Detect dev mode: unpacked extension has no update_url
-const IS_DEV = (() => {
-  try {
-    const manifest = chrome.runtime.getManifest();
-    return !manifest.update_url;
-  } catch { return true; }
-})();
+const IS_DEV = false;
+
+// (() => {
+//   try {
+//     const manifest = chrome.runtime.getManifest();
+//     return !manifest.update_url;
+//   } catch { return true; }
+// })();
 
 const config = {
   APP_NAME: 'Agentex Resume Editor',

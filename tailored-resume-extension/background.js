@@ -57,6 +57,30 @@ async function getAIService() {
 // ============================================
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // OPEN_SIDE_PANEL must be handled synchronously to preserve user gesture context.
+  // Routing through an async function breaks the gesture chain and Chrome rejects the call.
+  if (message.type === 'OPEN_SIDE_PANEL') {
+    const view = message.view || 'main';
+    chrome.storage.local.set({ sidePanelView: view });
+    const windowId = sender.tab?.windowId;
+    const openOpts = windowId ? { windowId } : undefined;
+    if (openOpts) {
+      chrome.sidePanel.open(openOpts)
+        .then(() => sendResponse({ success: true }))
+        .catch(e => {
+          console.warn('[BG] sidePanel.open error:', e.message);
+          sendResponse({ error: `Could not open side panel: ${e.message}` });
+        });
+    } else {
+      chrome.windows.getCurrent().then(win => {
+        chrome.sidePanel.open({ windowId: win.id })
+          .then(() => sendResponse({ success: true }))
+          .catch(e => sendResponse({ error: `Could not open side panel: ${e.message}` }));
+      });
+    }
+    return true;
+  }
+
   handleMessage(message, sender).then(sendResponse).catch(err => {
     console.error('[BG] Message handler error:', err);
     sendResponse({ error: err.message || 'Unknown error' });
@@ -201,31 +225,6 @@ async function handleMessage(message, sender) {
         return { pdfBase64: arrayBufferToBase64(pdfBuffer) };
       } catch (error) {
         return { error: `PDF compilation failed: ${error.message}` };
-      }
-    }
-
-    // ---- OPEN SIDE PANEL ----
-    case 'OPEN_SIDE_PANEL': {
-      // Store which view the side panel should show
-      const view = message.view || 'main';
-      await chrome.storage.local.set({ sidePanelView: view });
-      try {
-        // Prefer windowId — more reliable across Chrome versions
-        const windowId = sender.tab?.windowId;
-        const tabId = sender.tab?.id;
-        if (windowId) {
-          await chrome.sidePanel.open({ windowId });
-        } else if (tabId) {
-          await chrome.sidePanel.open({ tabId });
-        } else {
-          // Fallback: get current window
-          const win = await chrome.windows.getCurrent();
-          await chrome.sidePanel.open({ windowId: win.id });
-        }
-        return { success: true };
-      } catch (e) {
-        console.error('[BG] sidePanel.open error:', e.message);
-        return { error: `Could not open side panel: ${e.message}` };
       }
     }
 

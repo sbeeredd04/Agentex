@@ -250,17 +250,29 @@
     }
   }
 
-  // ── Bug Report ──
+  // ── Bug Report & Feature Request ──
   function setupBugReport() {
+    const issueUrl = config.BUG_REPORT_URL || 'https://github.com/sbeeredd04/Agentex/issues/new';
+    const browser = navigator.userAgent;
+    const model = modelSelect ? modelSelect.value : 'unknown';
+    const version = config.APP_VERSION || 'unknown';
+    const mode = config.IS_DEV ? 'Dev' : 'Prod';
+
     $('#btn-report-bug')?.addEventListener('click', () => {
-      const url = config.BUG_REPORT_URL || 'https://github.com/sbeeredd04/Agentex/issues/new';
-      const browser = navigator.userAgent;
-      const model = modelSelect ? modelSelect.value : 'unknown';
       const params = new URLSearchParams({
         title: '[Bug] ',
-        body: `**Extension Version:** ${config.APP_VERSION || 'unknown'}\n**Browser:** ${browser}\n**Model:** ${model}\n**Mode:** ${config.IS_DEV ? 'Dev' : 'Prod'}\n\n**Describe the bug:**\n\n**Steps to reproduce:**\n1. \n2. \n3. \n\n**Expected behavior:**\n\n**Screenshots (if any):**\n`
+        body: `**Extension Version:** ${version}\n**Browser:** ${browser}\n**Model:** ${model}\n**Mode:** ${mode}\n\n**Describe the bug:**\n\n**Steps to reproduce:**\n1. \n2. \n3. \n\n**Expected behavior:**\n\n**Screenshots (if any):**\n`
       });
-      window.open(`${url}?${params.toString()}`, '_blank');
+      window.open(`${issueUrl}?${params.toString()}`, '_blank');
+    });
+
+    $('#btn-request-feature')?.addEventListener('click', () => {
+      const params = new URLSearchParams({
+        title: '[Feature Request] ',
+        labels: 'enhancement',
+        body: `**Extension Version:** ${version}\n**Model:** ${model}\n\n**Describe the feature:**\n\n**Why would this be useful?**\n\n**Any additional context or mockups:**\n`
+      });
+      window.open(`${issueUrl}?${params.toString()}`, '_blank');
     });
   }
 

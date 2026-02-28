@@ -557,12 +557,48 @@ OUTPUT ONLY THE CORRECTED LATEX CODE:`;
 
   _cleanLatexResponse(text) {
     if (!text) return '';
-    return text
+    let cleaned = text
       .replace(/```latex\n?/g, '')
       .replace(/```\n?/g, '')
       .replace(/^[\s\S]*?(\\documentclass)/m, '$1')
       .replace(/\\end\{document\}[\s\S]*$/m, '\\end{document}')
       .trim();
+
+    // Fix brace imbalance ("Too many }'s" / "Missing }" errors from pdflatex)
+    let depth = 0;
+    for (const ch of cleaned) {
+      if (ch === '{') depth++;
+      else if (ch === '}') depth--;
+    }
+    if (depth > 0) {
+      // More { than } — append missing closing braces before \end{document}
+      const closers = '}'.repeat(depth);
+      cleaned = cleaned.replace(/\\end\{document\}/, closers + '\n\\end{document}');
+      console.warn(`[AIService] Fixed ${depth} unclosed brace(s)`);
+    } else if (depth < 0) {
+      // More } than { — remove excess trailing } before \end{document}
+      let excess = Math.abs(depth);
+      // Work backwards from \end{document} removing stray }
+      const endIdx = cleaned.lastIndexOf('\\end{document}');
+      if (endIdx > 0) {
+        let before = cleaned.substring(0, endIdx);
+        while (excess > 0) {
+          const lastBrace = before.lastIndexOf('}');
+          if (lastBrace === -1) break;
+          // Check it's not part of a command like \end{...}
+          const preceding = before.substring(Math.max(0, lastBrace - 20), lastBrace);
+          if (/\\(?:end|begin|textbf|textit|section|subsection|href|url)\{[^}]*$/.test(preceding)) {
+            break; // Don't remove command braces
+          }
+          before = before.substring(0, lastBrace) + before.substring(lastBrace + 1);
+          excess--;
+        }
+        cleaned = before + cleaned.substring(endIdx);
+        console.warn(`[AIService] Removed ${Math.abs(depth) - excess} excess closing brace(s)`);
+      }
+    }
+
+    return cleaned;
   }
 
   _getModelName() {

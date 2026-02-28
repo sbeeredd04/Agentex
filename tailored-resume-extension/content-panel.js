@@ -74,9 +74,10 @@
           <button class="ax-icon-btn" id="ax-dl-tex" title="Download .tex">${ICONS.file}</button>
           <button class="ax-icon-btn" id="ax-dl-pdf" title="Download PDF">${ICONS.download}</button>
           <button class="ax-icon-btn" id="ax-copy" title="Copy LaTeX">${ICONS.copy}</button>
+          <button class="ax-btn-recompile" id="ax-recompile" title="Recompile edited LaTeX" style="display:none">Recompile</button>
         </div>
       </div>
-      <div class="ax-tab-pane" id="ax-pane-raw"><pre class="ax-code" id="ax-code"></pre></div>
+      <div class="ax-tab-pane" id="ax-pane-raw"><textarea class="ax-code ax-code-edit" id="ax-code" spellcheck="false"></textarea></div>
       <div class="ax-tab-pane" id="ax-pane-pdf" style="display:none"><div id="ax-pdf-viewer"><p class="ax-empty">Switch to PDF tab after generating</p></div></div>
       <div class="ax-tab-pane" id="ax-pane-diff" style="display:none"><div id="ax-diff"><p class="ax-empty">Generate to see comparison</p></div></div>
     </div>
@@ -133,6 +134,7 @@
     const progressText = $('#ax-progress-text');
     const outputDiv = $('#ax-output');
     const codeEl = $('#ax-code');
+    const recompileBtn = $('#ax-recompile');
     const dot = $('#ax-dot');
     const statusText = $('#ax-status-text');
     const modelSelect = $('#ax-model');
@@ -175,8 +177,8 @@
         const ph = isCollapsed ? ICON_SIZE : body.offsetHeight || 400;
         const vw = window.innerWidth;
         const vh = window.innerHeight;
-        _pos.x = Math.max(0, Math.min(vw - pw, _pos.x));
-        _pos.y = Math.max(0, Math.min(vh - ph, _pos.y));
+        _pos.x = Math.max(EDGE_MARGIN, Math.min(vw - pw - EDGE_MARGIN, _pos.x));
+        _pos.y = Math.max(EDGE_MARGIN, Math.min(vh - ph - EDGE_MARGIN, _pos.y));
     }
 
     function _snapToEdge(animate = true) {
@@ -429,6 +431,8 @@
             state.tailoredLatex = result.tailoredLatex;
             showOutput(result.tailoredLatex);
             body.classList.add('ax-expanded');
+            // Re-clamp so expanded panel stays in viewport
+            setTimeout(() => { _clamp(); _applyPosition(true); }, 50);
             showToast('Resume tailored successfully.', 'success');
         } catch (error) {
             showToast(error.message || 'Generation failed.', 'error');
@@ -478,6 +482,31 @@
         showToast('Copied to clipboard.', 'success');
     });
 
+    // ── Editable LaTeX — track changes, show recompile ──
+    let _lastGeneratedLatex = null;
+    codeEl.addEventListener('input', () => {
+        const edited = codeEl.value;
+        // Keep state in sync so downloads/copy always use latest edits
+        state.tailoredLatex = edited;
+        const changed = edited !== _lastGeneratedLatex;
+        recompileBtn.style.display = changed ? 'inline-flex' : 'none';
+    });
+
+    recompileBtn.addEventListener('click', async () => {
+        const edited = codeEl.value.trim();
+        if (!edited) { showToast('LaTeX is empty.', 'warning'); return; }
+        state.tailoredLatex = edited;
+        recompileBtn.style.display = 'none';
+        showToast('Compiling updated PDF...', 'info');
+        // Switch to PDF tab and compile
+        shadow.querySelectorAll('.ax-tab').forEach(t => t.classList.remove('active'));
+        const pdfTab = shadow.querySelector('.ax-tab[data-tab="pdf"]');
+        if (pdfTab) pdfTab.classList.add('active');
+        shadow.querySelectorAll('.ax-tab-pane').forEach(p => p.style.display = 'none');
+        $('#ax-pane-pdf').style.display = 'block';
+        await compilePdf(edited);
+    });
+
     // ── Status ──
     async function refreshStatus() {
         try {
@@ -523,7 +552,9 @@
     // ── Output ──
     function showOutput(latex) {
         outputDiv.style.display = 'block';
-        codeEl.textContent = latex;
+        codeEl.value = latex;
+        _lastGeneratedLatex = latex;
+        recompileBtn.style.display = 'none';
         const diffEl = $('#ax-diff');
         if (state.originalLatex) {
             const oLen = state.originalLatex.length, nLen = latex.length;

@@ -1,635 +1,603 @@
 /**
- * Gemini AI Service for Resume Tailoring
+ * AI Service v4.0 — Model-Aware Resume Tailoring with Expert Guardrails
  * 
- * This service handles all interactions with Google's Gemini AI API for
- * resume analysis and tailoring. It supports both single-pass and multi-agent
- * processing modes for optimizing resumes to match job descriptions.
+ * Features:
+ * - Dynamic model selection across Gemini & Claude
+ * - Expert-level recruiter/ATS prompts
+ * - Fabrication prevention guardrails
+ * - Fallback chain & descriptive error handling
+ * - Progress callbacks for UI updates
  * 
  * @class AIService
- * @module services/ai-service
  */
 
 class AIService {
-  /**
-   * Initialize the AI Service
-   * Sets up Gemini API configuration and loads user settings
-   */
   constructor() {
-    console.log('[AIService] Initializing Gemini AI Service');
-    
-    // Initialize Gemini endpoint
-    this.endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-    
-    // Initialize model configuration
-    this.model = {
-      name: 'gemini-2.0-flash',
-      apiKey: null
+    console.log('[AIService] Initializing v4.0');
+
+    const conf = typeof window !== 'undefined' ? window.config : self.config;
+    this.currentProvider = conf?.DEFAULT_PROVIDER || 'gemini';
+    this.currentModelId = conf?.DEFAULT_GEMINI_MODEL || 'gemini-2.5-flash';
+
+    this.apiKeys = { gemini: null, claude: null };
+    this.guardrails = conf?.GUARDRAILS || {};
+    this.generation = conf?.GENERATION || {};
+
+    this.userInstructions = {
+      customInstructions: '',
+      focusAreas: [],
+      preserveContent: [],
+      restrictChanges: []
     };
 
-    // Initialize prompts with defaults
-    this.prompts = {
-      custom: this._getDefaultLatexPrompt(),
-      jobAnalysis: this._getDefaultJobAnalysisPrompt(),
-      projectsOptimization: this._getDefaultProjectsPrompt(),
-      skillsEnhancement: this._getDefaultSkillsPrompt(),
-      experienceRefinement: this._getDefaultExperiencePrompt(),
-      finalPolish: this._getDefaultFinalPolishPrompt()
+    this.guardrailSettings = {
+      strictMode: true,
+      preserveEducation: true,
+      preserveContact: true
     };
 
-    // Load settings from Chrome storage
+    // Rate limiting
+    this._lastGenerateTime = 0;
+    this._isGenerating = false;
+
+    // Progress callback
+    this._onProgress = null;
+
     this.loadSettings();
   }
 
-  /**
-   * Load API keys and custom prompts from Chrome storage
-   * @returns {Promise<void>}
-   */
+  // ============================================
+  // SETTINGS
+  // ============================================
+
   async loadSettings() {
     try {
       const settings = await chrome.storage.local.get([
-        'geminiApiKey',
+        'geminiApiKey', 'claudeApiKey',
+        'selectedProvider', 'selectedModelId',
         'customPrompt',
-        'jobAnalysisPrompt',
-        'projectsOptimizationPrompt',
-        'skillsEnhancementPrompt',
-        'experienceRefinementPrompt',
-        'finalPolishPrompt'
+        'strictMode', 'preserveEducation', 'preserveContact'
       ]);
 
-      // Load API key
-      this.model.apiKey = settings.geminiApiKey || window.config?.GEMINI_API_KEY;
+      this.apiKeys.gemini = settings.geminiApiKey || '';
+      this.apiKeys.claude = settings.claudeApiKey || '';
+      this.currentProvider = settings.selectedProvider || this.currentProvider;
+      this.currentModelId = settings.selectedModelId || this.currentModelId;
 
-      // Load custom prompts if available
-      if (settings.customPrompt) this.prompts.custom = settings.customPrompt;
-      if (settings.jobAnalysisPrompt) this.prompts.jobAnalysis = settings.jobAnalysisPrompt;
-      if (settings.projectsOptimizationPrompt) this.prompts.projectsOptimization = settings.projectsOptimizationPrompt;
-      if (settings.skillsEnhancementPrompt) this.prompts.skillsEnhancement = settings.skillsEnhancementPrompt;
-      if (settings.experienceRefinementPrompt) this.prompts.experienceRefinement = settings.experienceRefinementPrompt;
-      if (settings.finalPolishPrompt) this.prompts.finalPolish = settings.finalPolishPrompt;
+      if (settings.customPrompt) {
+        this._customPrompt = settings.customPrompt;
+      }
 
-      console.log('[AIService] Settings loaded successfully', {
-        hasApiKey: !!this.model.apiKey,
-        model: this.model.name
-      });
-    } catch (error) {
-      console.error('[AIService] Error loading settings:', error);
-    }
-  }
-
-  /**
-   * Generate content using Gemini AI
-   * @param {string} prompt - The prompt to send to Gemini
-   * @returns {Promise<string>} Generated LaTeX content
-   */
-  async generateContent(prompt) {
-    try {
-      console.log('[AIService] Generating LaTeX content:', {
-        promptLength: prompt.length,
-        model: this.model.name
-      });
-
-      const response = await this._callGeminiAPI(prompt);
-      return this._cleanLatexResponse(response);
-
-    } catch (error) {
-      console.error('[AIService] LaTeX generation error:', error);
-      throw new Error(`Failed to generate LaTeX content: ${error.message}`);
-    }
-  }
-
-  /**
-   * Generate tailored resume using single-pass approach
-   * @param {string} originalLatex - Original LaTeX resume code
-   * @param {string} jobDesc - Job description
-   * @param {string} knowledgeBase - Additional projects/experience
-   * @returns {Promise<string>} Tailored LaTeX resume
-   */
-  async generateTailoredResume(originalLatex, jobDesc, knowledgeBase = '') {
-    try {
-      console.log('[AIService] Starting single-pass generation');
-
-      const prompt = this.prompts.custom
-        .replace('{originalLatex}', originalLatex)
-        .replace('{jobDesc}', jobDesc)
-        .replace('{knowledgeBase}', knowledgeBase || 'None provided');
-
-      return await this.generateContent(prompt, 'latex');
-    } catch (error) {
-      console.error('[AIService] Tailored resume generation error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Generate tailored resume using multi-agent approach
-   * @param {string} originalLatex - Original LaTeX resume code
-   * @param {string} jobDesc - Job description
-   * @param {string} knowledgeBase - Additional projects/experience
-   * @returns {Promise<string>} Tailored LaTeX resume
-   */
-  async generateTailoredResumeMultiAgent(originalLatex, jobDesc, knowledgeBase = '') {
-    try {
-      console.log('[AIService] Starting multi-agent generation');
-
-      const dispatchStatus = (step, message) => {
-        document.dispatchEvent(new CustomEvent('aiServiceStatus', {
-          detail: { step, totalSteps: 5, message }
-        }));
+      this.guardrailSettings = {
+        strictMode: settings.strictMode !== false,
+        preserveEducation: settings.preserveEducation !== false,
+        preserveContact: settings.preserveContact !== false
       };
 
-      // Step 1: Job Analysis
-      dispatchStatus(1, 'Analyzing job description and knowledge base');
-      
-      const jobAnalysisPrompt = this.prompts.jobAnalysis
-        .replace('{jobDesc}', jobDesc)
-        .replace('{knowledgeBase}', knowledgeBase || 'None provided');
-      
-      const analysisResponse = await this._callGeminiAPI(jobAnalysisPrompt);
-      
-      // Parse the analysis JSON
-      let analysis;
-      try {
-        const jsonMatch = analysisResponse.match(/\{[\s\S]*\}/);
-        analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-        
-        if (!analysis) {
-          throw new Error('Failed to parse analysis response');
-        }
-      } catch (error) {
-        console.warn('[AIService] Analysis parsing failed, falling back to single-pass:', error);
-        return await this.generateTailoredResume(originalLatex, jobDesc, knowledgeBase);
-      }
-      
-      // Extract sections from original resume
-      const originalProjects = this._extractSection(originalLatex, 'Projects');
-      const originalSkills = this._extractSection(originalLatex, 'Skills');
-      const originalExperience = this._extractSection(originalLatex, 'Experience');
-      
-      // Step 2: Projects Optimization
-      dispatchStatus(2, 'Optimizing projects section');
-      
-      const projectsPrompt = this.prompts.projectsOptimization
-        .replace('{originalProjects}', originalProjects)
-        .replace('{jobDesc}', jobDesc)
-        .replace('{analysisProjects}', JSON.stringify(analysis.relevantProjects || [], null, 2))
-        .replace('{requiredTechnologies}', (analysis.requiredTechnologies || []).join(', '))
-        .replace('{keyMetrics}', (analysis.keyMetrics || []).join(', '));
-      
-      const optimizedProjects = await this._callGeminiAPI(projectsPrompt);
-      
-      // Step 3: Skills Enhancement
-      dispatchStatus(3, 'Enhancing skills section');
-      
-      const skillsPrompt = this.prompts.skillsEnhancement
-        .replace('{originalSkills}', originalSkills)
-        .replace('{jobDesc}', jobDesc)
-        .replace('{requiredTechnologies}', (analysis.requiredTechnologies || []).join(', '));
-      
-      const enhancedSkills = await this._callGeminiAPI(skillsPrompt);
-      
-      // Step 4: Experience Refinement
-      dispatchStatus(4, 'Refining experience section');
-      
-      const experiencePrompt = this.prompts.experienceRefinement
-        .replace('{originalExperience}', originalExperience)
-        .replace('{jobDesc}', jobDesc)
-        .replace('{experienceRequirements}', (analysis.experienceRequirements || []).join(', '))
-        .replace('{requiredTechnologies}', (analysis.requiredTechnologies || []).join(', '))
-        .replace('{keyMetrics}', (analysis.keyMetrics || []).join(', '));
-      
-      const refinedExperience = await this._callGeminiAPI(experiencePrompt);
-      
-      // Step 5: Final Polish
-      dispatchStatus(5, 'Polishing final resume');
-      
-      const finalPrompt = this.prompts.finalPolish
-        .replace('{originalLatex}', originalLatex)
-        .replace('{optimizedProjects}', optimizedProjects)
-        .replace('{enhancedSkills}', enhancedSkills)
-        .replace('{refinedExperience}', refinedExperience)
-        .replace('{jobDesc}', jobDesc);
-      
-      const finalResponse = await this._callGeminiAPI(finalPrompt);
-      
-      return this._cleanLatexResponse(finalResponse);
+      console.log('[AIService] Settings loaded', {
+        provider: this.currentProvider,
+        model: this.currentModelId,
+        hasGeminiKey: !!this.apiKeys.gemini,
+        hasClaudeKey: !!this.apiKeys.claude
+      });
     } catch (error) {
-      console.error('[AIService] Multi-agent generation error:', error);
-      // Fall back to single-pass on error
-      return await this.generateTailoredResume(originalLatex, jobDesc, knowledgeBase);
+      console.error('[AIService] Settings load error:', error);
     }
   }
 
-  /**
-   * Call Gemini API with the provided prompt
-   * @private
-   * @param {string} prompt - The prompt to send
-   * @returns {Promise<string>} API response text
-   */
-  async _callGeminiAPI(prompt) {
-    console.log('[AIService] Calling Gemini API:', {
-      promptPreview: prompt.substring(0, 100) + '...',
-      promptLength: prompt.length
+  setModel(provider, modelId) {
+    this.currentProvider = provider;
+    this.currentModelId = modelId;
+    console.log('[AIService] Model set:', provider, modelId);
+  }
+
+  setUserInstructions(instructions) {
+    this.userInstructions = { ...this.userInstructions, ...instructions };
+  }
+
+  onProgress(callback) {
+    this._onProgress = callback;
+  }
+
+  _emitProgress(stage, message) {
+    if (this._onProgress) this._onProgress(stage, message);
+    console.log(`[AIService] ${stage}: ${message}`);
+  }
+
+  // ============================================
+  // MAIN GENERATION
+  // ============================================
+
+  async generateTailoredResume(originalLatex, jobDesc, knowledgeBase = '') {
+    // Rate limit check
+    const now = Date.now();
+    const cooldown = this.generation.cooldownMs || 3000;
+    if (this._isGenerating) {
+      throw new Error('Generation already in progress. Please wait.');
+    }
+    if (now - this._lastGenerateTime < cooldown) {
+      throw new Error(`Please wait ${Math.ceil((cooldown - (now - this._lastGenerateTime)) / 1000)}s before generating again.`);
+    }
+
+    this._isGenerating = true;
+    this._lastGenerateTime = now;
+
+    try {
+      // Step 1: Validate inputs
+      this._emitProgress('validate', 'Validating inputs...');
+      this._validateInputs(originalLatex, jobDesc);
+
+      // Step 2: Build content inventory
+      this._emitProgress('inventory', 'Analyzing resume content...');
+      const contentInventory = this._buildContentInventory(originalLatex, knowledgeBase);
+
+      // Step 3: Build expert prompt
+      this._emitProgress('prompt', 'Building optimization strategy...');
+      const prompt = this._buildExpertPrompt(originalLatex, jobDesc, knowledgeBase, contentInventory);
+
+      // Step 4: Call AI with fallback
+      this._emitProgress('generate', `Generating with ${this._getModelName()}...`);
+      let result = await this._callWithFallback(prompt);
+
+      // Step 5: Clean response
+      this._emitProgress('clean', 'Cleaning output...');
+      result = this._cleanLatexResponse(result);
+
+      // Step 6: Validate output
+      this._emitProgress('validate', 'Validating against guardrails...');
+      const validation = this._validateOutput(originalLatex, result, contentInventory);
+
+      if (!validation.valid) {
+        console.warn('[AIService] Validation issues:', validation.errors);
+        if (validation.canRetry) {
+          this._emitProgress('retry', 'Fixing validation issues...');
+          result = await this._attemptCorrection(originalLatex, result, validation.errors, jobDesc);
+          result = this._cleanLatexResponse(result);
+        } else {
+          throw new Error(`Content validation failed: ${validation.errors.join('; ')}`);
+        }
+      }
+
+      this._emitProgress('done', 'Resume tailored successfully!');
+      return result;
+
+    } catch (error) {
+      this._emitProgress('error', error.message);
+      throw this._friendlyError(error);
+    } finally {
+      this._isGenerating = false;
+    }
+  }
+
+  _validateInputs(latex, jobDesc) {
+    if (!latex || !latex.includes('\\documentclass')) {
+      throw new Error('Please upload a valid LaTeX resume first.');
+    }
+    if (!jobDesc || jobDesc.trim().length < 20) {
+      throw new Error('Please provide a job description (at least 20 characters).');
+    }
+    if (!this.apiKeys[this.currentProvider]) {
+      const providerName = this.currentProvider === 'gemini' ? 'Gemini' : 'Claude';
+      throw new Error(`No ${providerName} API key configured. Go to Settings → API Keys.`);
+    }
+  }
+
+  // ============================================
+  // EXPERT PROMPT (Recruiter + ATS + HM perspective)
+  // ============================================
+
+  _buildExpertPrompt(originalLatex, jobDesc, knowledgeBase, inventory) {
+    const systemPrompt = this._customPrompt || this._getExpertSystemPrompt();
+    const guardrailsBlock = this._getGuardrailsPrompt(inventory);
+    const userBlock = this._formatUserInstructions();
+
+    return `${systemPrompt}
+
+${guardrailsBlock}
+
+${userBlock}
+
+---
+## ORIGINAL RESUME (LaTeX):
+\`\`\`latex
+${originalLatex}
+\`\`\`
+
+---
+## TARGET JOB DESCRIPTION:
+${jobDesc}
+
+---
+## KNOWLEDGE BASE (Additional projects/experience — draw from here):
+${knowledgeBase || 'None provided. Use ONLY content from the original resume.'}
+
+---
+## EXECUTE:
+Apply your expert optimization now. Follow all guardrails strictly.
+OUTPUT ONLY THE COMPLETE LATEX CODE. NO EXPLANATIONS. NO MARKDOWN FENCES.`;
+  }
+
+  _getExpertSystemPrompt() {
+    return `You are a SENIOR TECHNICAL RECRUITER with 15+ years at Fortune 500 companies. You have personally reviewed 50,000+ resumes and know exactly what makes a resume pass ATS screens and catch a hiring manager's eye in the critical 6-second scan.
+
+You are also an ATS (Applicant Tracking System) ENGINEER who understands keyword matching algorithms, section parsing, and scoring systems used by Greenhouse, Lever, Workday, Taleo, and iCIMS.
+
+## YOUR OPTIMIZATION STRATEGY:
+
+### 1. THE 6-SECOND SCAN RULE
+A recruiter spends 6 seconds on initial scan. The TOP THIRD of the resume (name, summary, top skills, most recent role) must immediately signal "this person matches."
+- Front-load the most relevant keywords from the JD
+- Ensure the Skills section mirrors the JD's technology stack
+- Most recent experience bullet points should echo the JD's requirements
+
+### 2. ATS KEYWORD STRATEGY
+- Use EXACT phrases from the job description — ATS does literal string matching
+- Mirror the JD's terminology (if JD says "CI/CD pipelines," don't write "continuous integration")
+- Include acronyms AND spelled-out forms (e.g., "Machine Learning (ML)")
+- Place critical keywords in Skills section AND in experience bullet points (double-match)
+
+### 3. ACHIEVEMENT FORMAT — STAR/XYZ
+Every bullet point MUST follow: "Accomplished [X] as measured by [Y] by doing [Z]"
+- GOOD: "Reduced API latency by 40% (from 800ms to 480ms) by implementing Redis caching layer"
+- GOOD: "Increased user retention by 25% by redesigning onboarding flow using React and A/B testing"
+- BAD: "Worked on API performance improvements" (no metric, no method)
+- BAD: "Responsible for caching" (passive, no achievement)
+
+### 4. PROJECT REPLACEMENT LOGIC
+When knowledge base provides relevant projects:
+- Calculate technology overlap with JD (threshold: 60%+)
+- Replace the LEAST relevant resume project with the MOST relevant KB project
+- Preserve the SAME LaTeX structure (\\resumeProjectHeading, \\resumeItem, etc)
+- Include specific metrics from the KB project
+
+### 5. SKILLS SECTION OPTIMIZATION
+- Lead each category with JD-required skills
+- Add skills from KB that match JD requirements
+- Remove skills irrelevant to this specific role (they add noise)
+- Keep total skill count reasonable (not a wall of text)
+
+### 6. SECTION-SPECIFIC RULES
+- **Summary/Objective**: Rewrite to mirror the JD's opening paragraph. Use their exact role title.
+- **Experience**: Maximize keyword density in the 3 most recent roles. Use strong action verbs.
+- **Projects**: Swap for KB projects with higher JD relevance. Keep same count.
+- **Skills**: Mirror JD's tech stack. Lead with their top requirements.
+- **Education**: ${this.guardrailSettings.preserveEducation ? 'DO NOT MODIFY — protected section.' : 'May add relevant coursework.'}
+- **Contact**: ${this.guardrailSettings.preserveContact ? 'DO NOT MODIFY — protected section.' : 'Keep unchanged.'}
+
+### 7. WHAT NEVER TO DO
+- NEVER invent companies, roles, dates, or metrics not in the sources
+- NEVER add technologies the candidate hasn't used (per resume + KB)
+- NEVER change formatting structure or LaTeX packages
+- NEVER remove sections entirely
+- NEVER add fluff or generic phrases ("passionate team player," "detail-oriented")
+- NEVER exceed ±20% of original resume length`;
+  }
+
+  _getGuardrailsPrompt(inventory) {
+    const allowedTech = Array.from(inventory.technologies).slice(0, 40).join(', ');
+    const allowedSkills = Array.from(inventory.skills).slice(0, 40).join(', ');
+    const strict = this.guardrailSettings.strictMode;
+
+    return `## GUARDRAILS — VIOLATION = REJECTION
+
+### CONTENT SOURCE RESTRICTION ${strict ? '(STRICT MODE ON)' : ''}
+${strict
+        ? 'You may ONLY use content verbatim from the original resume or knowledge base. No paraphrasing beyond keyword insertion.'
+        : 'Content must originate from the resume or knowledge base. Rewording for keyword alignment is allowed.'}
+
+### VERIFIED TECHNOLOGIES (from sources):
+${allowedTech || 'Use only what appears in the original resume'}
+
+### VERIFIED SKILLS (from sources):
+${allowedSkills || 'Use only what appears in the original resume'}
+
+### LATEX INTEGRITY
+- Preserve ALL \\documentclass, \\usepackage, page setup commands
+- Keep ALL \\begin{document} ... \\end{document} structure
+- Maintain exact same section ordering
+- Do NOT add new LaTeX packages
+- Keep date formats exactly as-is
+
+### LENGTH: Output must be within ±20% of original length
+### PROTECTED: ${this.guardrails.PROTECTED_SECTIONS?.join(', ') || 'education, contact, name'}`;
+  }
+
+  _formatUserInstructions() {
+    const { customInstructions, focusAreas, preserveContent, restrictChanges } = this.userInstructions;
+
+    let block = '## USER INSTRUCTIONS:\n';
+
+    if (customInstructions) block += `\n### Custom Directions:\n${customInstructions}\n`;
+    if (focusAreas.length > 0) block += `\n### Prioritize These Sections:\n- ${focusAreas.join('\n- ')}\n`;
+    if (preserveContent.length > 0) block += `\n### DO NOT CHANGE:\n- ${preserveContent.join('\n- ')}\n`;
+    if (restrictChanges.length > 0) block += `\n### MINIMIZE CHANGES TO:\n- ${restrictChanges.join('\n- ')}\n`;
+
+    if (!customInstructions && focusAreas.length === 0 && preserveContent.length === 0) {
+      block += 'No specific instructions. Apply default expert optimization.\n';
+    }
+
+    return block;
+  }
+
+  // ============================================
+  // CONTENT INVENTORY
+  // ============================================
+
+  _buildContentInventory(originalLatex, knowledgeBase) {
+    const inventory = {
+      skills: new Set(),
+      technologies: new Set(),
+      metrics: new Set(),
+      companies: new Set(),
+      projects: new Set(),
+    };
+
+    // Extract bold items (skills/keywords)
+    const boldMatches = originalLatex.match(/\\textbf\{([^}]+)\}/g) || [];
+    boldMatches.forEach(m => {
+      const skill = m.replace(/\\textbf\{|\}/g, '').trim();
+      if (skill.length > 1 && skill.length < 50) inventory.skills.add(skill.toLowerCase());
     });
 
-    if (!this.model.apiKey) {
-      throw new Error('Gemini API key not configured. Please add your API key in Settings.');
+    // Extract technologies
+    const techPattern = /\b(Python|JavaScript|TypeScript|React|Next\.js|Node\.js|Express|Vue|Angular|Svelte|AWS|GCP|Azure|Docker|Kubernetes|Terraform|SQL|NoSQL|MongoDB|PostgreSQL|MySQL|Redis|GraphQL|REST|gRPC|Machine Learning|Deep Learning|NLP|Computer Vision|AI|TensorFlow|PyTorch|Scikit-learn|Go|Golang|Rust|Java|C\+\+|C#|Ruby|PHP|Swift|Kotlin|Scala|R|MATLAB|HTML|CSS|SASS|Tailwind|Bootstrap|Git|CI\/CD|Jenkins|GitHub Actions|Linux|Nginx|Apache|Kafka|RabbitMQ|Spring Boot|Django|Flask|FastAPI|Rails|\.NET|Unity|Figma|Tableau|Power BI|Spark|Hadoop|Snowflake|Databricks|Pandas|NumPy|OpenCV)\b/gi;
+
+    const allText = originalLatex + '\n' + (knowledgeBase || '');
+    const techMatches = allText.match(techPattern) || [];
+    techMatches.forEach(t => inventory.technologies.add(t.toLowerCase()));
+
+    // Extract metrics
+    const metricMatches = originalLatex.match(/\d[\d,]*\s*(%|percent|users|customers|revenue|increase|decrease|improvement|reduction|savings|transactions|requests|latency|uptime)/gi) || [];
+    metricMatches.forEach(m => inventory.metrics.add(m.toLowerCase()));
+
+    // Extract from knowledge base
+    if (knowledgeBase) {
+      const kbTech = knowledgeBase.match(techPattern) || [];
+      kbTech.forEach(t => inventory.technologies.add(t.toLowerCase()));
+
+      const kbBold = knowledgeBase.match(/\*\*([^*]+)\*\*/g) || [];
+      kbBold.forEach(m => {
+        const skill = m.replace(/\*\*/g, '').trim();
+        if (skill.length > 1 && skill.length < 50) inventory.skills.add(skill.toLowerCase());
+      });
     }
 
+    console.log('[AIService] Content inventory:', {
+      skills: inventory.skills.size,
+      technologies: inventory.technologies.size,
+      metrics: inventory.metrics.size
+    });
+
+    return inventory;
+  }
+
+  // ============================================
+  // AI CALLS WITH FALLBACK
+  // ============================================
+
+  async _callWithFallback(prompt) {
     try {
-      const requestBody = {
-        contents: [{
-          parts: [{ text: prompt }]
-        }]
-      };
+      return await this._callAI(prompt, this.currentProvider, this.currentModelId);
+    } catch (primaryError) {
+      console.warn('[AIService] Primary model failed:', primaryError.message);
 
-      const response = await fetch(`${this.endpoint}?key=${this.model.apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
-
-      const responseData = await response.json();
-      
-      console.log('[AIService] Gemini API Response:', {
-        status: response.status,
-        hasContent: !!responseData.candidates?.[0]?.content
-      });
-
-      if (!response.ok) {
-        const errorMessage = responseData.error?.message || response.statusText;
-        throw new Error(`Gemini API Error: ${errorMessage}`);
+      // Try recommended fallback
+      const conf = typeof window !== 'undefined' ? window.config : self.config;
+      const fallbackModel = conf?.getRecommended(this.currentProvider);
+      if (fallbackModel && fallbackModel.id !== this.currentModelId) {
+        this._emitProgress('fallback', `${this._getModelName()} failed. Trying ${fallbackModel.name}...`);
+        try {
+          return await this._callAI(prompt, this.currentProvider, fallbackModel.id);
+        } catch (fallbackError) {
+          throw new Error(`Both ${this._getModelName()} and ${fallbackModel.name} failed. ${fallbackError.message}`);
+        }
       }
 
-      if (!responseData.candidates?.[0]?.content?.parts?.[0]?.text) {
-        console.error('[AIService] Invalid response structure:', responseData);
-        throw new Error('Invalid response from Gemini API');
-      }
-
-      const generatedContent = responseData.candidates[0].content.parts[0].text;
-      
-      console.log('[AIService] Generation successful:', {
-        contentLength: generatedContent.length
-      });
-
-      return generatedContent;
-    } catch (error) {
-      console.error('[AIService] Gemini API call failed:', error);
-      throw error;
+      throw primaryError;
     }
   }
 
-  /**
-   * Clean LaTeX response by removing markdown code blocks and extra formatting
-   * @private
-   * @param {string} text - Raw response text
-   * @returns {string} Cleaned LaTeX code
-   */
-  _cleanLatexResponse(text) {
-    console.log('[AIService] Cleaning LaTeX response');
+  async _callAI(prompt, provider, modelId) {
+    if (provider === 'claude') {
+      return await this._callClaude(prompt, modelId);
+    }
+    return await this._callGemini(prompt, modelId);
+  }
 
+  async _callGemini(prompt, modelId) {
+    const apiKey = this.apiKeys.gemini;
+    if (!apiKey) throw new Error('Gemini API key not configured. Add it in Settings → API Keys.');
+
+    const conf = typeof window !== 'undefined' ? window.config : self.config;
+    const url = conf?.geminiUrl(modelId) ||
+      `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`;
+
+    const response = await fetch(`${url}?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: this.generation.temperature || 0.3,
+          maxOutputTokens: this.generation.maxOutputTokens || 8192
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      const msg = err.error?.message || `HTTP ${response.status}`;
+      if (response.status === 429) throw new Error(`Rate limited by Gemini. Please wait and try again.`);
+      if (response.status === 401 || response.status === 403) throw new Error(`Invalid Gemini API key. Check Settings.`);
+      throw new Error(`Gemini API error: ${msg}`);
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error('Empty response from Gemini. Try a different model.');
+    return text;
+  }
+
+  async _callClaude(prompt, modelId) {
+    const apiKey = this.apiKeys.claude;
+    if (!apiKey) throw new Error('Claude API key not configured. Add it in Settings → API Keys.');
+
+    const conf = typeof window !== 'undefined' ? window.config : self.config;
+    const endpoint = conf?.CLAUDE_ENDPOINT || 'https://api.anthropic.com/v1/messages';
+    const version = conf?.ANTHROPIC_VERSION || '2023-06-01';
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': version,
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: modelId,
+        max_tokens: this.generation.maxOutputTokens || 8192,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      const msg = err.error?.message || `HTTP ${response.status}`;
+      if (response.status === 429) throw new Error(`Rate limited by Claude. Please wait and try again.`);
+      if (response.status === 401) throw new Error(`Invalid Claude API key. Check Settings.`);
+      throw new Error(`Claude API error: ${msg}`);
+    }
+
+    const data = await response.json();
+    return data.content?.[0]?.text || '';
+  }
+
+  // ============================================
+  // VALIDATION
+  // ============================================
+
+  _validateOutput(original, generated, inventory) {
+    const errors = [];
+    let canRetry = true;
+
+    // 1. LaTeX structure
+    const requiredPatterns = [/\\documentclass/, /\\begin\{document\}/, /\\end\{document\}/];
+    for (const pattern of requiredPatterns) {
+      if (!pattern.test(generated)) {
+        errors.push('LaTeX structure corrupted (missing \\documentclass or document environment)');
+        canRetry = false;
+        break;
+      }
+    }
+
+    // 2. Length deviation
+    const deviation = Math.abs(generated.length - original.length) / original.length;
+    if (deviation > (this.guardrails.MAX_LENGTH_DEVIATION || 0.20)) {
+      errors.push(`Length deviation ${(deviation * 100).toFixed(0)}% exceeds ±20% limit`);
+    }
+
+    // 3. Fabrication detection
+    const fabricationPatterns = [
+      /\b(XYZ Company|ABC Corp|Sample Inc|Example LLC|Acme)\b/i,
+      /\b(Lorem ipsum|placeholder|TODO|FIXME|INSERT)\b/i,
+      /\b(\d{3,})\+?\s*(years? of experience)/i,
+    ];
+    for (const pattern of fabricationPatterns) {
+      if (pattern.test(generated) && !pattern.test(original)) {
+        errors.push('Possible fabricated content detected');
+        break;
+      }
+    }
+
+    // 4. Protected sections
+    if (this.guardrailSettings.preserveEducation) {
+      const eduPat = /\\section\{Education\}[\s\S]*?(?=\\section|\\end\{document\})/i;
+      const origEdu = original.match(eduPat)?.[0];
+      const genEdu = generated.match(eduPat)?.[0];
+      if (origEdu && genEdu && this._similarity(origEdu, genEdu) < 0.7) {
+        errors.push('Education section modified beyond limits');
+      }
+    }
+
+    return { valid: errors.length === 0, errors, canRetry: canRetry && errors.length <= 2 };
+  }
+
+  _similarity(a, b) {
+    const w1 = new Set(a.toLowerCase().split(/\s+/));
+    const w2 = new Set(b.toLowerCase().split(/\s+/));
+    const inter = new Set([...w1].filter(x => w2.has(x)));
+    const union = new Set([...w1, ...w2]);
+    return inter.size / union.size;
+  }
+
+  async _attemptCorrection(original, failed, errors, jobDesc) {
+    const prompt = `The resume tailoring output had these issues:
+${errors.map((e, i) => `${i + 1}. ${e}`).join('\n')}
+
+Fix these issues. Keep all valid optimizations. Ensure LaTeX compiles. Do NOT fabricate.
+
+ORIGINAL: \`\`\`latex\n${original}\n\`\`\`
+
+FAILED OUTPUT: \`\`\`latex\n${failed}\n\`\`\`
+
+OUTPUT ONLY THE CORRECTED LATEX CODE:`;
+
+    return await this._callWithFallback(prompt);
+  }
+
+  // ============================================
+  // UTILITIES
+  // ============================================
+
+  _cleanLatexResponse(text) {
+    if (!text) return '';
     return text
-      .replace(/```latex\n/g, '')
+      .replace(/```latex\n?/g, '')
       .replace(/```\n?/g, '')
-      .replace(/\\boxed{/g, '')
-      .replace(/\{\\displaystyle\s+/g, '')
+      .replace(/^[\s\S]*?(\\documentclass)/m, '$1')
+      .replace(/\\end\{document\}[\s\S]*$/m, '\\end{document}')
       .trim();
   }
 
-  /**
-   * Extract a specific section from LaTeX resume
-   * @private
-   * @param {string} latex - Complete LaTeX resume
-   * @param {string} sectionName - Name of section to extract
-   * @returns {string} Extracted section content
-   */
-  _extractSection(latex, sectionName) {
-    try {
-      // Look for section using LaTeX section markers
-      const sectionRegex = new RegExp(
-        `\\\\section\\{${sectionName}\\}([\\s\\S]*?)(?=\\\\section\\{|$)`,
-        'i'
-      );
-      const match = latex.match(sectionRegex);
-      
-      if (match && match[1]) {
-        return match[1].trim();
-      }
-      
-      // Return placeholder if section not found
-      console.warn(`[AIService] Section "${sectionName}" not found, using placeholder`);
-      return this._getPlaceholderSection(sectionName);
-    } catch (error) {
-      console.error(`[AIService] Error extracting ${sectionName} section:`, error);
-      return this._getPlaceholderSection(sectionName);
-    }
+  _getModelName() {
+    const conf = typeof window !== 'undefined' ? window.config : self.config;
+    const model = conf?.getModel(this.currentProvider, this.currentModelId);
+    return model?.name || this.currentModelId;
   }
 
-  /**
-   * Get placeholder content for missing sections
-   * @private
-   * @param {string} sectionName - Name of section
-   * @returns {string} Placeholder LaTeX content
-   */
-  _getPlaceholderSection(sectionName) {
-    const placeholders = {
-      'Projects': `\\section{Projects}
-\\resumeSubHeadingListStart
-\\resumeProjectHeading
-{\\textbf{Project Name} $|$ \\emph{Technologies}}{}
-\\resumeItemListStart
-\\resumeItem{\\textbf{Description} of the project.}
-\\resumeItemListEnd
-\\resumeSubHeadingListEnd`,
-      'Skills': `\\section{Skills}
-\\resumeItemListStart
-\\resumeItem{\\textbf{Programming Languages:} Language1, Language2}
-\\resumeItem{\\textbf{Frameworks:} Framework1, Framework2}
-\\resumeItem{\\textbf{Tools:} Tool1, Tool2}
-\\resumeItemListEnd`,
-      'Experience': `\\section{Experience}
-\\resumeSubHeadingListStart
-\\resumeSubheading{Company Name}{Date Range}
-{Job Title}{Location}
-\\resumeItemListStart
-\\resumeItem{Description of role and achievements}
-\\resumeItemListEnd
-\\resumeSubHeadingListEnd`
+  _friendlyError(error) {
+    const msg = error.message || 'Unknown error';
+
+    if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+      return new Error('Network error. Check your internet connection and try again.');
+    }
+    if (msg.includes('API key')) {
+      return new Error(msg);
+    }
+    if (msg.includes('Rate limit') || msg.includes('429')) {
+      return new Error('Rate limited. Please wait a moment and try again.');
+    }
+    if (msg.includes('validation failed')) {
+      return new Error(`${msg}. Try with a different model or simpler input.`);
+    }
+
+    return new Error(msg);
+  }
+
+  /** Get current status for UI */
+  getStatus() {
+    return {
+      provider: this.currentProvider,
+      modelId: this.currentModelId,
+      modelName: this._getModelName(),
+      hasApiKey: !!this.apiKeys[this.currentProvider],
+      isGenerating: this._isGenerating,
     };
-
-    return placeholders[sectionName] || `\\section{${sectionName}}`;
-  }
-
-  // ========== Default Prompt Getters ==========
-
-  /**
-   * Get default LaTeX tailoring prompt
-   * @private
-   */
-  _getDefaultLatexPrompt() {
-    return `You are an expert ATS resume tailor for software engineering roles. Your mission is to optimize the resume to pass automated screening and secure interviews by:
-
-## Primary Objectives
-1. **Precision Alignment**: Rigorously match JD requirements using keywords/metrics from both resume and knowledge base
-2. **Strategic Project Replacement**: CRITICAL - Replace existing projects with more relevant ones from the knowledge base when they:
-  - Use the same or similar technology stack as mentioned in the JD
-  - Demonstrate stronger metrics or achievements
-  - Better align with the job responsibilities
-3. **Content Preservation**: Maintain original resume structure/length while maximizing JD keyword density
-
-## Project Replacement Protocol
-1. First, analyze the job description to identify:
-   - Required technologies and frameworks
-   - Key responsibilities and achievements
-   - Industry-specific requirements
-
-2. Then, evaluate each project in the knowledge base:
-   - Calculate relevance score based on technology alignment
-   - Compare metrics and achievements with job requirements
-   - Assess how well it demonstrates required skills
-
-3. Replace existing projects when:
-   - Knowledge base project has ≥70% technology overlap with JD
-   - Knowledge base project demonstrates stronger metrics
-   - Knowledge base project better aligns with the job responsibilities
-
-## Execution Protocol
-### Content Evaluation
-1. Analyze JD for:
-  - Required technologies (explicit and implied)
-  - Personality cues (e.g., "proactive" → "self-initiated")
-  - Performance metrics priorities
-
-2. For each resume section:
-  - Calculate relevance score to JD (keywords + metrics)
-  - Compare with knowledge base equivalents
-  - Replace ONLY if knowledge base item has:
-    * ≥1.5x higher relevance score
-    * Matching verb tense/context
-    * Comparable character length (±15%)
-
-### Optimization Rules
-- **Tech Stack Adaptation** (Allowed):
-  Example:
-  React ↔ Next.js 
-  Python ↔ FastAPI
-  AWS ↔ GCP (if cloud mentioned)
-
-- **Forbidden Adaptations**:
-  Example:
-  Frontend → Backend stacks
-
-### XYZ Format Implementation
-\\resumeItem{\\textbf{<JD Keyword>} used to \\textbf{<Action Verb>} \\emph{<Tech>} achieving \\textbf{<Metric>} via <Method>}
-
-### Formatting Constraints
-1. Preserve original:
-  - Section order
-  - Date ranges
-  - Bullet count
-  - Margin/padding
-2. Modify ONLY text within \\resumeItem{} blocks
-3. Strict 1-page enforcement
-
-## CRITICAL PROJECT REPLACEMENT RULES
-‼️ ALWAYS REPLACE existing projects with knowledge base projects that:
-- Use the same or similar technology stack as mentioned in the JD
-- Demonstrate stronger metrics or achievements
-- Better align with the job responsibilities
-
-‼️ NEVER:
-- Invent unverified experiences
-- Change section hierarchy
-- Exceed original item length by >20%
-- Remove JD-matched content
-
-!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!
-
-Original Resume:
-{originalLatex}
-
-Job Description:
-{jobDesc}
-
-Knowledge Base / Additional Experience:
-{knowledgeBase}`;
-  }
-
-  /**
-   * Get default job analysis prompt
-   * @private
-   */
-  _getDefaultJobAnalysisPrompt() {
-    return `You are an expert resume analyzer. Your task is to analyze the job description and knowledge base to identify:
-1. Key technologies and skills required by the job
-2. Projects in the knowledge base that are most relevant to the job
-3. Specific metrics and achievements that align with the job requirements
-4. Experience requirements and responsibilities
-
-Job Description:
-{jobDesc}
-
-Knowledge Base / Additional Experience:
-{knowledgeBase}
-
-Provide a structured analysis in JSON format with the following fields:
-{
-  "requiredTechnologies": ["tech1", "tech2", ...],
-  "relevantProjects": [
-    {
-      "projectName": "Project Name",
-      "technologies": ["tech1", "tech2", ...],
-      "relevanceScore": 0-100,
-      "keyMetrics": ["metric1", "metric2", ...]
-    },
-    ...
-  ],
-  "keyMetrics": ["metric1", "metric2", ...],
-  "experienceRequirements": ["requirement1", "requirement2", ...],
-  "optimizationTasks": [
-    {
-      "section": "projects",
-      "task": "Replace projects with more relevant ones from knowledge base",
-      "priority": 1-5
-    },
-    {
-      "section": "skills",
-      "task": "Add missing skills from job requirements",
-      "priority": 1-5
-    },
-    {
-      "section": "experience",
-      "task": "Refine experience descriptions to match job requirements",
-      "priority": 1-5
-    }
-  ]
-}
-
-Return ONLY the JSON object, no additional text.`;
-  }
-
-  /**
-   * Get default projects optimization prompt
-   * @private
-   */
-  _getDefaultProjectsPrompt() {
-    return `You are an expert resume projects optimizer. Your task is to optimize the projects section of the resume by replacing existing projects with more relevant ones from the knowledge base.
-
-Original Projects Section:
-{originalProjects}
-
-Job Description:
-{jobDesc}
-
-Relevant Projects from Analysis:
-{analysisProjects}
-
-Required Technologies:
-{requiredTechnologies}
-
-Key Metrics to Highlight:
-{keyMetrics}
-
-Your task is to:
-1. Replace existing projects with more relevant ones from the knowledge base
-2. Ensure the new projects use technologies mentioned in the job description
-3. Include specific metrics and achievements that align with the job requirements
-4. Maintain the same LaTeX formatting as the original projects section
-
-Return ONLY the optimized projects section in LaTeX format, maintaining the same structure and formatting as the original.
-
-VERY IMPORTANT: ALWAYS REPLACE if the knowledge base has project that uses the same tech stack as the JD or somehow relevant to the JD.`;
-  }
-
-  /**
-   * Get default skills enhancement prompt
-   * @private
-   */
-  _getDefaultSkillsPrompt() {
-    return `You are an expert resume skills optimizer. Your task is to enhance the skills section of the resume by adding relevant skills from the job description.
-
-Original Skills Section:
-{originalSkills}
-
-Job Description:
-{jobDesc}
-
-Required Technologies:
-{requiredTechnologies}
-
-Your task is to:
-1. Add any missing skills from the job requirements
-2. Organize skills by category (e.g., Programming Languages, Frameworks, Tools)
-3. Prioritize skills mentioned in the job description
-4. Maintain the same LaTeX formatting as the original skills section
-
-Return ONLY the enhanced skills section in LaTeX format, maintaining the same structure and formatting as the original.`;
-  }
-
-  /**
-   * Get default experience refinement prompt
-   * @private
-   */
-  _getDefaultExperiencePrompt() {
-    return `You are an expert resume experience optimizer. Your task is to refine the experience section of the resume to better align with the job requirements.
-
-Original Experience Section:
-{originalExperience}
-
-Job Description:
-{jobDesc}
-
-Experience Requirements:
-{experienceRequirements}
-
-Required Technologies:
-{requiredTechnologies}
-
-Key Metrics to Highlight:
-{keyMetrics}
-
-Your task is to:
-1. Refine experience descriptions to highlight relevant responsibilities and achievements
-2. Use action verbs and specific metrics to quantify achievements
-3. Emphasize experience with technologies mentioned in the job description
-4. Maintain the same LaTeX formatting as the original experience section
-
-Return ONLY the refined experience section in LaTeX format, maintaining the same structure and formatting as the original.`;
-  }
-
-  /**
-   * Get default final polish prompt
-   * @private
-   */
-  _getDefaultFinalPolishPrompt() {
-    return `You are an expert resume finalizer. Your task is to polish the entire resume to ensure it is optimized for the job description and ATS systems.
-
-Original Resume:
-{originalLatex}
-
-Optimized Projects Section:
-{optimizedProjects}
-
-Enhanced Skills Section:
-{enhancedSkills}
-
-Refined Experience Section:
-{refinedExperience}
-
-Job Description:
-{jobDesc}
-
-Your task is to:
-1. Combine all optimized sections into a cohesive resume
-2. Ensure consistent formatting and style throughout
-3. Verify that all sections are properly aligned with the job requirements
-4. Make final adjustments to improve ATS compatibility
-
-Return ONLY the complete LaTeX resume code, maintaining the same structure and formatting as the original.
-
-!! ALWAYS GIVE THE ENTIRE UPDATED LATEX CODE NOTHING ELSE ONLY THE LATEX CODE!!`;
   }
 }
 
-// Register the service globally for use in the extension
-window.AIService = AIService;
-console.log('[AIService] Gemini-only AI Service registered successfully');
+// Register globally
+if (typeof window !== 'undefined') window.AIService = AIService;
+if (typeof self !== 'undefined') self.AIService = AIService;
+console.log('[AIService] v4.0 registered');

@@ -1,40 +1,160 @@
 /**
- * Configuration module for Agentex Resume Editor
+ * Configuration — Agentex Resume Editor v4.1
  * 
- * This module provides centralized configuration for the Chrome extension,
- * including API endpoints and default settings for the Gemini AI service.
- * 
- * @module config
+ * Model registry, API endpoints, dev/prod detection, analytics helpers.
  */
 
 console.log('[Config] Loading configuration module');
 
-/**
- * Application configuration object
- * @type {Object}
- * @property {string} GEMINI_API_KEY - Default Gemini API key (can be overridden in settings)
- * @property {string} GEMINI_MODEL - Default Gemini model to use
- * @property {string} GEMINI_ENDPOINT - Gemini API endpoint
- */
+// Detect dev mode: unpacked extension has no update_url
+const IS_DEV = (() => {
+  try {
+    const manifest = chrome.runtime.getManifest();
+    return !manifest.update_url;
+  } catch { return true; }
+})();
+
 const config = {
-  // Gemini AI Configuration
-  GEMINI_API_KEY: 'AIzaSyCsVeBSru9Wu51L9QA8EIjWlP2_Zow4FC8',
-  GEMINI_MODEL: 'gemini-2.0-flash',
-  GEMINI_ENDPOINT: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-  
-  // Application Settings
   APP_NAME: 'Agentex Resume Editor',
-  APP_VERSION: '2.0',
-  
-  // Server Configuration
-  SERVER_URL: 'https://agentex.onrender.com'
+  APP_VERSION: '4.1',
+  IS_DEV,
+
+  // ===========================================
+  // AI MODEL REGISTRY (Updated Feb 2026)
+  // ===========================================
+  MODELS: {
+    gemini: [
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tier: 'recommended', description: 'Best price-performance, fast reasoning' },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', tier: 'premium', description: 'Deep reasoning, 1M context' },
+      { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite', tier: 'budget', description: 'Fastest, cheapest multimodal' },
+      { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', tier: 'preview', description: 'Frontier performance (preview)' },
+      { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', tier: 'preview', description: 'Most intelligent (preview)' },
+    ],
+    claude: [
+      { id: 'claude-sonnet-4-6-20260217', name: 'Claude Sonnet 4.6', tier: 'recommended', description: 'Best balance, 200K context' },
+      { id: 'claude-opus-4-6-20260205', name: 'Claude Opus 4.6', tier: 'premium', description: 'Most capable, complex tasks' },
+      { id: 'claude-opus-4-5-20251124', name: 'Claude Opus 4.5', tier: 'premium', description: 'Coding, agents, extended thinking' },
+      { id: 'claude-haiku-4-5-20251015', name: 'Claude Haiku 4.5', tier: 'budget', description: 'Fast, affordable, near-frontier' },
+      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', tier: 'standard', description: 'Balanced speed and quality' },
+    ]
+  },
+
+  DEFAULT_PROVIDER: 'gemini',
+  DEFAULT_GEMINI_MODEL: 'gemini-2.5-flash',
+  DEFAULT_CLAUDE_MODEL: 'claude-sonnet-4-6-20260217',
+
+  // ===========================================
+  // API ENDPOINTS
+  // ===========================================
+  GEMINI_ENDPOINT: 'https://generativelanguage.googleapis.com/v1beta/models',
+  CLAUDE_ENDPOINT: 'https://api.anthropic.com/v1/messages',
+  ANTHROPIC_VERSION: '2023-06-01',
+
+  // ===========================================
+  // SERVER (auto-detect dev/prod)
+  // ===========================================
+  get SERVER_URL() {
+    return IS_DEV ? 'http://localhost:3000' : 'https://agentex.onrender.com';
+  },
+
+  // ===========================================
+  // GENERATION SETTINGS
+  // ===========================================
+  GENERATION: {
+    temperature: 0.3,
+    maxOutputTokens: 8192,
+    retryDelayMs: 2000,
+    maxRetries: 2,
+    cooldownMs: 3000,
+  },
+
+  // ===========================================
+  // GUARDRAILS
+  // ===========================================
+  GUARDRAILS: {
+    MAX_LENGTH_DEVIATION: 0.20,
+    PROTECTED_SECTIONS: ['education', 'contact', 'name'],
+    REQUIRED_LATEX_PATTERNS: [
+      '\\\\documentclass',
+      '\\\\begin\\{document\\}',
+      '\\\\end\\{document\\}'
+    ],
+    FABRICATION_INDICATORS: [
+      /\b(invented|fabricated|imaginary|fictional)\b/i,
+      /\b(approximately|roughly|about)\s+\d+\s*(years|months)/i,
+      /\b(various|many|several)\s+(companies|organizations|firms)/i
+    ],
+    MAX_VALIDATION_RETRIES: 2,
+    SIMILARITY_THRESHOLD: 0.7,
+  },
+
+  INSTRUCTION_LIMITS: {
+    MAX_CUSTOM_INSTRUCTIONS_LENGTH: 2000,
+    MAX_PRESERVE_ITEMS: 10,
+    MAX_FOCUS_AREAS: 5
+  },
+
+  // ===========================================
+  // BUG REPORTING
+  // ===========================================
+  BUG_REPORT_URL: 'https://github.com/sbeeredd04/Agentex/issues/new',
+
+  // ===========================================
+  // HELPERS
+  // ===========================================
+
+  getModel(provider, modelId) {
+    return this.MODELS[provider]?.find(m => m.id === modelId);
+  },
+
+  getRecommended(provider) {
+    return this.MODELS[provider]?.find(m => m.tier === 'recommended');
+  },
+
+  getAllModels() {
+    return [
+      ...this.MODELS.gemini.map(m => ({ ...m, provider: 'gemini' })),
+      ...this.MODELS.claude.map(m => ({ ...m, provider: 'claude' })),
+    ];
+  },
+
+  geminiUrl(modelId) {
+    return `${this.GEMINI_ENDPOINT}/${modelId}:generateContent`;
+  },
+
+  // Analytics helpers
+  async trackGeneration(provider, modelId, success) {
+    try {
+      const data = await chrome.storage.local.get(['analytics']);
+      const analytics = data.analytics || { generations: 0, errors: 0, models: {}, lastUsed: null };
+      analytics.generations++;
+      if (!success) analytics.errors++;
+      const key = `${provider}:${modelId}`;
+      analytics.models[key] = (analytics.models[key] || 0) + 1;
+      analytics.lastUsed = new Date().toISOString();
+      await chrome.storage.local.set({ analytics });
+    } catch (e) { /* silent */ }
+  },
+
+  async getAnalytics() {
+    const data = await chrome.storage.local.get(['analytics']);
+    return data.analytics || { generations: 0, errors: 0, models: {}, lastUsed: null };
+  }
 };
 
-// Make configuration available globally
-window.config = config;
+// Export globally
+if (typeof window !== 'undefined') {
+  window.config = config;
+  window.AgentexConfig = config;
+}
+if (typeof self !== 'undefined') {
+  self.config = config;
+  self.AgentexConfig = config;
+}
 
-console.log('[Config] Configuration loaded successfully', {
-  appName: config.APP_NAME,
+console.log('[Config]', IS_DEV ? 'DEV mode' : 'PROD mode', {
   version: config.APP_VERSION,
-  geminiModel: config.GEMINI_MODEL
+  server: config.SERVER_URL,
+  gemini: config.MODELS.gemini.length,
+  claude: config.MODELS.claude.length
 });

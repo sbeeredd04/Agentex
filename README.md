@@ -2,13 +2,13 @@
 
 **AI-Powered Resume Tailoring Chrome Extension**
 
-Agentex is a Chrome extension that uses Google's Gemini AI to intelligently tailor your resume to specific job descriptions, helping you pass ATS (Applicant Tracking System) screenings and land more interviews.
+Agentex is a Chrome extension that uses Google's Gemini AI (2.5 Flash) to intelligently tailor your resume to specific job descriptions, helping you pass ATS (Applicant Tracking System) screenings and land more interviews.
 
 ## 🌟 Features
 
 - **Smart Resume Tailoring**: Automatically optimize your resume for any job description
 - **LaTeX-Only Format**: Works exclusively with LaTeX (.tex) resume files for professional typesetting
-- **Gemini AI-Powered**: Leverages Google's latest Gemini 2.0 Flash model for intelligent optimization
+- **Gemini AI-Powered**: Leverages Google's Gemini 2.5 Flash model for intelligent optimization
 - **Project Replacement**: Intelligently replaces resume projects with more relevant ones from your knowledge base
 - **ATS Optimization**: Ensures your resume passes automated screening systems
 - **Real-time Preview**: View your changes instantly with side-by-side comparison
@@ -136,7 +136,7 @@ Agentex/
 ### Technology Stack
 
 - **Frontend**: Vanilla JavaScript (ES6+), HTML5, CSS3
-- **AI Service**: Google Gemini 2.0 Flash API
+- **AI Service**: Google Gemini 2.5 Flash API
 - **File Processing**: 
   - 
   - PizZip (ZIP handling)
@@ -191,7 +191,7 @@ All prompts can be customized through the Settings panel:
 4. Save changes
 5. Use "Reset to Default" to restore original prompts
 
-See [prompt-resume.md](prompt-resume.md) for detailed prompt documentation.
+See [docs/prompt-resume.md](docs/prompt-resume.md) for detailed prompt documentation.
 
 ### Server Configuration
 
@@ -339,7 +339,7 @@ Add emphasis on:
 - Enterprise tools and practices
 ```
 
-See [prompt-resume.md](prompt-resume.md) for complete prompt documentation.
+See [docs/prompt-resume.md](docs/prompt-resume.md) for complete prompt documentation.
 
 ## 🐛 Troubleshooting
 

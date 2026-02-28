@@ -1,50 +1,50 @@
-# Use Ubuntu as base image for better TeX Live support
-FROM ubuntu:22.04
+# ============================================
+# Agentex Server — Production Dockerfile
+# Multi-stage build: Node.js + TeX Live
+# ============================================
 
-# Prevent interactive prompts during installation
-ENV DEBIAN_FRONTEND=noninteractive
+FROM node:20-slim AS base
 
-# Install Node.js and npm
-RUN apt-get update && apt-get install -y curl
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-RUN apt-get install -y nodejs
-
-# Install TeX Live and required packages
-RUN apt-get update && apt-get install -y \
-    texlive-full \
+# Install TeX Live (minimal for resume compilation)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    texlive-latex-base \
     texlive-latex-recommended \
     texlive-latex-extra \
     texlive-fonts-recommended \
     texlive-fonts-extra \
+    texlive-xetex \
+    latexmk \
     && rm -rf /var/lib/apt/lists/*
 
-# Add TeX Live binaries to PATH
-ENV PATH="/usr/local/texlive/2023/bin/x86_64-linux:$PATH"
+# Verify pdflatex
+RUN which pdflatex && pdflatex --version | head -1
 
-# Verify installations
-RUN node --version
-RUN npm --version
-RUN which pdflatex
-RUN pdflatex --version
+# ============================================
+# App setup
+# ============================================
 
-# Create app directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files first (Docker layer caching)
+COPY package.json ./
+RUN npm ci --production && npm cache clean --force
 
-# Install dependencies
-RUN npm install
+# Copy server code
+COPY server.js ./
+COPY .env.example ./.env.example
 
-# Copy server source
-COPY . .
+# Create temp directories
+RUN mkdir -p /tmp/agentex/pdf
 
-# Create required directories
-RUN mkdir -p /tmp/pdf
+# Non-root user for security
+RUN groupadd -r agentex && useradd -r -g agentex -d /app agentex
+RUN chown -R agentex:agentex /app /tmp/agentex
+USER agentex
 
-# Expose port (use PORT from render.com)
-ENV PORT=${PORT:-10000}
-EXPOSE ${PORT}
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "const http=require('http');const r=http.get('http://localhost:3000/health',res=>{process.exit(res.statusCode===200?0:1)});r.on('error',()=>process.exit(1))"
 
-# Start the server
-CMD ["node", "server.js"] 
+EXPOSE 3000
+
+CMD ["node", "server.js"]

@@ -80,42 +80,92 @@ curl -X POST http://localhost:3000/compile \
 
 ## HTTPS Setup (with domain)
 
+Chrome Extensions require `https://` when talking to external APIs. We configure Nginx as a reverse proxy and use Certbot for a free Let's Encrypt SSL certificate.
+
 ### 1. Install Nginx + Certbot
 
 ```bash
+sudo apt update
 sudo apt install nginx certbot python3-certbot-nginx -y
 ```
 
-### 2. Copy Nginx config
+### 2. Create Nginx config
+
+Create a simple Nginx configuration so Certbot can verify your domain:
+```bash
+sudo nano /etc/nginx/sites-available/agentex
+```
+
+Paste this block (replace `api.agentex.yourdomain.com` with your actual domain):
+```nginx
+server {
+    listen 80;
+    server_name api.agentex.yourdomain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+### 3. Enable the site
 
 ```bash
-sudo cp nginx.conf /etc/nginx/sites-available/agentex
-
-# Replace YOUR_DOMAIN with your actual domain
-sudo sed -i 's/YOUR_DOMAIN/api.yourdomain.com/g' /etc/nginx/sites-available/agentex
-
+# Link the config to enable it
 sudo ln -s /etc/nginx/sites-available/agentex /etc/nginx/sites-enabled/
+
+# Remove the default nginx page
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# Test Nginx and restart
 sudo nginx -t
-```
-
-### 3. Get SSL certificate
-
-```bash
-sudo certbot --nginx -d api.yourdomain.com
-```
-
-### 4. Restart Nginx
-
-```bash
 sudo systemctl restart nginx
+```
+
+### 4. Get SSL certificate
+
+Run certbot to fetch the certificate and automatically wrap your Nginx file:
+```bash
+sudo certbot --nginx -d api.agentex.yourdomain.com
 ```
 
 ### 5. Update extension config
 
-In `config.js`, update `SERVER_URL`:
+In `tailored-resume-extension/config.js`, update the `SERVER_URL` getter:
 ```javascript
-SERVER_URL: 'https://api.yourdomain.com'
+get SERVER_URL() {
+  return IS_DEV ? 'http://localhost:3000' : 'https://api.agentex.yourdomain.com';
+},
 ```
+
+---
+
+## Auto-Deploy via GitHub Actions
+
+To automatically deploy changes from the `main` branch to your VPS, a `.github/workflows/deploy.yml` file is provided. You just need to configure the server to allow GitHub to SSH into it.
+
+### 1. Generate SSH Key on VPS
+
+Ensure you are logged in as `root`:
+```bash
+ssh-keygen -t rsa -b 4096 -C "github-actions-deploy" -f ~/.ssh/github_actions
+cat ~/.ssh/github_actions.pub >> ~/.ssh/authorized_keys
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+cat ~/.ssh/github_actions # Note: Copy the entire output
+```
+
+### 2. Add GitHub Repository Secrets
+
+Go to your GitHub repository **Settings > Secrets and variables > Actions**:
+*   `VPS_HOST`: Your VPS IP address (e.g. `5.78...`)
+*   `VPS_USER`: `root`
+*   `VPS_SSH_KEY`: The entire private key you copied above (including the `BEGIN` and `END` lines).
 
 ---
 

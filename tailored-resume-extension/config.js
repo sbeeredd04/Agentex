@@ -54,7 +54,7 @@ const config = {
   // SERVER (auto-detect dev/prod)
   // ===========================================
   get SERVER_URL() {
-    return IS_DEV ? 'http://localhost:3000' : 'https://agentex.onrender.com';
+    return IS_DEV ? 'http://localhost:3000' : 'https://api.agentex.sriujjwalreddy.com';
   },
 
   // ===========================================

@@ -32,6 +32,7 @@
     setupSettingsToggle();
     setupPromptSection();
     setupBugReport();
+    setupDownloadName();
     setupStorageSync();
     await restoreState();
     updateBanner();
@@ -250,6 +251,24 @@
     }
   }
 
+  // ── Download Filename ──
+  function setupDownloadName() {
+    const input = $('#download-name');
+    if (!input) return;
+    let _timer = null;
+    input.addEventListener('input', () => {
+      clearTimeout(_timer);
+      _timer = setTimeout(() => {
+        // Sanitize: strip characters invalid in filenames, collapse spaces to dashes
+        const raw = input.value.trim();
+        const sanitized = raw.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '-');
+        const name = sanitized || 'tailored-resume';
+        chrome.storage.local.set({ downloadName: name });
+        if (sanitized !== raw) input.value = sanitized;
+      }, 400);
+    });
+  }
+
   // ── Bug Report & Feature Request ──
   function setupBugReport() {
     const issueUrl = config.BUG_REPORT_URL || 'https://github.com/sbeeredd04/Agentex/issues/new';
@@ -282,7 +301,7 @@
       'resumeLatex', 'resumeFilename', 'selectedModel', 'geminiApiKey', 'claudeApiKey',
       'knowledgeBase', 'focusSkills', 'focusExperience', 'focusSummary', 'focusProjects',
       'preserveEducation', 'preserveContact', 'strictMode', 'customInstructions',
-      'systemPrompt', 'guardrailRules'
+      'systemPrompt', 'guardrailRules', 'downloadName'
     ]);
 
     if (data.resumeFilename && fileStatus) {
@@ -315,6 +334,7 @@
 
     if (data.customInstructions) $('#custom-instructions').value = data.customInstructions;
     if (data.guardrailRules && $('#guardrail-rules')) $('#guardrail-rules').value = data.guardrailRules;
+    if ($('#download-name')) $('#download-name').value = data.downloadName || '';
 
     // System prompt: if user has a saved custom one, show it; otherwise setupPromptSection fills the default
     if (data.systemPrompt && $('#system-prompt')) $('#system-prompt').value = data.systemPrompt;

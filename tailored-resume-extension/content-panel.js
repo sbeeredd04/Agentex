@@ -153,7 +153,7 @@
     // CSS `transform: translate(x, y)` is used instead of left/top for smooth rendering.
     const _pos = { x: 0, y: 0 };
     const ICON_SIZE = 48;
-    const EDGE_MARGIN = 12;
+    const EDGE_MARGIN = 32;
 
     function _initPosition() {
         // Start at bottom-right
@@ -456,9 +456,18 @@
     });
 
     // ── Downloads ──
-    $('#ax-dl-tex')?.addEventListener('click', () => {
+    async function getDownloadName() {
+        try {
+            const d = await chrome.storage.local.get(['downloadName']);
+            const raw = (d.downloadName || '').trim();
+            return raw || 'tailored-resume';
+        } catch { return 'tailored-resume'; }
+    }
+
+    $('#ax-dl-tex')?.addEventListener('click', async () => {
         if (!state.tailoredLatex) { showToast('No resume to download.', 'warning'); return; }
-        dlFile(state.tailoredLatex, 'tailored-resume.tex', 'text/plain');
+        const name = await getDownloadName();
+        dlFile(state.tailoredLatex, `${name}.tex`, 'text/plain');
         showToast('LaTeX file downloaded.', 'success');
     });
 
@@ -469,7 +478,8 @@
             const r = await chrome.runtime.sendMessage({ type: 'COMPILE_PDF', latex: state.tailoredLatex });
             if (r.error) throw new Error(r.error);
             const blob = b64ToBlob(r.pdfBase64, 'application/pdf');
-            dlBlob(blob, 'tailored-resume.pdf');
+            const name = await getDownloadName();
+            dlBlob(blob, `${name}.pdf`);
             showToast('PDF downloaded.', 'success');
         } catch (e) {
             showToast('PDF failed: ' + e.message, 'error');

@@ -7,14 +7,14 @@ FROM node:20-slim AS base
 
 # Install TeX Live (minimal for resume compilation)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    texlive-latex-base \
-    texlive-latex-recommended \
-    texlive-latex-extra \
-    texlive-fonts-recommended \
-    texlive-fonts-extra \
-    texlive-xetex \
-    latexmk \
-    && rm -rf /var/lib/apt/lists/*
+  texlive-latex-base \
+  texlive-latex-recommended \
+  texlive-latex-extra \
+  texlive-fonts-recommended \
+  texlive-fonts-extra \
+  texlive-xetex \
+  latexmk \
+  && rm -rf /var/lib/apt/lists/*
 
 # Verify pdflatex
 RUN which pdflatex && pdflatex --version | head -1
@@ -26,7 +26,7 @@ RUN which pdflatex && pdflatex --version | head -1
 WORKDIR /app
 
 # Copy package files first (Docker layer caching)
-COPY package.json ./
+COPY package*.json ./
 RUN npm ci --production && npm cache clean --force
 
 # Copy server code

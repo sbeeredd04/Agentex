@@ -32,3 +32,10 @@ coverage/
 # Temporary files
 /tmp/
 temp/
+
+#.claude and claudemd 
+.claude
+CLAUDE.md
+
+# any node modules 
+*node_modules*

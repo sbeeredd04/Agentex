@@ -1,19 +1,20 @@
 # Agentex Resume Editor
 
-**AI-Powered Resume Tailoring Chrome Extension**
+**AI-Powered Resume Tailoring Chrome Extension — v4.1**
 
-Agentex is a Chrome extension that uses Google's Gemini AI (2.5 Flash) to intelligently tailor your resume to specific job descriptions, helping you pass ATS (Applicant Tracking System) screenings and land more interviews.
+Agentex is a Chrome extension that uses Google Gemini and Anthropic Claude to intelligently tailor your LaTeX resume to any job description. It injects a floating panel into any webpage so you can paste a job description, generate a tailored resume, and download a compiled PDF — without ever leaving the page you are on.
 
-## 🌟 Features
+## Features
 
-- **Smart Resume Tailoring**: Automatically optimize your resume for any job description
-- **LaTeX-Only Format**: Works exclusively with LaTeX (.tex) resume files for professional typesetting
-- **Gemini AI-Powered**: Leverages Google's Gemini 2.5 Flash model for intelligent optimization
-- **Project Replacement**: Intelligently replaces resume projects with more relevant ones from your knowledge base
-- **ATS Optimization**: Ensures your resume passes automated screening systems
-- **Real-time Preview**: View your changes instantly with side-by-side comparison
-- **PDF Generation**: Compile LaTeX resumes to PDF directly in the browser
-- **Knowledge Base**: Maintain a repository of additional projects and experience to draw from
+- **Dual-Panel Architecture**: Floating in-tab panel for generation + side panel for configuration — works on any webpage
+- **10 AI Models**: Choose from 5 Gemini models and 5 Claude models; bring your own API key
+- **LaTeX-Native**: Works exclusively with LaTeX (.tex) resume files; output is valid, compilable LaTeX
+- **PDF Compilation**: Compile tailored LaTeX to a formatted PDF directly from the panel
+- **Anti-Fabrication Guardrails**: AI is strictly prevented from inventing skills, titles, companies, or dates not present in your original resume
+- **Knowledge Base**: Maintain a repository of additional projects and experience the AI can draw from
+- **Custom Instructions**: Write per-user generation instructions to guide the AI
+- **ATS Optimization**: Expert recruiter prompts engineered for keyword alignment and impact framing
+- **Zero Data Storage**: Your resume, keys, and output stay in your browser — nothing is stored on a server
 
 ## 📋 Table of Contents
 

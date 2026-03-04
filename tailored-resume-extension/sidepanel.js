@@ -88,6 +88,30 @@
       modelSelect.appendChild(c);
     }
 
+    if (MODELS.groq?.length) {
+      const g = document.createElement('optgroup');
+      g.label = 'Groq';
+      for (const m of MODELS.groq) {
+        const o = document.createElement('option');
+        o.value = `groq:${m.id}`;
+        o.textContent = m.name + (m.tier === 'recommended' ? ' (Recommended)' : '');
+        g.appendChild(o);
+      }
+      modelSelect.appendChild(g);
+    }
+
+    if (MODELS.openrouter?.length) {
+      const or = document.createElement('optgroup');
+      or.label = 'OpenRouter';
+      for (const m of MODELS.openrouter) {
+        const o = document.createElement('option');
+        o.value = `openrouter:${m.id}`;
+        o.textContent = m.name + (m.tier === 'recommended' ? ' (Recommended)' : '');
+        or.appendChild(o);
+      }
+      modelSelect.appendChild(or);
+    }
+
     modelSelect.addEventListener('change', () => {
       const [provider, modelId] = modelSelect.value.split(':');
       updateModelInfo(provider, modelId);
@@ -189,6 +213,8 @@
   function setupSettings() {
     $('#toggle-gemini-key')?.addEventListener('click', () => toggleVis('gemini-key'));
     $('#toggle-claude-key')?.addEventListener('click', () => toggleVis('claude-key'));
+    $('#toggle-groq-key')?.addEventListener('click', () => toggleVis('groq-key'));
+    $('#toggle-openrouter-key')?.addEventListener('click', () => toggleVis('openrouter-key'));
     $('#btn-save-settings')?.addEventListener('click', () => {
       saveSettings();
       showToast('Configuration saved successfully.', 'success');
@@ -335,6 +361,7 @@
   async function restoreState() {
     const data = await chrome.storage.local.get([
       'resumeLatex', 'resumeFilename', 'selectedModel', 'geminiApiKey', 'claudeApiKey',
+      'groqApiKey', 'openrouterApiKey',
       'knowledgeBase', 'focusSkills', 'focusExperience', 'focusSummary', 'focusProjects',
       'preserveEducation', 'preserveContact', 'strictMode', 'customInstructions',
       'systemPrompt', 'guardrailRules', 'downloadName'
@@ -353,6 +380,8 @@
 
     if (data.geminiApiKey) $('#gemini-key').value = data.geminiApiKey;
     if (data.claudeApiKey) $('#claude-key').value = data.claudeApiKey;
+    if (data.groqApiKey) $('#groq-key').value = data.groqApiKey;
+    if (data.openrouterApiKey) $('#openrouter-key').value = data.openrouterApiKey;
     if (data.knowledgeBase && kbInput) kbInput.value = data.knowledgeBase;
 
     for (const [id, val] of Object.entries({
@@ -389,6 +418,8 @@
       selectedModelId: modelId,
       geminiApiKey: $('#gemini-key')?.value.trim(),
       claudeApiKey: $('#claude-key')?.value.trim(),
+      groqApiKey: $('#groq-key')?.value.trim(),
+      openrouterApiKey: $('#openrouter-key')?.value.trim(),
       knowledgeBase: kbInput?.value.trim(),
       focusSkills: $('#focus-skills')?.checked ?? true,
       focusExperience: $('#focus-experience')?.checked ?? true,
@@ -409,9 +440,9 @@
   // ── Banner ──
   async function updateBanner() {
     if (!banner) return;
-    const data = await chrome.storage.local.get(['resumeLatex', 'geminiApiKey', 'claudeApiKey']);
+    const data = await chrome.storage.local.get(['resumeLatex', 'geminiApiKey', 'claudeApiKey', 'groqApiKey', 'openrouterApiKey']);
     const hasResume = !!data.resumeLatex;
-    const hasKey = !!(data.geminiApiKey || data.claudeApiKey);
+    const hasKey = !!(data.geminiApiKey || data.claudeApiKey || data.groqApiKey || data.openrouterApiKey);
 
     if (!hasResume && !hasKey) {
       banner.style.display = 'flex'; banner.className = 'status-banner warning';

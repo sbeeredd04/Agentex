@@ -187,6 +187,32 @@ Content-Type: multipart/form-data
 
 ---
 
+### OpenRouter API Integration
+
+**Endpoint**: `https://openrouter.ai/api/v1/chat/completions`
+
+**Authentication**: Bearer token required
+
+**Supported Models**:
+- `meta-llama/llama-3.3-70b-instruct`
+- `anthropic/claude-3.7-sonnet`
+- `google/gemini-2.5-flash`
+
+**Request Structure**:
+```json
+{
+  "model": "meta-llama/llama-3.3-70b-instruct",
+  "messages": [{
+    "role": "user",
+    "content": "Your prompt here"
+  }],
+  "temperature": 0.7,
+  "max_tokens": 8192
+}
+```
+
+---
+
 ## 🔧 Chrome Extension APIs
 
 ### Storage API
@@ -213,7 +239,9 @@ const { sidebarState } = await chrome.storage.local.get('sidebarState');
 ```javascript
 await chrome.storage.local.set({
   geminiApiKey: 'your-api-key',
-  groqApiKey: 'your-groq-key'
+  claudeApiKey: 'your-claude-key',
+  groqApiKey: 'your-groq-key',
+  openrouterApiKey: 'your-openrouter-key'
 });
 ```
 
@@ -312,6 +340,8 @@ class AIService {
   async _generateWithGemini(prompt)
   
   async _generateWithGroq(prompt, model)
+  
+  async _generateWithOpenRouter(prompt, model)
   
   setCurrentModel(type, model)
 }
@@ -470,6 +500,7 @@ class ServerManager {
 ### AI API Limits
 - **Gemini**: Follow Google's API rate limits
 - **Groq**: Follow Groq's API rate limits
+- **OpenRouter**: Follow OpenRouter's rate limits (varies by model)
 - **Content Length**: Maximum 8192 tokens output
 
 ### Storage Limits

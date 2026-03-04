@@ -38,6 +38,16 @@ const config = {
       { id: 'claude-opus-4-5-20251124', name: 'Claude Opus 4.5', tier: 'premium', description: 'Coding, agents, extended thinking' },
       { id: 'claude-haiku-4-5-20251015', name: 'Claude Haiku 4.5', tier: 'budget', description: 'Fast, affordable, near-frontier' },
       { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', tier: 'standard', description: 'Balanced speed and quality' },
+    ],
+    groq: [
+      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Groq)', tier: 'recommended', description: 'Powerful, great reasoning' },
+      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B (Groq)', tier: 'budget', description: 'Fast, efficient' },
+      { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Llama 70B (Groq)', tier: 'standard', description: 'Balanced performance' }
+    ],
+    openrouter: [
+      { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B (OR)', tier: 'recommended', description: 'Meta\'s powerful model' },
+      { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet (OR)', tier: 'premium', description: 'Anthropic\'s newest model' },
+      { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash (OR)', tier: 'budget', description: 'Fast and cheap' }
     ]
   },
 
@@ -51,6 +61,8 @@ const config = {
   GEMINI_ENDPOINT: 'https://generativelanguage.googleapis.com/v1beta/models',
   CLAUDE_ENDPOINT: 'https://api.anthropic.com/v1/messages',
   ANTHROPIC_VERSION: '2023-06-01',
+  GROQ_ENDPOINT: 'https://api.groq.com/openai/v1/chat/completions',
+  OPENROUTER_ENDPOINT: 'https://openrouter.ai/api/v1/chat/completions',
 
   // ===========================================
   // SERVER (auto-detect dev/prod)
@@ -117,6 +129,8 @@ const config = {
     return [
       ...this.MODELS.gemini.map(m => ({ ...m, provider: 'gemini' })),
       ...this.MODELS.claude.map(m => ({ ...m, provider: 'claude' })),
+      ...(this.MODELS.groq || []).map(m => ({ ...m, provider: 'groq' })),
+      ...(this.MODELS.openrouter || []).map(m => ({ ...m, provider: 'openrouter' })),
     ];
   },
 
@@ -158,5 +172,7 @@ console.log('[Config]', IS_DEV ? 'DEV mode' : 'PROD mode', {
   version: config.APP_VERSION,
   server: config.SERVER_URL,
   gemini: config.MODELS.gemini.length,
-  claude: config.MODELS.claude.length
+  claude: config.MODELS.claude.length,
+  groq: config.MODELS.groq.length,
+  openrouter: config.MODELS.openrouter.length
 });

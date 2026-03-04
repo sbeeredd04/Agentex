@@ -7,7 +7,7 @@ Agentex is a Chrome extension that uses Google Gemini and Anthropic Claude to in
 ## Features
 
 - **Dual-Panel Architecture**: Floating in-tab panel for generation + side panel for configuration — works on any webpage
-- **10 AI Models**: Choose from 5 Gemini models and 5 Claude models; bring your own API key
+- **Multiple AI Models**: Choose from Gemini, Claude, Groq, and OpenRouter models; bring your own API key
 - **LaTeX-Native**: Works exclusively with LaTeX (.tex) resume files; output is valid, compilable LaTeX
 - **PDF Compilation**: Compile tailored LaTeX to a formatted PDF directly from the panel
 - **Anti-Fabrication Guardrails**: AI is strictly prevented from inventing skills, titles, companies, or dates not present in your original resume
@@ -48,7 +48,7 @@ Agentex is a Chrome extension that uses Google Gemini and Anthropic Claude to in
 3. **Configure API Key**
    - Click the extension icon in Chrome
    - Click the Settings gear icon
-   - Enter your Gemini API key (get one at [Google AI Studio](https://makersuite.google.com/app/apikey))
+   - Enter your API keys (Gemini, Claude, Groq, or OpenRouter)
    - Click "Save Settings"
 
 ### From Chrome Web Store (Coming Soon)

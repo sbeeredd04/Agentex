@@ -50,6 +50,7 @@
 
     <div class="ax-model-row">
       <select id="ax-model" class="ax-model-select"></select>
+      <input type="text" id="ax-custom-model" class="ax-textarea" placeholder="Custom Model ID..." style="display: none; margin-top: 8px; height: 32px;">
     </div>
 
     <div class="ax-gen-area">
@@ -389,6 +390,10 @@
                     o.textContent = m.name;
                     or.appendChild(o);
                 }
+                const customOpt = document.createElement('option');
+                customOpt.value = 'openrouter:custom';
+                customOpt.textContent = 'Custom Model...';
+                or.appendChild(customOpt);
                 modelSelect.appendChild(or);
             }
 
@@ -402,20 +407,67 @@
         }
     }
 
+    const customModelInput = $('#ax-custom-model');
+
     modelSelect.addEventListener('change', () => {
-        const [provider, modelId] = modelSelect.value.split(':');
+        const idx = modelSelect.value.indexOf(':');
+        const provider = modelSelect.value.substring(0, idx);
+        let modelId = modelSelect.value.substring(idx + 1);
+
+        if (provider === 'openrouter' && modelId === 'custom') {
+            if (customModelInput) customModelInput.style.display = 'block';
+            const customVal = customModelInput?.value.trim();
+            if (customVal) modelId = customVal;
+        } else {
+            if (customModelInput) customModelInput.style.display = 'none';
+        }
+
         state.provider = provider;
         state.modelId = modelId;
         chrome.runtime.sendMessage({ type: 'SET_MODEL', provider, modelId }).catch(() => { });
     });
+
+    // Auto-save logic for Custom Model Input
+    let customModelTimer = null;
+    if (customModelInput) {
+        customModelInput.addEventListener('input', () => {
+            clearTimeout(customModelTimer);
+            customModelTimer = setTimeout(() => {
+                const customVal = customModelInput.value.trim();
+                if (customVal) {
+                    state.modelId = customVal;
+                    chrome.runtime.sendMessage({ type: 'SET_MODEL', provider: 'openrouter', modelId: customVal }).catch(() => { });
+                }
+            }, 800);
+        });
+    }
 
     // ── Storage sync — react to model changes from sidebar ──
     chrome.storage.onChanged.addListener((changes) => {
         if (changes.selectedModel) {
             const newVal = changes.selectedModel.newValue;
             if (newVal && modelSelect.value !== newVal) {
-                modelSelect.value = newVal;
-                const [p, m] = newVal.split(':');
+                let restoredVal = newVal;
+                const idx = newVal.indexOf(':');
+                const p = newVal.substring(0, idx);
+                const m = newVal.substring(idx + 1);
+
+                if (p === 'openrouter') {
+                    // Check if models arrays are ready. If not, best effort.
+                    const isKnown = (window.MODELS?.openrouter || []).some(mod => mod.id === m);
+                    // In content-panel, we don't hold MODELS statically, so we rely on the custom mapping
+                    // Assume it's custom if it's not matching existing options
+                    const hasOption = Array.from(modelSelect.options).some(opt => opt.value === newVal);
+                    if (!hasOption) {
+                        restoredVal = 'openrouter:custom';
+                        if (customModelInput) {
+                            customModelInput.value = m;
+                            customModelInput.style.display = 'block';
+                        }
+                    }
+                }
+
+                modelSelect.value = restoredVal;
                 state.provider = p;
                 state.modelId = m;
             }

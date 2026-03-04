@@ -143,6 +143,13 @@ Content-Type: multipart/form-data
 
 **Authentication**: API Key required
 
+**Supported Models**:
+- `gemini-2.5-flash` (Recommended)
+- `gemini-2.5-pro`
+- `gemini-2.5-flash-lite`
+- `gemini-3-flash-preview`
+- `gemini-3.1-pro-preview`
+
 **Request Structure**:
 ```json
 {
@@ -162,6 +169,33 @@ Content-Type: multipart/form-data
 
 ---
 
+### Claude API Integration
+
+**Endpoint**: `https://api.anthropic.com/v1/messages`
+
+**Authentication**: x-api-key required
+
+**Supported Models**:
+- `claude-sonnet-4-6-20260217` (Recommended)
+- `claude-opus-4-6-20260205`
+- `claude-opus-4-5-20251124`
+- `claude-haiku-4-5-20251015`
+- `claude-sonnet-4-20250514`
+
+**Request Structure**:
+```json
+{
+  "model": "claude-sonnet-4-6-20260217",
+  "max_tokens": 8192,
+  "messages": [{
+    "role": "user",
+    "content": "Your prompt here"
+  }]
+}
+```
+
+---
+
 ### Groq API Integration
 
 **Endpoint**: `https://api.groq.com/openai/v1/chat/completions`
@@ -169,7 +203,8 @@ Content-Type: multipart/form-data
 **Authentication**: Bearer token required
 
 **Supported Models**:
-- `deepseek-r1-distill-qwen-32b`
+- `llama-3.3-70b-versatile` (Recommended)
+- `llama-3.1-8b-instant`
 - `deepseek-r1-distill-llama-70b`
 
 **Request Structure**:
@@ -194,9 +229,10 @@ Content-Type: multipart/form-data
 **Authentication**: Bearer token required
 
 **Supported Models**:
-- `meta-llama/llama-3.3-70b-instruct`
-- `anthropic/claude-3.7-sonnet`
-- `google/gemini-2.5-flash`
+- `meta-llama/llama-3.3-70b-instruct:free` (Recommended)
+- `deepseek/deepseek-r1-distill-llama-70b`
+- `openai/gpt-3.5-turbo`
+- `anthropic/claude-3.5-sonnet`
 
 **Request Structure**:
 ```json

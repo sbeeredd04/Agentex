@@ -45,10 +45,10 @@ const config = {
       { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Llama 70B (Groq)', tier: 'standard', description: 'Balanced performance' }
     ],
     openrouter: [
-      { id: 'meta-llama/Meta-Llama-3-8B-Instruct', name: 'Llama 3 8B (Free)', tier: 'recommended', description: 'Free model from Meta' },
-      { id: 'mistralai/Mistral-7B-Instruct-v0.2', name: 'Mistral 7B (Free)', tier: 'budget', description: 'Free model from Mistral' },
-      { id: 'openai/gpt-3.5-turbo', name: 'ChatGPT 3.5 Turbo', tier: 'standard', description: 'Fast, classic OpenAI model' },
-      { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (OR)', tier: 'premium', description: 'Anthropic\'s newest model' }
+      { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (free)', tier: 'recommended', description: 'Powerful, great reasoning' },
+      { id: 'deepseek/deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Llama 70B', tier: 'budget', description: 'Powerful, great reasoning' },
+      { id: 'openai/gpt-3.5-turbo', name: 'ChatGPT 3.5 Turbo', tier: 'standard', description: 'Coding, affordable, fast' },
+      { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (OR)', tier: 'premium', description: 'Coding, agents, extended thinking' }
     ]
   },
 

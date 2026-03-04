@@ -119,7 +119,34 @@
     modelSelect.addEventListener('change', () => {
       const idx = modelSelect.value.indexOf(':');
       const provider = modelSelect.value.substring(0, idx);
-      const modelId = modelSelect.value.substring(idx + 1);
+      let modelId = modelSelect.value.substring(idx + 1);
+
+      if (provider === 'openrouter' && modelId === 'custom') {
+        const customId = prompt("Enter custom OpenRouter model ID (e.g. microsoft/wizardlm-2-8x22b):");
+        if (customId && customId.trim() !== '') {
+          modelId = customId.trim();
+          let existingOpt = Array.from(modelSelect.options).find(o => o.value === `openrouter:${modelId}`);
+          if (!existingOpt) {
+            existingOpt = document.createElement('option');
+            existingOpt.value = `openrouter:${modelId}`;
+            existingOpt.textContent = modelId + ' (Custom)';
+            const orGroup = modelSelect.querySelector('optgroup[label="OpenRouter"]');
+            if (orGroup) {
+              orGroup.insertBefore(existingOpt, orGroup.lastElementChild);
+            } else {
+              modelSelect.appendChild(existingOpt);
+            }
+          }
+          modelSelect.value = existingOpt.value;
+          saveSettings();
+        } else {
+          chrome.storage.local.get(['selectedModel'], (data) => {
+            if (data.selectedModel) modelSelect.value = data.selectedModel;
+          });
+          return;
+        }
+      }
+
       updateModelInfo(provider, modelId);
       chrome.runtime.sendMessage({ type: 'SET_MODEL', provider, modelId }).catch(() => { });
     });
@@ -127,20 +154,14 @@
 
   function updateModelInfo(provider, modelId) {
     if (!modelInfo) return;
-    const customInput = $('#custom-model-input');
-
-    if (provider === 'openrouter' && modelId === 'custom') {
-      modelInfo.innerHTML = '<span class="model-desc">Enter any valid OpenRouter model ID below.</span>';
-      if (customInput) customInput.style.display = 'block';
-      return;
-    }
-
-    if (customInput) customInput.style.display = 'none';
 
     const models = MODELS[provider] || [];
     const model = models.find(m => m.id === modelId);
     if (model) {
       modelInfo.innerHTML = `<span class="model-tier">${model.tier}</span> <span class="model-desc">${model.description || ''}</span>`;
+    } else if (modelId !== 'custom') {
+      // It must be a user-provided custom model
+      modelInfo.innerHTML = `<span class="model-tier">custom</span> <span class="model-desc">User-provided model on ${provider}</span>`;
     } else {
       modelInfo.innerHTML = '';
     }
@@ -244,18 +265,6 @@
       kbInput.addEventListener('input', () => {
         clearTimeout(kbSaveTimer);
         kbSaveTimer = setTimeout(() => {
-          saveSettings();
-        }, 800);
-      });
-    }
-
-    // Auto-save logic for Custom Model Input
-    const customInput = $('#custom-model-input');
-    let customModelTimer = null;
-    if (customInput) {
-      customInput.addEventListener('input', () => {
-        clearTimeout(customModelTimer);
-        customModelTimer = setTimeout(() => {
           saveSettings();
         }, 800);
       });
@@ -422,18 +431,20 @@
 
       if (p === 'openrouter') {
         const isKnown = MODELS.openrouter?.some(mod => mod.id === m);
-        if (!isKnown) {
-          restoredVal = 'openrouter:custom';
-          const customInput = $('#custom-model-input');
-          if (customInput) {
-            customInput.value = m;
-            customInput.style.display = 'block';
+        if (!isKnown && m !== 'custom') {
+          let existingOpt = Array.from(modelSelect.options).find(o => o.value === restoredVal);
+          if (!existingOpt) {
+            existingOpt = document.createElement('option');
+            existingOpt.value = restoredVal;
+            existingOpt.textContent = m + ' (Custom)';
+            const orGroup = modelSelect.querySelector('optgroup[label="OpenRouter"]');
+            if (orGroup) orGroup.insertBefore(existingOpt, orGroup.lastElementChild);
           }
         }
       }
 
       modelSelect.value = restoredVal;
-      updateModelInfo(p, restoredVal === 'openrouter:custom' ? 'custom' : m);
+      updateModelInfo(p, m);
     }
     if (data.geminiApiKey) $('#gemini-key').value = data.geminiApiKey;
     if (data.claudeApiKey) $('#claude-key').value = data.claudeApiKey;
@@ -466,12 +477,7 @@
     const modelVal = modelSelect ? modelSelect.value : 'gemini:gemini-2.5-flash';
     const idx = modelVal.indexOf(':');
     const provider = modelVal.substring(0, idx);
-    let modelId = modelVal.substring(idx + 1);
-
-    if (provider === 'openrouter' && modelId === 'custom') {
-      const customVal = $('#custom-model-input')?.value.trim();
-      if (customVal) modelId = customVal;
-    }
+    const modelId = modelVal.substring(idx + 1);
 
     // If the system prompt matches the default, don't save it (so AI service uses built-in default)
     const promptVal = $('#system-prompt')?.value.trim() || '';

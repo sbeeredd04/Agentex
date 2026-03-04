@@ -217,7 +217,9 @@ async function handleMessage(message, sender) {
       const models = self.config?.MODELS || {};
       return {
         gemini: models.gemini || [],
-        claude: models.claude || []
+        claude: models.claude || [],
+        groq: models.groq || [],
+        openrouter: models.openrouter || []
       };
     }
 

@@ -50,7 +50,6 @@
 
     <div class="ax-model-row">
       <select id="ax-model" class="ax-model-select"></select>
-      <input type="text" id="ax-custom-model" class="ax-textarea" placeholder="Custom Model ID..." style="display: none; margin-top: 8px; height: 32px;">
     </div>
 
     <div class="ax-gen-area">
@@ -407,40 +406,40 @@
         }
     }
 
-    const customModelInput = $('#ax-custom-model');
-
     modelSelect.addEventListener('change', () => {
         const idx = modelSelect.value.indexOf(':');
         const provider = modelSelect.value.substring(0, idx);
         let modelId = modelSelect.value.substring(idx + 1);
 
         if (provider === 'openrouter' && modelId === 'custom') {
-            if (customModelInput) customModelInput.style.display = 'block';
-            const customVal = customModelInput?.value.trim();
-            if (customVal) modelId = customVal;
-        } else {
-            if (customModelInput) customModelInput.style.display = 'none';
+            const customId = prompt("Enter custom OpenRouter model ID (e.g. microsoft/wizardlm-2-8x22b):");
+            if (customId && customId.trim() !== '') {
+                modelId = customId.trim();
+                let existingOpt = Array.from(modelSelect.options).find(o => o.value === `openrouter:${modelId}`);
+                if (!existingOpt) {
+                    existingOpt = document.createElement('option');
+                    existingOpt.value = `openrouter:${modelId}`;
+                    existingOpt.textContent = modelId + ' (Custom)';
+                    const orGroup = modelSelect.querySelector('optgroup[label="OpenRouter"]');
+                    if (orGroup) {
+                        orGroup.insertBefore(existingOpt, orGroup.lastElementChild);
+                    } else {
+                        modelSelect.appendChild(existingOpt);
+                    }
+                }
+                modelSelect.value = existingOpt.value;
+            } else {
+                chrome.storage.local.get(['selectedModel'], (data) => {
+                    if (data.selectedModel) modelSelect.value = data.selectedModel;
+                });
+                return;
+            }
         }
 
         state.provider = provider;
         state.modelId = modelId;
         chrome.runtime.sendMessage({ type: 'SET_MODEL', provider, modelId }).catch(() => { });
     });
-
-    // Auto-save logic for Custom Model Input
-    let customModelTimer = null;
-    if (customModelInput) {
-        customModelInput.addEventListener('input', () => {
-            clearTimeout(customModelTimer);
-            customModelTimer = setTimeout(() => {
-                const customVal = customModelInput.value.trim();
-                if (customVal) {
-                    state.modelId = customVal;
-                    chrome.runtime.sendMessage({ type: 'SET_MODEL', provider: 'openrouter', modelId: customVal }).catch(() => { });
-                }
-            }, 800);
-        });
-    }
 
     // ── Storage sync — react to model changes from sidebar ──
     chrome.storage.onChanged.addListener((changes) => {
@@ -453,16 +452,14 @@
                 const m = newVal.substring(idx + 1);
 
                 if (p === 'openrouter') {
-                    // Check if models arrays are ready. If not, best effort.
-                    const isKnown = (window.MODELS?.openrouter || []).some(mod => mod.id === m);
-                    // In content-panel, we don't hold MODELS statically, so we rely on the custom mapping
-                    // Assume it's custom if it's not matching existing options
                     const hasOption = Array.from(modelSelect.options).some(opt => opt.value === newVal);
-                    if (!hasOption) {
-                        restoredVal = 'openrouter:custom';
-                        if (customModelInput) {
-                            customModelInput.value = m;
-                            customModelInput.style.display = 'block';
+                    if (!hasOption && m !== 'custom') {
+                        let existingOpt = document.createElement('option');
+                        existingOpt.value = newVal;
+                        existingOpt.textContent = m + ' (Custom)';
+                        const orGroup = modelSelect.querySelector('optgroup[label="OpenRouter"]');
+                        if (orGroup) {
+                            orGroup.insertBefore(existingOpt, orGroup.lastElementChild);
                         }
                     }
                 }

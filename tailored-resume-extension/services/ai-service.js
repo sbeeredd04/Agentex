@@ -1,10 +1,13 @@
 /**
- * AI Service v4.0 — Model-Aware Resume Tailoring with Expert Guardrails
+ * AI Service v5.1 — Model-Aware Resume Tailoring with Expert Guardrails
  * 
  * Features:
- * - Dynamic model selection across Gemini & Claude
+ * - Dynamic model selection across Gemini, Claude, Groq & OpenRouter
  * - Expert-level recruiter/ATS prompts
  * - Fabrication prevention guardrails
+ * - Conditional summary generation (opt-in only)
+ * - Format preservation — content-only updates
+ * - One-page guardrail support
  * - Fallback chain & descriptive error handling
  * - Progress callbacks for UI updates
  * 
@@ -13,7 +16,7 @@
 
 class AIService {
   constructor() {
-    console.log('[AIService] Initializing v4.0');
+    console.log('[AIService] Initializing v5.1');
 
     const conf = typeof window !== 'undefined' ? window.config : self.config;
     this.currentProvider = conf?.DEFAULT_PROVIDER || 'gemini';
@@ -27,7 +30,8 @@ class AIService {
       customInstructions: '',
       focusAreas: [],
       preserveContent: [],
-      restrictChanges: []
+      restrictChanges: [],
+      onePageResume: false
     };
 
     this.guardrailSettings = {
@@ -269,7 +273,7 @@ When knowledge base provides relevant projects:
 - Keep total skill count reasonable (not a wall of text)
 
 ### 6. SECTION-SPECIFIC RULES
-- **Summary/Objective**: Rewrite to mirror the JD's opening paragraph. Use their exact role title.
+- **Summary/Objective**: ${this.userInstructions.focusAreas?.includes('summary') ? "Rewrite to mirror the JD's opening paragraph. Use their exact role title." : "DO NOT add or modify any Professional Summary or Objective section. If no summary exists in the original, do NOT create one. If one exists, keep it EXACTLY as-is."}
 - **Experience**: Maximize keyword density in the 3 most recent roles. Use strong action verbs.
 - **Projects**: Swap for KB projects with higher JD relevance. Keep same count.
 - **Skills**: Mirror JD's tech stack. Lead with their top requirements.
@@ -282,7 +286,16 @@ When knowledge base provides relevant projects:
 - NEVER change formatting structure or LaTeX packages
 - NEVER remove sections entirely
 - NEVER add fluff or generic phrases ("passionate team player," "detail-oriented")
-- NEVER exceed ±20% of original resume length`;
+- NEVER exceed ±20% of original resume length
+
+### 8. FORMAT PRESERVATION (CRITICAL)
+- Preserve the EXACT LaTeX formatting — same commands, same structure, same spacing
+- Do NOT change \\documentclass, \\usepackage, page geometry, margins, font sizes, or section formatting commands
+- Only modify TEXT CONTENT within existing commands — never modify the LaTeX commands themselves
+- Keep identical section ordering, spacing between sections, and label formatting
+- If the original uses custom LaTeX commands (e.g., \\resumeSubheading, \\resumeItem), keep them with the same structure
+- Do NOT restructure, reorder, or reorganize any LaTeX structure — only replace/update content text
+- Exception: Only change formatting if EXPLICITLY requested in the guardrails or custom instructions`;
   }
 
   _getGuardrailsPrompt(inventory) {
@@ -312,11 +325,18 @@ ${allowedSkills || 'Use only what appears in the original resume'}
 
 ### LENGTH: Output must be within ±20% of original length
 ### PROTECTED: ${this.guardrails.PROTECTED_SECTIONS?.join(', ') || 'education, contact, name'}
-${this._guardrailRules ? `\n### USER HARD RULES (MUST FOLLOW — these override other guidance):\n${this._guardrailRules.split('\n').filter(l => l.trim()).map(l => `- ${l.trim()}`).join('\n')}` : ''}`;
+${this._guardrailRules ? `\n### USER HARD RULES (MUST FOLLOW — these override other guidance):\n${this._guardrailRules.split('\n').filter(l => l.trim()).map(l => `- ${l.trim()}`).join('\n')}` : ''}${this.userInstructions.onePageResume ? `
+
+### ONE PAGE LIMIT (MANDATORY)
+- The resume MUST fit on exactly ONE page when compiled
+- Reduce bullet points, consolidate skills, shorten descriptions as needed to fit
+- Remove less relevant content to meet the 1-page constraint
+- Prioritize JD-relevant content when deciding what to keep vs cut
+- Use concise language — every word must earn its place` : ''}`;
   }
 
   _formatUserInstructions() {
-    const { customInstructions, focusAreas, preserveContent, restrictChanges } = this.userInstructions;
+    const { customInstructions, focusAreas, preserveContent, restrictChanges, onePageResume } = this.userInstructions;
 
     let block = '## USER INSTRUCTIONS:\n';
 
@@ -325,7 +345,17 @@ ${this._guardrailRules ? `\n### USER HARD RULES (MUST FOLLOW — these override 
     if (preserveContent.length > 0) block += `\n### DO NOT CHANGE:\n- ${preserveContent.join('\n- ')}\n`;
     if (restrictChanges.length > 0) block += `\n### MINIMIZE CHANGES TO:\n- ${restrictChanges.join('\n- ')}\n`;
 
-    if (!customInstructions && focusAreas.length === 0 && preserveContent.length === 0) {
+    // Explicit no-summary instruction when not opted in
+    if (!focusAreas.includes('summary')) {
+      block += `\n### SUMMARY/OBJECTIVE — DO NOT TOUCH:\n- Do NOT add, create, or modify any Professional Summary or Objective section\n- If no summary exists in the original resume, do NOT add one\n- If a summary/objective section exists, keep it EXACTLY as-is — do not change a single word\n`;
+    }
+
+    // One-page constraint
+    if (onePageResume) {
+      block += `\n### ONE PAGE CONSTRAINT:\n- The final resume MUST fit on exactly one page\n- Cut less relevant content, shorten bullet points, and consolidate where needed\n`;
+    }
+
+    if (!customInstructions && focusAreas.length === 0 && preserveContent.length === 0 && !onePageResume) {
       block += 'No specific instructions. Apply default expert optimization.\n';
     }
 
@@ -562,9 +592,10 @@ ${this._guardrailRules ? `\n### USER HARD RULES (MUST FOLLOW — these override 
     }
 
     // 2. Length deviation
+    const maxDeviation = this.userInstructions.onePageResume ? 0.35 : (this.guardrails.MAX_LENGTH_DEVIATION || 0.20);
     const deviation = Math.abs(generated.length - original.length) / original.length;
-    if (deviation > (this.guardrails.MAX_LENGTH_DEVIATION || 0.20)) {
-      errors.push(`Length deviation ${(deviation * 100).toFixed(0)}% exceeds ±20% limit`);
+    if (deviation > maxDeviation) {
+      errors.push(`Length deviation ${(deviation * 100).toFixed(0)}% exceeds ±${Math.round(maxDeviation * 100)}% limit`);
     }
 
     // 3. Fabrication detection
@@ -714,4 +745,4 @@ OUTPUT ONLY THE CORRECTED LATEX CODE:`;
 // Register globally
 if (typeof window !== 'undefined') window.AIService = AIService;
 if (typeof self !== 'undefined') self.AIService = AIService;
-console.log('[AIService] v4.0 registered');
+console.log('[AIService] v5.1 registered');

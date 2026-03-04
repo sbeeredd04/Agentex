@@ -1,8 +1,9 @@
 /**
- * Agentex Floating Panel — Content Script v4.1
+ * Agentex Floating Panel — Content Script v5.1
  * 
  * Panda icon, fixed model selector, panel scaling, dark mode,
  * model sync via storage listener, sidebar/settings buttons.
+ * Panel persists across page reloads via session storage.
  */
 
 (function () {
@@ -473,7 +474,7 @@
             state.darkMode = changes.darkMode.newValue;
             panel.classList.toggle('ax-dark', state.darkMode);
         }
-        if (changes.resumeLatex || changes.geminiApiKey || changes.claudeApiKey) {
+        if (changes.selectedModel || changes.resumeLatex || changes.geminiApiKey || changes.claudeApiKey || changes.groqApiKey || changes.openrouterApiKey) {
             refreshStatus();
         }
     });
@@ -506,6 +507,8 @@
             if (result.error) throw new Error(result.error);
 
             state.tailoredLatex = result.tailoredLatex;
+            // Persist to storage so output survives panel close/reopen
+            chrome.storage.local.set({ tailoredLatex: result.tailoredLatex }).catch(() => {});
             showOutput(result.tailoredLatex);
             body.classList.add('ax-expanded');
             // Re-clamp so expanded panel stays in viewport
@@ -663,6 +666,7 @@
             const blob = b64ToBlob(r.pdfBase64, 'application/pdf');
             const url = URL.createObjectURL(blob);
             v.innerHTML = `<iframe src="${url}#zoom=FitH" class="ax-pdf-frame"></iframe>`;
+            if (r.cached) showToast('PDF loaded from cache.', 'info', 2000);
         } catch (e) {
             v.innerHTML = `<p class="ax-empty ax-error">Failed: ${e.message}</p>`;
         }
@@ -742,9 +746,32 @@
     function b64ToBlob(b, m) { const bin = atob(b); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return new Blob([u8], { type: m }); }
 
     // ── Init ──
-    // Panel starts hidden — position & theme are set when ENABLE_PANEL is received.
-    // Only populate models and refresh status (background comms) eagerly.
+    // Panel starts hidden — check with background if panel should be enabled.
+    // This survives page reloads: background persists enabledTabs to session storage.
     populateModels();
     setTimeout(() => refreshStatus(), 500);
+
+    // Check if panel was enabled before page reload
+    try {
+        chrome.runtime.sendMessage({ type: 'GET_PANEL_STATE' }, (res) => {
+            if (chrome.runtime.lastError) return;
+            if (res?.enabled) {
+                panelEnabled = true;
+                root.style.display = '';
+                _initPosition();
+                loadTheme();
+                refreshStatus();
+                // Restore previous tailored output if available
+                chrome.storage.local.get(['tailoredLatex'], (data) => {
+                    if (data.tailoredLatex) {
+                        state.tailoredLatex = data.tailoredLatex;
+                        showOutput(data.tailoredLatex);
+                    }
+                });
+                console.log('[Agentex] Panel restored after page reload');
+            }
+        });
+    } catch (e) { /* extension context may be invalid */ }
+
     console.log('[Agentex] Panel injected (hidden until enabled from sidebar)');
 })();

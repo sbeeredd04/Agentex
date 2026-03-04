@@ -1,8 +1,9 @@
 /**
- * Agentex Background Service Worker v4.0
+ * Agentex Background Service Worker v5.1
  * 
  * Bridges: content script (floating panel) ↔ AI service ↔ side panel
  * Handles: message routing, generation, PDF compilation, state management
+ * Panel state persisted to session storage for reload survival
  */
 
 // ============================================ 
@@ -33,8 +34,21 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 // ============================================
 
 // In-memory set of tab IDs where the floating panel is enabled.
-// Resets on extension reload (correct — panels start hidden).
+// Persisted to session storage so panels survive SW restarts and page reloads.
 const enabledTabs = new Set();
+
+// Save enabledTabs to session storage
+function saveEnabledTabs() {
+  chrome.storage.session.set({ enabledTabs: [...enabledTabs] }).catch(() => {});
+}
+
+// Restore enabledTabs from session storage on SW start
+chrome.storage.session.get(['enabledTabs']).then(data => {
+  if (data.enabledTabs?.length) {
+    data.enabledTabs.forEach(id => enabledTabs.add(id));
+    console.log('[BG] Restored', enabledTabs.size, 'enabled tab(s) from session');
+  }
+}).catch(() => {});
 
 // Helper: get active tab in focused window
 async function getActiveTabId() {
@@ -45,6 +59,7 @@ async function getActiveTabId() {
 // Clean up when tabs are closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   enabledTabs.delete(tabId);
+  saveEnabledTabs();
 });
 
 // When user switches tabs, broadcast panel state so side panel can update its toggle
@@ -65,6 +80,30 @@ try {
 }
 
 let _aiService = null;
+
+// ============================================
+// PDF COMPILATION CACHE
+// ============================================
+
+// In-memory cache: hash(latex) → pdfBase64
+// Avoids redundant server calls if the LaTeX hasn't changed.
+const _pdfCache = new Map();
+const PDF_CACHE_MAX = 5; // keep last 5 compilations
+
+async function hashLatex(latex) {
+  // Use SubtleCrypto for a fast SHA-256 hash
+  const encoded = new TextEncoder().encode(latex);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function _evictCacheIfNeeded() {
+  while (_pdfCache.size > PDF_CACHE_MAX) {
+    const oldest = _pdfCache.keys().next().value;
+    _pdfCache.delete(oldest);
+  }
+}
 
 async function getAIService() {
   if (!_aiService) {
@@ -121,6 +160,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           enabledTabs.delete(tabId);
           chrome.tabs.sendMessage(tabId, { type: 'DISABLE_PANEL' }).catch(() => { });
         }
+        saveEnabledTabs();
         console.log('[BG] Panel', nowEnabled ? 'enabled' : 'disabled', 'on tab', tabId);
         sendResponse({ enabled: nowEnabled, tabId });
       } catch (e) {
@@ -133,7 +173,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'GET_PANEL_STATE') {
     (async () => {
       try {
-        const tabId = message.tabId || await getActiveTabId();
+        const tabId = message.tabId || sender.tab?.id || await getActiveTabId();
         sendResponse({ enabled: tabId ? enabledTabs.has(tabId) : false, tabId });
       } catch (e) {
         sendResponse({ enabled: false });
@@ -148,6 +188,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const tabId = message.tabId || await getActiveTabId();
         if (!tabId) { sendResponse({ error: 'No active tab' }); return; }
         enabledTabs.add(tabId);
+        saveEnabledTabs();
         chrome.tabs.sendMessage(tabId, { type: 'ENABLE_PANEL' }).catch(() => { });
         console.log('[BG] Panel force-enabled on tab', tabId);
         sendResponse({ enabled: true, tabId });
@@ -164,6 +205,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const tabId = message.tabId || await getActiveTabId();
         if (!tabId) { sendResponse({ error: 'No active tab' }); return; }
         enabledTabs.delete(tabId);
+        saveEnabledTabs();
         chrome.tabs.sendMessage(tabId, { type: 'DISABLE_PANEL' }).catch(() => { });
         console.log('[BG] Panel force-disabled on tab', tabId);
         sendResponse({ enabled: false, tabId });
@@ -258,7 +300,7 @@ async function handleMessage(message, sender) {
       const stored = await chrome.storage.local.get([
         'resumeLatex', 'originalLatex', 'knowledgeBase', 'lastKnowledgeBase',
         'focusSkills', 'focusExperience', 'focusSummary', 'focusProjects',
-        'preserveEducation', 'preserveContact', 'customInstructions'
+        'preserveEducation', 'preserveContact', 'customInstructions', 'onePageResume'
       ]);
 
       const resumeLatex = stored.resumeLatex || stored.originalLatex;
@@ -270,7 +312,7 @@ async function handleMessage(message, sender) {
       const focusAreas = [];
       if (stored.focusSkills !== false) focusAreas.push('skills');
       if (stored.focusExperience !== false) focusAreas.push('experience');
-      if (stored.focusSummary !== false) focusAreas.push('summary');
+      if (stored.focusSummary === true) focusAreas.push('summary');
       if (stored.focusProjects) focusAreas.push('projects');
 
       const preserveContent = [];
@@ -280,7 +322,8 @@ async function handleMessage(message, sender) {
       aiService.setUserInstructions({
         focusAreas,
         preserveContent,
-        customInstructions: stored.customInstructions || ''
+        customInstructions: stored.customInstructions || '',
+        onePageResume: stored.onePageResume === true
       });
 
       // Progress forwarding
@@ -302,24 +345,47 @@ async function handleMessage(message, sender) {
       }
     }
 
-    // ---- COMPILE PDF ----
+    // ---- COMPILE PDF (with cache) ----
     case 'COMPILE_PDF': {
       try {
+        const latex = message.latex;
+        const cacheKey = await hashLatex(latex);
+
+        // Return cached PDF if LaTeX hasn't changed
+        if (_pdfCache.has(cacheKey)) {
+          console.log('[BG] PDF cache hit — skipping recompile');
+          return { pdfBase64: _pdfCache.get(cacheKey), cached: true };
+        }
+
         const serverUrl = self.config?.SERVER_URL || 'https://agentex.onrender.com';
         const response = await fetch(`${serverUrl}/compile`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ latex: message.latex })
+          body: JSON.stringify({ latex })
         });
         if (!response.ok) {
           const err = await response.json().catch(() => ({}));
           throw new Error(err.error || `Server error ${response.status}`);
         }
         const pdfBuffer = await response.arrayBuffer();
-        return { pdfBase64: arrayBufferToBase64(pdfBuffer) };
+        const pdfBase64 = arrayBufferToBase64(pdfBuffer);
+
+        // Cache the result
+        _pdfCache.set(cacheKey, pdfBase64);
+        _evictCacheIfNeeded();
+        console.log('[BG] PDF compiled & cached (cache size:', _pdfCache.size, ')');
+
+        return { pdfBase64, cached: false };
       } catch (error) {
         return { error: `PDF compilation failed: ${error.message}` };
       }
+    }
+
+    // ---- CLEAR PDF CACHE ----
+    case 'CLEAR_PDF_CACHE': {
+      _pdfCache.clear();
+      console.log('[BG] PDF cache cleared');
+      return { success: true };
     }
 
     // ---- SETTINGS CHANGED ----
@@ -346,4 +412,4 @@ function arrayBufferToBase64(buffer) {
   return btoa(binary);
 }
 
-console.log('[BG] Background service worker v4.0 loaded');
+console.log('[BG] Background service worker v5.1 loaded');

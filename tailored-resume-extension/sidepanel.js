@@ -1,8 +1,9 @@
 /**
- * Agentex Side Panel Controller — v4.1 (Config Hub)
+ * Agentex Side Panel Controller — v5.1 (Config Hub)
  * 
  * Manages API keys, models, tailoring properties.
  * No longer handles generation (moved to floating panel).
+ * Bidirectional guardrail sync, panel persistence support.
  */
 
 (function () {
@@ -36,6 +37,7 @@
     setupDownloadName();
     setupStorageSync();
     setupPanelToggle();
+    setupGuardrailSync();
     await restoreState();
     updateBanner();
   }
@@ -187,6 +189,22 @@
         if (toggle) toggle.checked = dark;
       }
     });
+  }
+
+  // ── Bidirectional Guardrail Sync ──
+  function setupGuardrailSync() {
+    const pairs = [
+      ['guard-education', 'preserve-education'],
+      ['guard-contact', 'preserve-contact']
+    ];
+    for (const [guardId, preserveId] of pairs) {
+      const guardEl = $(`#${guardId}`);
+      const preserveEl = $(`#${preserveId}`);
+      if (guardEl && preserveEl) {
+        guardEl.addEventListener('change', () => { preserveEl.checked = guardEl.checked; });
+        preserveEl.addEventListener('change', () => { guardEl.checked = preserveEl.checked; });
+      }
+    }
   }
 
   // ── Per-Tab Panel Toggle ──
@@ -414,7 +432,7 @@
       'selectedModel', 'geminiApiKey', 'claudeApiKey', 'groqApiKey', 'openrouterApiKey',
       'knowledgeBase', 'focusSkills', 'focusExperience', 'focusSummary', 'focusProjects',
       'preserveEducation', 'preserveContact', 'strictMode', 'customInstructions',
-      'systemPrompt', 'guardrailRules', 'downloadName'
+      'systemPrompt', 'guardrailRules', 'downloadName', 'onePageResume'
     ]);
 
     if (data.resumeFilename && fileStatus) {
@@ -459,7 +477,10 @@
       'focus-projects': data.focusProjects,
       'strict-mode': data.strictMode,
       'preserve-education': data.preserveEducation,
-      'preserve-contact': data.preserveContact
+      'preserve-contact': data.preserveContact,
+      'guard-education': data.preserveEducation,
+      'guard-contact': data.preserveContact,
+      'guard-one-page': data.onePageResume
     })) {
       const el = $(`#${id}`);
       if (el && val !== undefined) el.checked = val;
@@ -494,11 +515,12 @@
       knowledgeBase: kbInput?.value.trim(),
       focusSkills: $('#focus-skills')?.checked ?? true,
       focusExperience: $('#focus-experience')?.checked ?? true,
-      focusSummary: $('#focus-summary')?.checked ?? true,
+      focusSummary: $('#focus-summary')?.checked ?? false,
       focusProjects: $('#focus-projects')?.checked ?? false,
       preserveEducation: $('#preserve-education')?.checked ?? true,
       preserveContact: $('#preserve-contact')?.checked ?? true,
       strictMode: $('#strict-mode')?.checked ?? true,
+      onePageResume: $('#guard-one-page')?.checked ?? false,
       customInstructions: $('#custom-instructions')?.value.trim(),
       systemPrompt: isDefaultPrompt ? '' : promptVal,
       guardrailRules: $('#guardrail-rules')?.value.trim() || '',

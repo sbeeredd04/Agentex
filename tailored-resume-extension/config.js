@@ -1,9 +1,10 @@
 /**
- * Configuration — Agentex Resume Editor v4.1
+ * Configuration — Agentex Resume Editor v5.0
  * 
  * Model registry, API endpoints, dev/prod detection, analytics helpers.
  */
 
+//import dot env from 'dotenv';
 console.log('[Config] Loading configuration module');
 
 // Detect dev mode: unpacked extension has no update_url
@@ -18,7 +19,7 @@ const IS_DEV = false;
 
 const config = {
   APP_NAME: 'Agentex Resume Editor',
-  APP_VERSION: '4.1',
+  APP_VERSION: '5.1',
   IS_DEV,
 
   // ===========================================

@@ -114,6 +114,10 @@
     shadow.appendChild(c);
     document.body.appendChild(root);
 
+    // ── Start hidden — only show when enabled from side panel ──
+    root.style.display = 'none';
+    let panelEnabled = false;
+
     // ── State ──
     let state = {
         expanded: false, generating: false,
@@ -625,6 +629,23 @@
             const w = { validate: '15%', inventory: '25%', prompt: '40%', generate: '60%', clean: '75%', retry: '80%', done: '100%', error: '100%', fallback: '55%' };
             progressFill.style.width = w[msg.stage] || '50%';
         }
+
+        // ── Panel visibility control (per-tab, from side panel via background) ──
+        if (msg.type === 'ENABLE_PANEL') {
+            panelEnabled = true;
+            root.style.display = '';
+            _initPosition();
+            loadTheme();
+            console.log('[Agentex] Panel enabled on this tab');
+        }
+        if (msg.type === 'DISABLE_PANEL') {
+            panelEnabled = false;
+            root.style.display = 'none';
+            // Collapse panel when hiding so it starts collapsed when re-enabled
+            state.expanded = false;
+            panel.classList.add('ax-collapsed');
+            console.log('[Agentex] Panel disabled on this tab');
+        }
     });
 
     // ── Toasts ──
@@ -648,9 +669,9 @@
     function b64ToBlob(b, m) { const bin = atob(b); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return new Blob([u8], { type: m }); }
 
     // ── Init ──
-    _initPosition();
-    loadTheme();
+    // Panel starts hidden — position & theme are set when ENABLE_PANEL is received.
+    // Only populate models and refresh status (background comms) eagerly.
     populateModels();
     setTimeout(() => refreshStatus(), 500);
-    console.log('[Agentex] Panel injected');
+    console.log('[Agentex] Panel injected (hidden until enabled from sidebar)');
 })();

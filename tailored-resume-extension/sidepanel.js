@@ -21,6 +21,7 @@
   const fileInput = $('#resume-upload');
   const fileStatus = $('#file-status');
   const toastContainer = $('#toast-container');
+  const panelToggle = $('#panel-toggle');
 
   document.addEventListener('DOMContentLoaded', init);
 
@@ -34,6 +35,7 @@
     setupBugReport();
     setupDownloadName();
     setupStorageSync();
+    setupPanelToggle();
     await restoreState();
     updateBanner();
   }
@@ -120,6 +122,40 @@
         applyTheme(dark);
         const toggle = $('#dark-mode-toggle');
         if (toggle) toggle.checked = dark;
+      }
+    });
+  }
+
+  // ── Per-Tab Panel Toggle ──
+  function setupPanelToggle() {
+    if (!panelToggle) return;
+
+    // Query current tab's panel state on init
+    chrome.runtime.sendMessage({ type: 'GET_PANEL_STATE' }).then(res => {
+      panelToggle.checked = !!res?.enabled;
+    }).catch(() => { panelToggle.checked = false; });
+
+    // Toggle click
+    panelToggle.addEventListener('change', async () => {
+      try {
+        const res = await chrome.runtime.sendMessage({ type: 'TOGGLE_PANEL' });
+        if (res?.error) {
+          showToast(res.error, 'error');
+          panelToggle.checked = !panelToggle.checked; // revert
+        } else {
+          panelToggle.checked = !!res?.enabled;
+          showToast(res.enabled ? 'Panel shown on this tab' : 'Panel hidden on this tab', 'info', 2000);
+        }
+      } catch (e) {
+        showToast('Could not toggle panel.', 'error');
+        panelToggle.checked = !panelToggle.checked;
+      }
+    });
+
+    // Listen for tab-switch notifications from background
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg.type === 'PANEL_STATE_CHANGED') {
+        panelToggle.checked = !!msg.enabled;
       }
     });
   }

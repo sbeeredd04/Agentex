@@ -29,6 +29,32 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 // ============================================
+// PER-TAB PANEL TRACKING
+// ============================================
+
+// In-memory set of tab IDs where the floating panel is enabled.
+// Resets on extension reload (correct — panels start hidden).
+const enabledTabs = new Set();
+
+// Helper: get active tab in focused window
+async function getActiveTabId() {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  return tab?.id ?? null;
+}
+
+// Clean up when tabs are closed
+chrome.tabs.onRemoved.addListener((tabId) => {
+  enabledTabs.delete(tabId);
+});
+
+// When user switches tabs, broadcast panel state so side panel can update its toggle
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  const enabled = enabledTabs.has(activeInfo.tabId);
+  // Send to side panel (may not be open — catch errors silently)
+  chrome.runtime.sendMessage({ type: 'PANEL_STATE_CHANGED', enabled, tabId: activeInfo.tabId }).catch(() => {});
+});
+
+// ============================================
 // LAZY-LOAD AI SERVICE (runs in SW context)
 // ============================================
 
@@ -78,6 +104,73 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           .catch(e => sendResponse({ error: `Could not open side panel: ${e.message}` }));
       });
     }
+    return true;
+  }
+
+  // TOGGLE_PANEL / GET_PANEL_STATE handled synchronously-ish here for speed
+  if (message.type === 'TOGGLE_PANEL') {
+    (async () => {
+      try {
+        const tabId = message.tabId || await getActiveTabId();
+        if (!tabId) { sendResponse({ error: 'No active tab' }); return; }
+        const nowEnabled = !enabledTabs.has(tabId);
+        if (nowEnabled) {
+          enabledTabs.add(tabId);
+          chrome.tabs.sendMessage(tabId, { type: 'ENABLE_PANEL' }).catch(() => {});
+        } else {
+          enabledTabs.delete(tabId);
+          chrome.tabs.sendMessage(tabId, { type: 'DISABLE_PANEL' }).catch(() => {});
+        }
+        console.log('[BG] Panel', nowEnabled ? 'enabled' : 'disabled', 'on tab', tabId);
+        sendResponse({ enabled: nowEnabled, tabId });
+      } catch (e) {
+        sendResponse({ error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === 'GET_PANEL_STATE') {
+    (async () => {
+      try {
+        const tabId = message.tabId || await getActiveTabId();
+        sendResponse({ enabled: tabId ? enabledTabs.has(tabId) : false, tabId });
+      } catch (e) {
+        sendResponse({ enabled: false });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === 'ENABLE_PANEL_ON_TAB') {
+    (async () => {
+      try {
+        const tabId = message.tabId || await getActiveTabId();
+        if (!tabId) { sendResponse({ error: 'No active tab' }); return; }
+        enabledTabs.add(tabId);
+        chrome.tabs.sendMessage(tabId, { type: 'ENABLE_PANEL' }).catch(() => {});
+        console.log('[BG] Panel force-enabled on tab', tabId);
+        sendResponse({ enabled: true, tabId });
+      } catch (e) {
+        sendResponse({ error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === 'DISABLE_PANEL_ON_TAB') {
+    (async () => {
+      try {
+        const tabId = message.tabId || await getActiveTabId();
+        if (!tabId) { sendResponse({ error: 'No active tab' }); return; }
+        enabledTabs.delete(tabId);
+        chrome.tabs.sendMessage(tabId, { type: 'DISABLE_PANEL' }).catch(() => {});
+        console.log('[BG] Panel force-disabled on tab', tabId);
+        sendResponse({ enabled: false, tabId });
+      } catch (e) {
+        sendResponse({ error: e.message });
+      }
+    })();
     return true;
   }
 

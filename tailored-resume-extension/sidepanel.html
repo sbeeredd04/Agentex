@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agentex</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="sidepanel.css">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&display=swap"
     rel="stylesheet">
@@ -34,6 +35,20 @@
     <div id="status-banner" class="status-banner warning" style="margin: 16px 24px 0; display: none;">
       <span class="material-icons">info</span>
       <span id="status-text">Upload a resume and add an API key to get started.</span>
+    </div>
+
+    <!-- Panel Toggle (per-tab) -->
+    <div class="panel-toggle-card">
+      <div class="toggle-setting">
+        <div class="toggle-info">
+          <span class="toggle-label panel-toggle-label">
+            <span class="material-icons panel-toggle-icon">widgets</span>
+            Show Panel on Tab
+          </span>
+          <span class="toggle-desc">Enable the floating panel on the current tab</span>
+        </div>
+        <label class="switch"><input type="checkbox" id="panel-toggle"><span class="slider"></span></label>
+      </div>
     </div>
 
     <!-- Main View -->
@@ -127,6 +142,18 @@
           </div>
           <p class="instruction-hint" style="margin-top:4px;">Used when downloading the tailored resume.</p>
         </div>
+      </div>
+
+      <!-- Feedback -->
+      <div style="display:flex; gap: 8px; padding: 0 0 8px;">
+        <button class="btn-secondary" id="btn-report-bug" style="flex:1;">
+          <span class="material-icons">bug_report</span>
+          Report a Bug
+        </button>
+        <button class="btn-secondary" id="btn-request-feature" style="flex:1;">
+          <span class="material-icons">lightbulb</span>
+          Request a Feature
+        </button>
       </div>
 
     </div>
@@ -237,14 +264,6 @@
         <button class="btn-primary" id="btn-save-settings">
           <span class="material-icons">save</span>
           Save Settings
-        </button>
-        <button class="btn-secondary" id="btn-report-bug">
-          <span class="material-icons">bug_report</span>
-          Report a Bug
-        </button>
-        <button class="btn-secondary" id="btn-request-feature">
-          <span class="material-icons">lightbulb</span>
-          Request a Feature
         </button>
       </div>
     </div>

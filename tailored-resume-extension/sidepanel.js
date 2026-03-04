@@ -219,6 +219,17 @@
       saveSettings();
       showToast('Configuration saved successfully.', 'success');
     });
+
+    // Auto-save logic for Knowledge Base
+    let kbSaveTimer = null;
+    if (kbInput) {
+      kbInput.addEventListener('input', () => {
+        clearTimeout(kbSaveTimer);
+        kbSaveTimer = setTimeout(() => {
+          saveSettings();
+        }, 800);
+      });
+    }
   }
 
   function toggleVis(id) {

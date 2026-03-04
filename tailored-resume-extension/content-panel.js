@@ -368,6 +368,30 @@
                 modelSelect.appendChild(cl);
             }
 
+            if (models?.groq?.length) {
+                const g = document.createElement('optgroup');
+                g.label = 'Groq';
+                for (const m of models.groq) {
+                    const o = document.createElement('option');
+                    o.value = `groq:${m.id}`;
+                    o.textContent = m.name;
+                    g.appendChild(o);
+                }
+                modelSelect.appendChild(g);
+            }
+
+            if (models?.openrouter?.length) {
+                const or = document.createElement('optgroup');
+                or.label = 'OpenRouter';
+                for (const m of models.openrouter) {
+                    const o = document.createElement('option');
+                    o.value = `openrouter:${m.id}`;
+                    o.textContent = m.name;
+                    or.appendChild(o);
+                }
+                modelSelect.appendChild(or);
+            }
+
             // Restore
             const stored = await chrome.storage.local.get(['selectedModel']);
             if (stored.selectedModel) {

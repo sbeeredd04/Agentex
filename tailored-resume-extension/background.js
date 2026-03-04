@@ -51,7 +51,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.tabs.onActivated.addListener((activeInfo) => {
   const enabled = enabledTabs.has(activeInfo.tabId);
   // Send to side panel (may not be open — catch errors silently)
-  chrome.runtime.sendMessage({ type: 'PANEL_STATE_CHANGED', enabled, tabId: activeInfo.tabId }).catch(() => {});
+  chrome.runtime.sendMessage({ type: 'PANEL_STATE_CHANGED', enabled, tabId: activeInfo.tabId }).catch(() => { });
 });
 
 // ============================================
@@ -116,10 +116,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const nowEnabled = !enabledTabs.has(tabId);
         if (nowEnabled) {
           enabledTabs.add(tabId);
-          chrome.tabs.sendMessage(tabId, { type: 'ENABLE_PANEL' }).catch(() => {});
+          chrome.tabs.sendMessage(tabId, { type: 'ENABLE_PANEL' }).catch(() => { });
         } else {
           enabledTabs.delete(tabId);
-          chrome.tabs.sendMessage(tabId, { type: 'DISABLE_PANEL' }).catch(() => {});
+          chrome.tabs.sendMessage(tabId, { type: 'DISABLE_PANEL' }).catch(() => { });
         }
         console.log('[BG] Panel', nowEnabled ? 'enabled' : 'disabled', 'on tab', tabId);
         sendResponse({ enabled: nowEnabled, tabId });
@@ -148,7 +148,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const tabId = message.tabId || await getActiveTabId();
         if (!tabId) { sendResponse({ error: 'No active tab' }); return; }
         enabledTabs.add(tabId);
-        chrome.tabs.sendMessage(tabId, { type: 'ENABLE_PANEL' }).catch(() => {});
+        chrome.tabs.sendMessage(tabId, { type: 'ENABLE_PANEL' }).catch(() => { });
         console.log('[BG] Panel force-enabled on tab', tabId);
         sendResponse({ enabled: true, tabId });
       } catch (e) {
@@ -164,7 +164,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const tabId = message.tabId || await getActiveTabId();
         if (!tabId) { sendResponse({ error: 'No active tab' }); return; }
         enabledTabs.delete(tabId);
-        chrome.tabs.sendMessage(tabId, { type: 'DISABLE_PANEL' }).catch(() => {});
+        chrome.tabs.sendMessage(tabId, { type: 'DISABLE_PANEL' }).catch(() => { });
         console.log('[BG] Panel force-disabled on tab', tabId);
         sendResponse({ enabled: false, tabId });
       } catch (e) {
@@ -191,15 +191,14 @@ async function handleMessage(message, sender) {
     case 'GET_STATUS': {
       const stored = await chrome.storage.local.get([
         'resumeLatex', 'originalLatex', 'lastJobDescription', 'savedJD',
-        'geminiApiKey', 'claudeApiKey',
+        'geminiApiKey', 'claudeApiKey', 'groqApiKey', 'openrouterApiKey',
         'selectedProvider', 'selectedModelId'
       ]);
 
-      // Support both storage keys (sidepanel uses resumeLatex, background uses originalLatex)
       const resumeLatex = stored.resumeLatex || stored.originalLatex || null;
       const provider = stored.selectedProvider || 'gemini';
       const modelId = stored.selectedModelId || 'gemini-2.5-flash';
-      const hasApiKey = !!(stored.geminiApiKey || stored.claudeApiKey);
+      const hasApiKey = !!(stored.geminiApiKey || stored.claudeApiKey || stored.groqApiKey || stored.openrouterApiKey);
       const modelInfo = self.config?.getModel?.(provider, modelId);
 
       return {
@@ -218,7 +217,9 @@ async function handleMessage(message, sender) {
       const models = self.config?.MODELS || {};
       return {
         gemini: models.gemini || [],
-        claude: models.claude || []
+        claude: models.claude || [],
+        groq: models.groq || [],
+        openrouter: models.openrouter || []
       };
     }
 

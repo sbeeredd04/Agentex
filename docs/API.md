@@ -143,6 +143,13 @@ Content-Type: multipart/form-data
 
 **Authentication**: API Key required
 
+**Supported Models**:
+- `gemini-2.5-flash` (Recommended)
+- `gemini-2.5-pro`
+- `gemini-2.5-flash-lite`
+- `gemini-3-flash-preview`
+- `gemini-3.1-pro-preview`
+
 **Request Structure**:
 ```json
 {
@@ -162,6 +169,33 @@ Content-Type: multipart/form-data
 
 ---
 
+### Claude API Integration
+
+**Endpoint**: `https://api.anthropic.com/v1/messages`
+
+**Authentication**: x-api-key required
+
+**Supported Models**:
+- `claude-sonnet-4-6-20260217` (Recommended)
+- `claude-opus-4-6-20260205`
+- `claude-opus-4-5-20251124`
+- `claude-haiku-4-5-20251015`
+- `claude-sonnet-4-20250514`
+
+**Request Structure**:
+```json
+{
+  "model": "claude-sonnet-4-6-20260217",
+  "max_tokens": 8192,
+  "messages": [{
+    "role": "user",
+    "content": "Your prompt here"
+  }]
+}
+```
+
+---
+
 ### Groq API Integration
 
 **Endpoint**: `https://api.groq.com/openai/v1/chat/completions`
@@ -169,13 +203,41 @@ Content-Type: multipart/form-data
 **Authentication**: Bearer token required
 
 **Supported Models**:
-- `deepseek-r1-distill-qwen-32b`
+- `llama-3.3-70b-versatile` (Recommended)
+- `llama-3.1-8b-instant`
 - `deepseek-r1-distill-llama-70b`
 
 **Request Structure**:
 ```json
 {
   "model": "deepseek-r1-distill-qwen-32b",
+  "messages": [{
+    "role": "user",
+    "content": "Your prompt here"
+  }],
+  "temperature": 0.7,
+  "max_tokens": 8192
+}
+```
+
+---
+
+### OpenRouter API Integration
+
+**Endpoint**: `https://openrouter.ai/api/v1/chat/completions`
+
+**Authentication**: Bearer token required
+
+**Supported Models**:
+- `meta-llama/llama-3.3-70b-instruct:free` (Recommended)
+- `deepseek/deepseek-r1-distill-llama-70b`
+- `openai/gpt-3.5-turbo`
+- `anthropic/claude-3.5-sonnet`
+
+**Request Structure**:
+```json
+{
+  "model": "meta-llama/llama-3.3-70b-instruct",
   "messages": [{
     "role": "user",
     "content": "Your prompt here"
@@ -213,7 +275,9 @@ const { sidebarState } = await chrome.storage.local.get('sidebarState');
 ```javascript
 await chrome.storage.local.set({
   geminiApiKey: 'your-api-key',
-  groqApiKey: 'your-groq-key'
+  claudeApiKey: 'your-claude-key',
+  groqApiKey: 'your-groq-key',
+  openrouterApiKey: 'your-openrouter-key'
 });
 ```
 
@@ -312,6 +376,8 @@ class AIService {
   async _generateWithGemini(prompt)
   
   async _generateWithGroq(prompt, model)
+  
+  async _generateWithOpenRouter(prompt, model)
   
   setCurrentModel(type, model)
 }
@@ -470,6 +536,7 @@ class ServerManager {
 ### AI API Limits
 - **Gemini**: Follow Google's API rate limits
 - **Groq**: Follow Groq's API rate limits
+- **OpenRouter**: Follow OpenRouter's rate limits (varies by model)
 - **Content Length**: Maximum 8192 tokens output
 
 ### Storage Limits

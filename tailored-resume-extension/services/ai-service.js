@@ -19,7 +19,7 @@ class AIService {
     this.currentProvider = conf?.DEFAULT_PROVIDER || 'gemini';
     this.currentModelId = conf?.DEFAULT_GEMINI_MODEL || 'gemini-2.5-flash';
 
-    this.apiKeys = { gemini: null, claude: null };
+    this.apiKeys = { gemini: null, claude: null, groq: null, openrouter: null };
     this.guardrails = conf?.GUARDRAILS || {};
     this.generation = conf?.GENERATION || {};
 
@@ -53,7 +53,7 @@ class AIService {
   async loadSettings() {
     try {
       const settings = await chrome.storage.local.get([
-        'geminiApiKey', 'claudeApiKey',
+        'geminiApiKey', 'claudeApiKey', 'groqApiKey', 'openrouterApiKey',
         'selectedProvider', 'selectedModelId',
         'systemPrompt', 'guardrailRules',
         'strictMode', 'preserveEducation', 'preserveContact'
@@ -61,6 +61,8 @@ class AIService {
 
       this.apiKeys.gemini = settings.geminiApiKey || '';
       this.apiKeys.claude = settings.claudeApiKey || '';
+      this.apiKeys.groq = settings.groqApiKey || '';
+      this.apiKeys.openrouter = settings.openrouterApiKey || '';
       this.currentProvider = settings.selectedProvider || this.currentProvider;
       this.currentModelId = settings.selectedModelId || this.currentModelId;
 
@@ -82,7 +84,9 @@ class AIService {
         provider: this.currentProvider,
         model: this.currentModelId,
         hasGeminiKey: !!this.apiKeys.gemini,
-        hasClaudeKey: !!this.apiKeys.claude
+        hasClaudeKey: !!this.apiKeys.claude,
+        hasGroqKey: !!this.apiKeys.groq,
+        hasOpenRouterKey: !!this.apiKeys.openrouter
       });
     } catch (error) {
       console.error('[AIService] Settings load error:', error);
@@ -181,7 +185,11 @@ class AIService {
       throw new Error('Please provide a job description (at least 20 characters).');
     }
     if (!this.apiKeys[this.currentProvider]) {
-      const providerName = this.currentProvider === 'gemini' ? 'Gemini' : 'Claude';
+      let providerName = this.currentProvider;
+      if (providerName === 'gemini') providerName = 'Gemini';
+      else if (providerName === 'claude') providerName = 'Claude';
+      else if (providerName === 'groq') providerName = 'Groq';
+      else if (providerName === 'openrouter') providerName = 'OpenRouter';
       throw new Error(`No ${providerName} API key configured. Go to Settings → API Keys.`);
     }
   }
@@ -405,6 +413,10 @@ ${this._guardrailRules ? `\n### USER HARD RULES (MUST FOLLOW — these override 
   async _callAI(prompt, provider, modelId) {
     if (provider === 'claude') {
       return await this._callClaude(prompt, modelId);
+    } else if (provider === 'groq') {
+      return await this._callGroq(prompt, modelId);
+    } else if (provider === 'openrouter') {
+      return await this._callOpenRouter(prompt, modelId);
     }
     return await this._callGemini(prompt, modelId);
   }
@@ -476,6 +488,59 @@ ${this._guardrailRules ? `\n### USER HARD RULES (MUST FOLLOW — these override 
 
     const data = await response.json();
     return data.content?.[0]?.text || '';
+  }
+
+  async _callGroq(prompt, modelId) {
+    const apiKey = this.apiKeys.groq;
+    if (!apiKey) throw new Error('Groq API key not configured. Add it in Settings → API Keys.');
+
+    const conf = typeof window !== 'undefined' ? window.config : self.config;
+    const endpoint = conf?.GROQ_ENDPOINT || 'https://api.groq.com/openai/v1/chat/completions';
+
+    return await this._callOpenAICompatible(prompt, modelId, endpoint, apiKey, 'Groq');
+  }
+
+  async _callOpenRouter(prompt, modelId) {
+    const apiKey = this.apiKeys.openrouter;
+    if (!apiKey) throw new Error('OpenRouter API key not configured. Add it in Settings → API Keys.');
+
+    const conf = typeof window !== 'undefined' ? window.config : self.config;
+    const endpoint = conf?.OPENROUTER_ENDPOINT || 'https://openrouter.ai/api/v1/chat/completions';
+
+    return await this._callOpenAICompatible(prompt, modelId, endpoint, apiKey, 'OpenRouter', {
+      'HTTP-Referer': 'https://github.com/sbeeredd04/Agentex',
+      'X-Title': 'Agentex Resume Tailor'
+    });
+  }
+
+  async _callOpenAICompatible(prompt, modelId, endpoint, apiKey, providerName, extraHeaders = {}) {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        ...extraHeaders
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: this.generation.temperature || 0.3,
+        max_tokens: this.generation.maxOutputTokens || 8192
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      const msg = err.error?.message || `HTTP ${response.status}`;
+      if (response.status === 429) throw new Error(`Rate limited by ${providerName}. Please wait and try again.`);
+      if (response.status === 401) throw new Error(`Invalid ${providerName} API key. Check Settings.`);
+      throw new Error(`${providerName} API error: ${msg}`);
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content;
+    if (!text) throw new Error(`Empty response from ${providerName}. Try a different model.`);
+    return text;
   }
 
   // ============================================

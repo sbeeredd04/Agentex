@@ -368,6 +368,34 @@
                 modelSelect.appendChild(cl);
             }
 
+            if (models?.groq?.length) {
+                const g = document.createElement('optgroup');
+                g.label = 'Groq';
+                for (const m of models.groq) {
+                    const o = document.createElement('option');
+                    o.value = `groq:${m.id}`;
+                    o.textContent = m.name;
+                    g.appendChild(o);
+                }
+                modelSelect.appendChild(g);
+            }
+
+            if (models?.openrouter?.length) {
+                const or = document.createElement('optgroup');
+                or.label = 'OpenRouter';
+                for (const m of models.openrouter) {
+                    const o = document.createElement('option');
+                    o.value = `openrouter:${m.id}`;
+                    o.textContent = m.name;
+                    or.appendChild(o);
+                }
+                const customOpt = document.createElement('option');
+                customOpt.value = 'openrouter:custom';
+                customOpt.textContent = 'Custom Model...';
+                or.appendChild(customOpt);
+                modelSelect.appendChild(or);
+            }
+
             // Restore
             const stored = await chrome.storage.local.get(['selectedModel']);
             if (stored.selectedModel) {
@@ -379,7 +407,35 @@
     }
 
     modelSelect.addEventListener('change', () => {
-        const [provider, modelId] = modelSelect.value.split(':');
+        const idx = modelSelect.value.indexOf(':');
+        const provider = modelSelect.value.substring(0, idx);
+        let modelId = modelSelect.value.substring(idx + 1);
+
+        if (provider === 'openrouter' && modelId === 'custom') {
+            const customId = prompt("Enter custom OpenRouter model ID (e.g. microsoft/wizardlm-2-8x22b):");
+            if (customId && customId.trim() !== '') {
+                modelId = customId.trim();
+                let existingOpt = Array.from(modelSelect.options).find(o => o.value === `openrouter:${modelId}`);
+                if (!existingOpt) {
+                    existingOpt = document.createElement('option');
+                    existingOpt.value = `openrouter:${modelId}`;
+                    existingOpt.textContent = modelId + ' (Custom)';
+                    const orGroup = modelSelect.querySelector('optgroup[label="OpenRouter"]');
+                    if (orGroup) {
+                        orGroup.insertBefore(existingOpt, orGroup.lastElementChild);
+                    } else {
+                        modelSelect.appendChild(existingOpt);
+                    }
+                }
+                modelSelect.value = existingOpt.value;
+            } else {
+                chrome.storage.local.get(['selectedModel'], (data) => {
+                    if (data.selectedModel) modelSelect.value = data.selectedModel;
+                });
+                return;
+            }
+        }
+
         state.provider = provider;
         state.modelId = modelId;
         chrome.runtime.sendMessage({ type: 'SET_MODEL', provider, modelId }).catch(() => { });
@@ -390,8 +446,25 @@
         if (changes.selectedModel) {
             const newVal = changes.selectedModel.newValue;
             if (newVal && modelSelect.value !== newVal) {
-                modelSelect.value = newVal;
-                const [p, m] = newVal.split(':');
+                let restoredVal = newVal;
+                const idx = newVal.indexOf(':');
+                const p = newVal.substring(0, idx);
+                const m = newVal.substring(idx + 1);
+
+                if (p === 'openrouter') {
+                    const hasOption = Array.from(modelSelect.options).some(opt => opt.value === newVal);
+                    if (!hasOption && m !== 'custom') {
+                        let existingOpt = document.createElement('option');
+                        existingOpt.value = newVal;
+                        existingOpt.textContent = m + ' (Custom)';
+                        const orGroup = modelSelect.querySelector('optgroup[label="OpenRouter"]');
+                        if (orGroup) {
+                            orGroup.insertBefore(existingOpt, orGroup.lastElementChild);
+                        }
+                    }
+                }
+
+                modelSelect.value = restoredVal;
                 state.provider = p;
                 state.modelId = m;
             }

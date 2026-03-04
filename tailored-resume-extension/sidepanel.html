@@ -136,8 +136,8 @@
         </div>
         <div class="input-group">
           <div style="display:flex; align-items:center; gap:6px;">
-            <input type="text" class="text-input" id="download-name"
-              placeholder="tailored-resume" style="flex:1; font-family: monospace; font-size:13px;">
+            <input type="text" class="text-input" id="download-name" placeholder="tailored-resume"
+              style="flex:1; font-family: monospace; font-size:13px;">
             <span class="instruction-hint" style="white-space:nowrap; flex-shrink:0;">.tex / .pdf</span>
           </div>
           <p class="instruction-hint" style="margin-top:4px;">Used when downloading the tailored resume.</p>
@@ -202,6 +202,24 @@
             <a href="https://console.anthropic.com/settings/keys" target="_blank" class="link-small">Get Claude API
               Key</a>
           </div>
+          <div class="input-group">
+            <label>Groq API Key <span class="optional-badge">Optional</span></label>
+            <div class="input-with-action">
+              <input type="password" class="text-input" id="groq-key" placeholder="Enter Groq API key">
+              <button class="btn-icon" id="toggle-groq-key" title="Show/Hide"><span
+                  class="material-icons">visibility</span></button>
+            </div>
+            <a href="https://console.groq.com/keys" target="_blank" class="link-small">Get Groq API Key</a>
+          </div>
+          <div class="input-group">
+            <label>OpenRouter API Key <span class="optional-badge">Optional</span></label>
+            <div class="input-with-action">
+              <input type="password" class="text-input" id="openrouter-key" placeholder="Enter OpenRouter API key">
+              <button class="btn-icon" id="toggle-openrouter-key" title="Show/Hide"><span
+                  class="material-icons">visibility</span></button>
+            </div>
+            <a href="https://openrouter.ai/keys" target="_blank" class="link-small">Get OpenRouter API Key</a>
+          </div>
         </div>
       </div>
 
@@ -248,8 +266,10 @@
           <span class="section-hint"><span class="material-icons" style="font-size:14px;">expand_more</span></span>
         </div>
         <div id="prompt-section-content" style="display:none;">
-          <p class="instruction-hint" style="margin-bottom: 8px;">This is the prompt sent to the AI. Edit to customize or click Reset to restore the default.</p>
-          <textarea class="input-area" id="system-prompt" rows="12" style="font-size: 12px; line-height: 1.5;"></textarea>
+          <p class="instruction-hint" style="margin-bottom: 8px;">This is the prompt sent to the AI. Edit to customize
+            or click Reset to restore the default.</p>
+          <textarea class="input-area" id="system-prompt" rows="12"
+            style="font-size: 12px; line-height: 1.5;"></textarea>
           <div style="display: flex; gap: 8px; margin-top: 8px;">
             <button class="btn-secondary" id="btn-reset-prompt" style="flex: 1; padding: 6px 12px; font-size: 12px;">
               <span class="material-icons" style="font-size: 14px;">restart_alt</span>

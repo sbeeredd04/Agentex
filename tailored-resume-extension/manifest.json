@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Agentex Resume Editor",
-  "version": "4.0.1",
+  "version": "5.1.0",
   "description": "AI-powered resume tailoring — Gemini & Claude with expert recruiter prompts and anti-fabrication guardrails",
   "permissions": [
     "activeTab",
@@ -14,6 +14,8 @@
   "host_permissions": [
     "https://generativelanguage.googleapis.com/*",
     "https://api.anthropic.com/*",
+    "https://api.groq.com/*",
+    "https://openrouter.ai/*",
     "https://agentex.onrender.com/*",
     "https://api.agentex.sriujjwalreddy.com/*",
     "http://localhost:3000/*"

@@ -1,10 +1,13 @@
 /**
- * AI Service v4.0 — Model-Aware Resume Tailoring with Expert Guardrails
+ * AI Service v5.1 — Model-Aware Resume Tailoring with Expert Guardrails
  * 
  * Features:
- * - Dynamic model selection across Gemini & Claude
+ * - Dynamic model selection across Gemini, Claude, Groq & OpenRouter
  * - Expert-level recruiter/ATS prompts
  * - Fabrication prevention guardrails
+ * - Conditional summary generation (opt-in only)
+ * - Format preservation — content-only updates
+ * - One-page guardrail support
  * - Fallback chain & descriptive error handling
  * - Progress callbacks for UI updates
  * 
@@ -13,7 +16,7 @@
 
 class AIService {
   constructor() {
-    console.log('[AIService] Initializing v4.0');
+    console.log('[AIService] Initializing v5.1');
 
     const conf = typeof window !== 'undefined' ? window.config : self.config;
     this.currentProvider = conf?.DEFAULT_PROVIDER || 'gemini';
@@ -27,7 +30,8 @@ class AIService {
       customInstructions: '',
       focusAreas: [],
       preserveContent: [],
-      restrictChanges: []
+      restrictChanges: [],
+      onePageResume: false
     };
 
     this.guardrailSettings = {
@@ -141,6 +145,7 @@ class AIService {
 
       // Step 3: Build expert prompt
       this._emitProgress('prompt', 'Building optimization strategy...');
+      this._hasKnowledgeBase = !!(knowledgeBase && knowledgeBase.trim().length > 0);
       const prompt = this._buildExpertPrompt(originalLatex, jobDesc, knowledgeBase, contentInventory);
 
       // Step 4: Call AI with fallback
@@ -230,9 +235,19 @@ OUTPUT ONLY THE COMPLETE LATEX CODE. NO EXPLANATIONS. NO MARKDOWN FENCES.`;
   }
 
   _getExpertSystemPrompt() {
+    const hasKB = this._hasKnowledgeBase;
     return `You are a SENIOR TECHNICAL RECRUITER with 15+ years at Fortune 500 companies. You have personally reviewed 50,000+ resumes and know exactly what makes a resume pass ATS screens and catch a hiring manager's eye in the critical 6-second scan.
 
 You are also an ATS (Applicant Tracking System) ENGINEER who understands keyword matching algorithms, section parsing, and scoring systems used by Greenhouse, Lever, Workday, Taleo, and iCIMS.
+
+## CRITICAL RULE — PRESERVE CONTENT VOLUME
+Your job is to REWRITE and OPTIMIZE existing content — NOT to remove it.
+- Keep the SAME number of bullet points in each role
+- Keep the SAME number of projects
+- Keep the SAME number of skills (you may reorder, never delete)
+- Keep ALL experience entries — do not remove any roles
+- The output should be approximately the SAME LENGTH as the input (±10%)
+- When in doubt, KEEP content and reword it rather than deleting it
 
 ## YOUR OPTIMIZATION STRATEGY:
 
@@ -249,40 +264,56 @@ A recruiter spends 6 seconds on initial scan. The TOP THIRD of the resume (name,
 - Place critical keywords in Skills section AND in experience bullet points (double-match)
 
 ### 3. ACHIEVEMENT FORMAT — STAR/XYZ
-Every bullet point MUST follow: "Accomplished [X] as measured by [Y] by doing [Z]"
+Rewrite bullet points to follow: "Accomplished [X] as measured by [Y] by doing [Z]"
 - GOOD: "Reduced API latency by 40% (from 800ms to 480ms) by implementing Redis caching layer"
 - GOOD: "Increased user retention by 25% by redesigning onboarding flow using React and A/B testing"
 - BAD: "Worked on API performance improvements" (no metric, no method)
 - BAD: "Responsible for caching" (passive, no achievement)
+- REWRITE weak bullets into this format — do NOT delete them
 
-### 4. PROJECT REPLACEMENT LOGIC
-When knowledge base provides relevant projects:
+### 4. PROJECT OPTIMIZATION
+${hasKB ? `When knowledge base provides relevant projects:
 - Calculate technology overlap with JD (threshold: 60%+)
 - Replace the LEAST relevant resume project with the MOST relevant KB project
 - Preserve the SAME LaTeX structure (\\resumeProjectHeading, \\resumeItem, etc)
 - Include specific metrics from the KB project
+- Keep the SAME total number of projects` : `No knowledge base provided:
+- Do NOT remove or replace any projects
+- REWRITE each project's description to emphasize JD-relevant technologies and outcomes
+- Add JD keywords naturally into existing project bullet points
+- Keep ALL projects and ALL bullet points — just make them more relevant`}
 
 ### 5. SKILLS SECTION OPTIMIZATION
-- Lead each category with JD-required skills
-- Add skills from KB that match JD requirements
-- Remove skills irrelevant to this specific role (they add noise)
-- Keep total skill count reasonable (not a wall of text)
+- REORDER skills so JD-required skills come first in each category
+- Add skills from ${hasKB ? 'KB' : 'the resume'} that match JD requirements
+- Do NOT delete skills — move less relevant ones to the end of their category
+- Keep the SAME total skill count (or slightly more if adding JD keywords)
 
 ### 6. SECTION-SPECIFIC RULES
-- **Summary/Objective**: Rewrite to mirror the JD's opening paragraph. Use their exact role title.
-- **Experience**: Maximize keyword density in the 3 most recent roles. Use strong action verbs.
-- **Projects**: Swap for KB projects with higher JD relevance. Keep same count.
-- **Skills**: Mirror JD's tech stack. Lead with their top requirements.
-- **Education**: ${this.guardrailSettings.preserveEducation ? 'DO NOT MODIFY — protected section.' : 'May add relevant coursework.'}
-- **Contact**: ${this.guardrailSettings.preserveContact ? 'DO NOT MODIFY — protected section.' : 'Keep unchanged.'}
+- **Summary/Objective**: ${this.userInstructions?.focusAreas?.includes('summary') ? "Rewrite to mirror the JD's opening paragraph. Use their exact role title." : "DO NOT add or modify any Professional Summary or Objective section. If no summary exists in the original, do NOT create one. If one exists, keep it EXACTLY as-is."}
+- **Experience**: Rewrite bullets to include JD keywords. Keep ALL roles and ALL bullet points — reword, never remove.
+- **Projects**: ${hasKB ? 'May swap LEAST relevant project for MOST relevant KB project. Keep same count.' : 'Rewrite descriptions for JD relevance. Do NOT remove any projects.'}
+- **Skills**: Reorder for JD relevance. Move JD-matching skills first. Keep all skills.
+- **Education**: ${this.guardrailSettings?.preserveEducation ? 'DO NOT MODIFY — protected section.' : 'May add relevant coursework.'}
+- **Contact**: ${this.guardrailSettings?.preserveContact ? 'DO NOT MODIFY — protected section.' : 'Keep unchanged.'}
 
 ### 7. WHAT NEVER TO DO
 - NEVER invent companies, roles, dates, or metrics not in the sources
-- NEVER add technologies the candidate hasn't used (per resume + KB)
+- NEVER add technologies the candidate hasn't used (per resume ${hasKB ? '+ KB' : ''})
 - NEVER change formatting structure or LaTeX packages
-- NEVER remove sections entirely
+- NEVER remove sections, roles, projects, or bullet points
+- NEVER reduce the total number of bullet points in any role
 - NEVER add fluff or generic phrases ("passionate team player," "detail-oriented")
-- NEVER exceed ±20% of original resume length`;
+- NEVER make the output significantly shorter than the input
+
+### 8. FORMAT PRESERVATION (CRITICAL)
+- Preserve the EXACT LaTeX formatting — same commands, same structure, same spacing
+- Do NOT change \\documentclass, \\usepackage, page geometry, margins, font sizes, or section formatting commands
+- Only modify TEXT CONTENT within existing commands — never modify the LaTeX commands themselves
+- Keep identical section ordering, spacing between sections, and label formatting
+- If the original uses custom LaTeX commands (e.g., \\resumeSubheading, \\resumeItem), keep them with the same structure
+- Do NOT restructure, reorder, or reorganize any LaTeX structure — only replace/update content text
+- Exception: Only change formatting if EXPLICITLY requested in the guardrails or custom instructions`;
   }
 
   _getGuardrailsPrompt(inventory) {
@@ -310,13 +341,21 @@ ${allowedSkills || 'Use only what appears in the original resume'}
 - Do NOT add new LaTeX packages
 - Keep date formats exactly as-is
 
-### LENGTH: Output must be within ±20% of original length
+### LENGTH: Output must be within ±10% of original length. Do NOT make it shorter — REWRITE content, don't remove it.
+### BULLET POINTS: Keep the SAME number of bullet points per role. Do NOT delete any.
 ### PROTECTED: ${this.guardrails.PROTECTED_SECTIONS?.join(', ') || 'education, contact, name'}
-${this._guardrailRules ? `\n### USER HARD RULES (MUST FOLLOW — these override other guidance):\n${this._guardrailRules.split('\n').filter(l => l.trim()).map(l => `- ${l.trim()}`).join('\n')}` : ''}`;
+${this._guardrailRules ? `\n### USER HARD RULES (MUST FOLLOW — these override other guidance):\n${this._guardrailRules.split('\n').filter(l => l.trim()).map(l => `- ${l.trim()}`).join('\n')}` : ''}${this.userInstructions.onePageResume ? `
+
+### ONE PAGE LIMIT (MANDATORY)
+- The resume MUST fit on exactly ONE page when compiled
+- Reduce bullet points, consolidate skills, shorten descriptions as needed to fit
+- Remove less relevant content to meet the 1-page constraint
+- Prioritize JD-relevant content when deciding what to keep vs cut
+- Use concise language — every word must earn its place` : ''}`;
   }
 
   _formatUserInstructions() {
-    const { customInstructions, focusAreas, preserveContent, restrictChanges } = this.userInstructions;
+    const { customInstructions, focusAreas, preserveContent, restrictChanges, onePageResume } = this.userInstructions;
 
     let block = '## USER INSTRUCTIONS:\n';
 
@@ -325,7 +364,17 @@ ${this._guardrailRules ? `\n### USER HARD RULES (MUST FOLLOW — these override 
     if (preserveContent.length > 0) block += `\n### DO NOT CHANGE:\n- ${preserveContent.join('\n- ')}\n`;
     if (restrictChanges.length > 0) block += `\n### MINIMIZE CHANGES TO:\n- ${restrictChanges.join('\n- ')}\n`;
 
-    if (!customInstructions && focusAreas.length === 0 && preserveContent.length === 0) {
+    // Explicit no-summary instruction when not opted in
+    if (!focusAreas.includes('summary')) {
+      block += `\n### SUMMARY/OBJECTIVE — DO NOT TOUCH:\n- Do NOT add, create, or modify any Professional Summary or Objective section\n- If no summary exists in the original resume, do NOT add one\n- If a summary/objective section exists, keep it EXACTLY as-is — do not change a single word\n`;
+    }
+
+    // One-page constraint
+    if (onePageResume) {
+      block += `\n### ONE PAGE CONSTRAINT:\n- The final resume MUST fit on exactly one page\n- Cut less relevant content, shorten bullet points, and consolidate where needed\n`;
+    }
+
+    if (!customInstructions && focusAreas.length === 0 && preserveContent.length === 0 && !onePageResume) {
       block += 'No specific instructions. Apply default expert optimization.\n';
     }
 
@@ -556,15 +605,19 @@ ${this._guardrailRules ? `\n### USER HARD RULES (MUST FOLLOW — these override 
     for (const pattern of requiredPatterns) {
       if (!pattern.test(generated)) {
         errors.push('LaTeX structure corrupted (missing \\documentclass or document environment)');
-        canRetry = false;
+        // Allow retry — the correction prompt can fix this
         break;
       }
     }
 
-    // 2. Length deviation
-    const deviation = Math.abs(generated.length - original.length) / original.length;
-    if (deviation > (this.guardrails.MAX_LENGTH_DEVIATION || 0.20)) {
-      errors.push(`Length deviation ${(deviation * 100).toFixed(0)}% exceeds ±20% limit`);
+    // 2. Length deviation (asymmetric: stricter on shrinkage)
+    const shrinkLimit = this.userInstructions?.onePageResume ? 0.35 : 0.15;
+    const growLimit = this.userInstructions?.onePageResume ? 0.50 : 0.25;
+    const rawDeviation = (generated.length - original.length) / original.length;
+    if (rawDeviation < -shrinkLimit) {
+      errors.push(`Resume shrunk by ${(Math.abs(rawDeviation) * 100).toFixed(0)}% (max allowed: ${Math.round(shrinkLimit * 100)}%). Content may have been removed.`);
+    } else if (rawDeviation > growLimit) {
+      errors.push(`Resume grew by ${(rawDeviation * 100).toFixed(0)}% (max allowed: ${Math.round(growLimit * 100)}%).`);
     }
 
     // 3. Fabrication detection
@@ -590,7 +643,14 @@ ${this._guardrailRules ? `\n### USER HARD RULES (MUST FOLLOW — these override 
       }
     }
 
-    return { valid: errors.length === 0, errors, canRetry: canRetry && errors.length <= 2 };
+    // 5. Bullet point / item count check (catch content removal)
+    const origItems = (original.match(/\\resumeItem|\\item/g) || []).length;
+    const genItems = (generated.match(/\\resumeItem|\\item/g) || []).length;
+    if (origItems > 0 && genItems < origItems * 0.75) {
+      errors.push(`Bullet points reduced from ${origItems} to ${genItems}. Do not remove content — rewrite it instead.`);
+    }
+
+    return { valid: errors.length === 0, errors, canRetry: canRetry && errors.length <= 3 };
   }
 
   _similarity(a, b) {
@@ -605,13 +665,18 @@ ${this._guardrailRules ? `\n### USER HARD RULES (MUST FOLLOW — these override 
     const prompt = `The resume tailoring output had these issues:
 ${errors.map((e, i) => `${i + 1}. ${e}`).join('\n')}
 
-Fix these issues. Keep all valid optimizations. Ensure LaTeX compiles. Do NOT fabricate.
+Fix these issues while following these CRITICAL rules:
+- Keep all valid optimizations from the failed output
+- The output MUST be approximately the same length as the ORIGINAL (±10%)
+- Do NOT remove bullet points, roles, projects, or skills — rewrite them instead
+- Ensure LaTeX compiles correctly with proper \\documentclass and \\begin{document}...\\end{document}
+- Do NOT fabricate content not present in the original
 
-ORIGINAL: \`\`\`latex\n${original}\n\`\`\`
+ORIGINAL RESUME: \`\`\`latex\n${original}\n\`\`\`
 
 FAILED OUTPUT: \`\`\`latex\n${failed}\n\`\`\`
 
-OUTPUT ONLY THE CORRECTED LATEX CODE:`;
+OUTPUT ONLY THE CORRECTED COMPLETE LATEX CODE:`;
 
     return await this._callWithFallback(prompt);
   }
@@ -696,6 +761,8 @@ OUTPUT ONLY THE CORRECTED LATEX CODE:`;
     // Create a temporary instance to get the prompt
     const temp = Object.create(AIService.prototype);
     temp.guardrailSettings = { strictMode: true, preserveEducation: true, preserveContact: true };
+    temp.userInstructions = { focusAreas: [], hardRules: '', customInstructions: '', onePageResume: false };
+    temp._hasKnowledgeBase = false;
     return temp._getExpertSystemPrompt();
   }
 
@@ -714,4 +781,4 @@ OUTPUT ONLY THE CORRECTED LATEX CODE:`;
 // Register globally
 if (typeof window !== 'undefined') window.AIService = AIService;
 if (typeof self !== 'undefined') self.AIService = AIService;
-console.log('[AIService] v4.0 registered');
+console.log('[AIService] v5.1 registered');

@@ -4,7 +4,37 @@ All notable changes to the Agentex Resume Editor project will be documented in t
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [5.1.0] - 2025
 
+### Fixed
+- **Model display sync**: Floating panel header now instantly updates when model is changed in side panel or dropdown
+- **Panel persistence on reload**: Floating panel survives page reloads — `enabledTabs` persisted to `chrome.storage.session`
+- **Settings persistence**: Guardrail toggles (`guard-education`, `guard-contact`) now bidirectionally sync with `preserve-*` toggles; all settings properly saved/restored
+- **Summary generation**: Professional Summary is now opt-in only — unchecked by default, AI won't add/modify summary unless explicitly enabled
+- **focusSummary default**: Changed from `!== false` (always true) to `=== true` (opt-in) in background.js
+
+### Added
+- **PDF compilation caching**: SHA-256 hash-based cache in background.js — skips recompilation when LaTeX is unchanged; max 5 entries with LRU eviction
+- **Resume persistence**: Generated `tailoredLatex` saved to `chrome.storage.local` and restored on panel reload
+- **Cache hit toast**: Floating panel shows "Using cached PDF" notification when cache hits
+- **`CLEAR_PDF_CACHE` message**: Allows programmatic cache invalidation
+- **"Fit to One Page" guardrail**: New toggle in Settings → AI Guardrails to force resume onto a single page
+- **Format preservation rules**: New Section 8 in expert prompt — AI only updates content text, never modifies LaTeX commands, structure, or formatting
+- **`setupGuardrailSync()`** in sidepanel.js: Bidirectional event listeners for `guard-*` ↔ `preserve-*` pairs
+- **`saveEnabledTabs()` / session restore** in background.js: Panel state persisted to `chrome.storage.session`
+- **`GET_PANEL_STATE` from content script**: Content script checks panel state on init to restore after reload
+- **One-page validation relaxation**: Length deviation limit increased to ±35% when 1-page mode is active
+- **ROADMAP.md**: Comprehensive architecture analysis, strengths/weaknesses, v5.2–v7.0+ roadmap, technical debt catalog
+
+### Changed
+- **ai-service.js**: Summary section instructions now conditional on `focusAreas.includes('summary')`
+- **ai-service.js**: `_formatUserInstructions()` adds explicit "DO NOT TOUCH" block when summary not opted-in
+- **ai-service.js**: `_getGuardrailsPrompt()` appends 1-page constraint when `onePageResume` is true
+- **sidepanel.html**: Summary checkbox unchecked by default with "(opt-in)" label
+- **content-panel.js**: Storage listener triggers `refreshStatus()` on `selectedModel` change (+ groq/openrouter key changes)
+- **background.js**: `GET_PANEL_STATE` now uses `sender.tab?.id` for accurate tab identification
+- **ARCHITECTURE.md**: Complete rewrite reflecting v5.1 architecture (removed outdated DOCX/Mammoth references)
+- Version bumped to 5.1.0 across manifest.json, config.js, all source file headers
 ## [2.1.0] - 2025
 
 ### Major Changes

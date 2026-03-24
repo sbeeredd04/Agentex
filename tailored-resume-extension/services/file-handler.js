@@ -15,7 +15,9 @@ class FileHandler {
    */
   constructor() {
     this.supportedTypes = {
-      'tex': this.handleLatex.bind(this)
+      'tex': this.handleLatex.bind(this),
+      'pdf': this.handleBinary.bind(this),
+      'docx': this.handleBinary.bind(this)
     };
     this.debug = true;
   }
@@ -41,18 +43,21 @@ class FileHandler {
   async handleFile(file) {
     const extension = file.name.split('.').pop().toLowerCase();
     const handler = this.supportedTypes[extension];
-    
+
     if (!handler) {
-      throw new Error(`Unsupported file type: ${extension}. Only LaTeX (.tex) files are supported.`);
+      throw new Error(`Unsupported file type: ${extension}. Supported formats: ${Object.keys(this.supportedTypes).map(e => '.' + e).join(', ')}`);
     }
 
-    this.log('Processing LaTeX file:', {
+    this.log('Processing file:', {
       name: file.name,
       size: file.size,
-      type: file.type
+      type: file.type,
+      extension
     });
 
-    return await handler(file);
+    const result = await handler(file);
+    result.requiresServerParsing = (extension === 'pdf' || extension === 'docx');
+    return result;
   }
 
   /**
@@ -101,6 +106,20 @@ class FileHandler {
    * @param {File} file - File to read
    * @returns {Promise<string>} File content as text
    */
+  /**
+   * Handle binary files (PDF, DOCX) — passed to server for parsing
+   * @param {File} file - Binary file
+   * @returns {Promise<Object>} File reference for server upload
+   */
+  async handleBinary(file) {
+    return {
+      type: file.name.split('.').pop().toLowerCase(),
+      file: file,
+      preview: `${file.name} (${(file.size / 1024).toFixed(1)} KB)`,
+      success: true
+    };
+  }
+
   readFileAsText(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();

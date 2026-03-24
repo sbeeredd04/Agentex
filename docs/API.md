@@ -14,6 +14,55 @@ No authentication required for local server endpoints.
 
 ---
 
+## 📄 Resume Parsing Endpoints
+
+### Parse PDF Resume
+
+Extracts text from a PDF file. Optionally structures it into resume JSON via AI.
+
+**Endpoint**: `POST /parse/pdf`
+
+**Content-Type**: `multipart/form-data`
+
+**Fields**:
+- `file` (required): PDF file
+- `provider` (optional): AI provider name (`gemini`, `claude`, `groq`, `openrouter`)
+- `apiKey` (optional): API key for the provider
+- `modelId` (optional): Model ID to use for structuring
+
+**Response**:
+```json
+{ "success": true, "rawText": "...", "resume": { ... }, "pageCount": 1 }
+```
+
+### Parse DOCX Resume
+
+Same as PDF but for DOCX files.
+
+**Endpoint**: `POST /parse/docx`
+
+**Content-Type**: `multipart/form-data`
+
+**Fields**: Same as `/parse/pdf`
+
+### Parse LinkedIn Data Export
+
+Parses a LinkedIn data export ZIP file into structured resume JSON.
+
+**Endpoint**: `POST /parse/linkedin`
+
+**Content-Type**: `multipart/form-data`
+
+**Fields**:
+- `file` (required): ZIP file from LinkedIn data export
+
+**Response**:
+```json
+{ "success": true, "resume": { ... }, "foundFiles": ["Profile.csv", ...], "warnings": [] }
+```
+
+---
+
 ## 📄 Document Compilation Endpoints
 
 ### Compile LaTeX to PDF

@@ -232,7 +232,7 @@ async function handleMessage(message, sender) {
     // ---- STATUS ----
     case 'GET_STATUS': {
       const stored = await chrome.storage.local.get([
-        'resumeLatex', 'originalLatex', 'lastJobDescription', 'savedJD',
+        'resumeLatex', 'originalLatex', 'resumeStructured', 'lastJobDescription', 'savedJD',
         'geminiApiKey', 'claudeApiKey', 'groqApiKey', 'openrouterApiKey',
         'selectedProvider', 'selectedModelId'
       ]);
@@ -244,7 +244,8 @@ async function handleMessage(message, sender) {
       const modelInfo = self.config?.getModel?.(provider, modelId);
 
       return {
-        hasResume: !!resumeLatex,
+        hasResume: !!(resumeLatex || stored.resumeStructured),
+        hasStructuredResume: !!stored.resumeStructured,
         hasApiKey,
         provider,
         modelId,
@@ -385,6 +386,17 @@ async function handleMessage(message, sender) {
     case 'CLEAR_PDF_CACHE': {
       _pdfCache.clear();
       console.log('[BG] PDF cache cleared');
+      return { success: true };
+    }
+
+    // ---- STRUCTURED RESUME ----
+    case 'GET_STRUCTURED_RESUME': {
+      const { resumeStructured } = await chrome.storage.local.get('resumeStructured');
+      return { resume: resumeStructured || null };
+    }
+
+    case 'SAVE_STRUCTURED_RESUME': {
+      await chrome.storage.local.set({ resumeStructured: message.resume });
       return { success: true };
     }
 

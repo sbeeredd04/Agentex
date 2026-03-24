@@ -22,7 +22,7 @@
           <img class="logo-icon" src="icons/icon48.png" alt="Agentex">
           <span class="logo-text">Agentex</span>
         </div>
-        <span class="version-badge">v5.1</span>
+        <span class="version-badge">v5.2</span>
       </div>
       <div class="header-right">
         <button class="btn-icon" id="btn-settings" title="Settings">
@@ -51,25 +51,238 @@
       </div>
     </div>
 
-    <!-- Main View -->
-    <div class="main-content" id="main-view">
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="import">Import</button>
+      <button class="tab-btn" data-tab="editor">Editor</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
+    </div>
+
+    <!-- ==================== IMPORT TAB ==================== -->
+    <div class="tab-pane active" id="tab-import">
 
       <!-- Resume Upload -->
-      <div class="section">
-        <div class="section-title">
+      <div class="import-section">
+        <h3 class="section-title-sm">
           <span class="material-icons section-icon">description</span>
-          <h2>Resume</h2>
-        </div>
+          Upload Resume
+        </h3>
+        <p class="section-desc">Upload a LaTeX, PDF, or DOCX file</p>
         <div class="upload-zone" id="upload-zone">
           <label class="upload-label" for="resume-upload">
             <span class="material-icons upload-icon">cloud_upload</span>
-            <span class="upload-text">Drop LaTeX file here or click to browse</span>
-            <span class="upload-hint">.tex files only</span>
+            <span class="upload-text">Drop your resume here or click to browse</span>
+            <span class="upload-hint">.tex, .pdf, .docx</span>
           </label>
-          <input type="file" id="resume-upload" accept=".tex" hidden>
+          <input type="file" id="resume-upload" accept=".tex,.pdf,.docx" hidden>
         </div>
         <div class="file-status" id="file-status"></div>
+        <div id="upload-progress" class="upload-progress" hidden>
+          <div class="progress-bar"><div class="progress-fill" id="upload-progress-fill"></div></div>
+          <span id="upload-progress-text" class="upload-progress-text">Uploading...</span>
+        </div>
       </div>
+
+      <div class="import-divider"><span>or</span></div>
+
+      <!-- LinkedIn Import -->
+      <div class="import-section">
+        <h3 class="section-title-sm">
+          <span class="material-icons section-icon">link</span>
+          Import from LinkedIn
+        </h3>
+        <div id="linkedin-auth-section">
+          <button id="linkedin-login-btn" class="btn-linkedin">
+            <span class="linkedin-icon">in</span>
+            Sign in with LinkedIn
+          </button>
+          <div id="linkedin-profile" class="linkedin-profile" hidden>
+            <span id="linkedin-name"></span>
+            <button id="linkedin-logout" class="btn-link">Sign out</button>
+          </div>
+        </div>
+        <div id="linkedin-export-section" class="linkedin-export" hidden>
+          <p class="section-desc">Upload your LinkedIn data export (ZIP file)</p>
+          <ol class="linkedin-steps">
+            <li>Go to LinkedIn Settings &gt; Data Privacy &gt; Get a copy of your data</li>
+            <li>Select the data you want and request the archive</li>
+            <li>Once received, upload the ZIP file below</li>
+          </ol>
+          <div id="linkedin-upload" class="upload-zone upload-zone-sm">
+            <label class="upload-label" for="linkedin-file">
+              <span class="material-icons upload-icon">folder_zip</span>
+              <span class="upload-text">Drop LinkedIn export ZIP here</span>
+            </label>
+            <input type="file" id="linkedin-file" accept=".zip" hidden>
+          </div>
+        </div>
+      </div>
+
+      <div class="import-divider"><span>or</span></div>
+
+      <!-- Manual Entry -->
+      <div class="import-section">
+        <h3 class="section-title-sm">
+          <span class="material-icons section-icon">edit_note</span>
+          Start from Scratch
+        </h3>
+        <button id="manual-entry-btn" class="btn-secondary">
+          <span class="material-icons">add</span>
+          Create Empty Resume
+        </button>
+      </div>
+
+      <!-- Feedback -->
+      <div style="display:flex; gap: 8px; padding: 8px 0 0;">
+        <button class="btn-secondary" id="btn-report-bug" style="flex:1;">
+          <span class="material-icons">bug_report</span>
+          Report a Bug
+        </button>
+        <button class="btn-secondary" id="btn-request-feature" style="flex:1;">
+          <span class="material-icons">lightbulb</span>
+          Request a Feature
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ==================== EDITOR TAB ==================== -->
+    <div class="tab-pane" id="tab-editor">
+
+      <div id="editor-empty" class="editor-empty">
+        <span class="material-icons">description</span>
+        <p>No resume data yet. Import a file or start from scratch.</p>
+        <button class="btn-primary" data-switch-tab="import" style="margin-top:12px; width:auto; padding:8px 20px;">Go to Import</button>
+      </div>
+
+      <div id="editor-content" class="editor-content" hidden>
+        <div class="editor-actions">
+          <button id="editor-import-btn" class="btn-secondary btn-sm">
+            <span class="material-icons">upload_file</span> Re-import
+          </button>
+          <button id="editor-generate-latex" class="btn-primary btn-sm">
+            <span class="material-icons">code</span> Generate LaTeX
+          </button>
+        </div>
+
+        <!-- Contact Section -->
+        <div class="accordion-section open" data-section="contact">
+          <button class="accordion-header">
+            <span class="material-icons">person</span>
+            Contact Info
+            <span class="material-icons accordion-arrow">expand_more</span>
+          </button>
+          <div class="accordion-body">
+            <div class="form-grid">
+              <div class="form-field"><label>Name</label><input type="text" data-field="contact.name"></div>
+              <div class="form-field"><label>Email</label><input type="email" data-field="contact.email"></div>
+              <div class="form-field"><label>Phone</label><input type="tel" data-field="contact.phone"></div>
+              <div class="form-field"><label>Location</label><input type="text" data-field="contact.location"></div>
+              <div class="form-field"><label>LinkedIn</label><input type="url" data-field="contact.linkedin"></div>
+              <div class="form-field"><label>Website</label><input type="url" data-field="contact.website"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary Section -->
+        <div class="accordion-section" data-section="summary">
+          <button class="accordion-header">
+            <span class="material-icons">notes</span>
+            Summary
+            <span class="material-icons accordion-arrow">expand_more</span>
+          </button>
+          <div class="accordion-body">
+            <textarea data-field="summary" rows="4" placeholder="Professional summary..."></textarea>
+          </div>
+        </div>
+
+        <!-- Experience Section -->
+        <div class="accordion-section" data-section="experience">
+          <button class="accordion-header">
+            <span class="material-icons">work</span>
+            Experience
+            <span class="material-icons accordion-arrow">expand_more</span>
+          </button>
+          <div class="accordion-body">
+            <div id="experience-list" class="repeatable-list"></div>
+            <button class="btn-add" data-add="experience">
+              <span class="material-icons">add</span> Add Experience
+            </button>
+          </div>
+        </div>
+
+        <!-- Education Section -->
+        <div class="accordion-section" data-section="education">
+          <button class="accordion-header">
+            <span class="material-icons">school</span>
+            Education
+            <span class="material-icons accordion-arrow">expand_more</span>
+          </button>
+          <div class="accordion-body">
+            <div id="education-list" class="repeatable-list"></div>
+            <button class="btn-add" data-add="education">
+              <span class="material-icons">add</span> Add Education
+            </button>
+          </div>
+        </div>
+
+        <!-- Skills Section -->
+        <div class="accordion-section" data-section="skills">
+          <button class="accordion-header">
+            <span class="material-icons">psychology</span>
+            Skills
+            <span class="material-icons accordion-arrow">expand_more</span>
+          </button>
+          <div class="accordion-body">
+            <div class="form-field">
+              <label>Technical Skills</label>
+              <div class="tag-input" data-field="skills.technical" data-placeholder="Type a skill and press Enter"></div>
+            </div>
+            <div class="form-field">
+              <label>Soft Skills</label>
+              <div class="tag-input" data-field="skills.soft" data-placeholder="Type a skill and press Enter"></div>
+            </div>
+            <div class="form-field">
+              <label>Languages</label>
+              <div class="tag-input" data-field="skills.languages" data-placeholder="Type a language and press Enter"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Certifications Section -->
+        <div class="accordion-section" data-section="certifications">
+          <button class="accordion-header">
+            <span class="material-icons">verified</span>
+            Certifications
+            <span class="material-icons accordion-arrow">expand_more</span>
+          </button>
+          <div class="accordion-body">
+            <div id="certifications-list" class="repeatable-list"></div>
+            <button class="btn-add" data-add="certifications">
+              <span class="material-icons">add</span> Add Certification
+            </button>
+          </div>
+        </div>
+
+        <!-- Projects Section -->
+        <div class="accordion-section" data-section="projects">
+          <button class="accordion-header">
+            <span class="material-icons">code</span>
+            Projects
+            <span class="material-icons accordion-arrow">expand_more</span>
+          </button>
+          <div class="accordion-body">
+            <div id="projects-list" class="repeatable-list"></div>
+            <button class="btn-add" data-add="projects">
+              <span class="material-icons">add</span> Add Project
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SETTINGS TAB ==================== -->
+    <div class="tab-pane" id="tab-settings">
 
       <!-- AI Model -->
       <div class="section">
@@ -143,23 +356,6 @@
           <p class="instruction-hint" style="margin-top:4px;">Used when downloading the tailored resume.</p>
         </div>
       </div>
-
-      <!-- Feedback -->
-      <div style="display:flex; gap: 8px; padding: 0 0 8px;">
-        <button class="btn-secondary" id="btn-report-bug" style="flex:1;">
-          <span class="material-icons">bug_report</span>
-          Report a Bug
-        </button>
-        <button class="btn-secondary" id="btn-request-feature" style="flex:1;">
-          <span class="material-icons">lightbulb</span>
-          Request a Feature
-        </button>
-      </div>
-
-    </div>
-
-    <!-- Settings View -->
-    <div class="main-content" id="settings-view" style="display:none;">
 
       <!-- Appearance -->
       <div class="section">
@@ -300,6 +496,10 @@
   </div>
 
   <script src="config.js"></script>
+  <script src="services/resume-schema.js"></script>
+  <script src="services/resume-editor.js"></script>
+  <script src="services/latex-template.js"></script>
+  <script src="services/linkedin-auth.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 

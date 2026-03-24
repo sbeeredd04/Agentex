@@ -31,6 +31,7 @@ RUN npm ci --production && npm cache clean --force
 
 # Copy server code
 COPY server.js ./
+COPY parsers/ ./parsers/
 COPY .env.example ./.env.example
 
 # Create temp directories

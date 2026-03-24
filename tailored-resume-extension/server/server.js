@@ -117,6 +117,9 @@ app.get('/', (req, res) => {
     endpoints: {
       'GET /health': 'Health check',
       'POST /compile': 'Compile LaTeX to PDF',
+      'POST /parse/pdf': 'Parse PDF resume',
+      'POST /parse/docx': 'Parse DOCX resume',
+      'POST /parse/linkedin': 'Parse LinkedIn data export ZIP',
       'GET /status': 'Server stats',
     }
   });
@@ -205,6 +208,96 @@ app.post('/compile', compileLimiter, async (req, res) => {
   } finally {
     // Async cleanup
     cleanupFiles(fileId).catch(() => { });
+  }
+});
+
+// ============================================
+// FILE UPLOAD & PARSING ENDPOINTS
+// ============================================
+
+const multer = require('multer');
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+});
+
+const { parsePdf } = require('./parsers/pdf-parser');
+const { parseDocx } = require('./parsers/docx-parser');
+const { parseLinkedinExport } = require('./parsers/linkedin-parser');
+const { structureWithAI } = require('./parsers/ai-structurer');
+
+// --- PDF Parse ---
+app.post('/parse/pdf', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const result = await parsePdf(req.file.buffer);
+    if (!result.success) {
+      return res.json(result);
+    }
+
+    const { provider, apiKey, modelId } = req.body;
+    if (provider && apiKey && modelId) {
+      try {
+        const structured = await structureWithAI(result.rawText, provider, apiKey, modelId);
+        return res.json({ success: true, resume: structured, rawText: result.rawText });
+      } catch (aiError) {
+        console.error('AI structuring failed, returning raw text:', aiError.message);
+        return res.json({ success: true, rawText: result.rawText, structuringFailed: true });
+      }
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('PDF parse error:', error.message);
+    res.status(500).json({ error: 'Failed to parse PDF', details: error.message });
+  }
+});
+
+// --- DOCX Parse ---
+app.post('/parse/docx', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const result = await parseDocx(req.file.buffer);
+    if (!result.success) {
+      return res.json(result);
+    }
+
+    const { provider, apiKey, modelId } = req.body;
+    if (provider && apiKey && modelId) {
+      try {
+        const structured = await structureWithAI(result.rawText, provider, apiKey, modelId);
+        return res.json({ success: true, resume: structured, rawText: result.rawText });
+      } catch (aiError) {
+        console.error('AI structuring failed, returning raw text:', aiError.message);
+        return res.json({ success: true, rawText: result.rawText, structuringFailed: true });
+      }
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('DOCX parse error:', error.message);
+    res.status(500).json({ error: 'Failed to parse DOCX', details: error.message });
+  }
+});
+
+// --- LinkedIn Export Parse ---
+app.post('/parse/linkedin', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const result = parseLinkedinExport(req.file.buffer);
+    res.json(result);
+  } catch (error) {
+    console.error('LinkedIn parse error:', error.message);
+    res.status(500).json({ error: 'Failed to parse LinkedIn export', details: error.message });
   }
 });
 
